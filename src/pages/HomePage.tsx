@@ -38,28 +38,28 @@ const GAMES: GameCardData[] = [
     icon: <DiamondIcon sx={{ fontSize: 56, color: '#a855f7' }} />,
   },
   {
-    id: 'slots', title: 'Fortune Spin', provider: 'Pragmatic Play', rtp: '96.50%', players: 4512,
+    id: 'slots', title: 'Fortune Spin', provider: 'Pragmatic Play', rtp: '96.50%', players: 4512, path: '/slots',
     gradient: 'linear-gradient(135deg, #0a1505 0%, #103000 50%, #00ff0022 100%)',
     icon: <SportsEsportsIcon sx={{ fontSize: 56, color: neonGreen }} />,
   },
   {
     id: 'roulette', title: 'Lightning Roulette', provider: 'Evolution', rtp: '97.30%', players: 2156,
-    badge: 'LIVE', badgeColor: '#ff9f43',
+    badge: 'LIVE', badgeColor: '#ff9f43' , path: '/roulette',
     gradient: 'linear-gradient(135deg, #1a1000 0%, #402200 50%, #ff880022 100%)',
     icon: <Box sx={{ fontSize: 56 }}>🎡</Box>,
   },
   {
-    id: 'blackjack', title: 'Speed Blackjack', provider: 'Evolution', rtp: '99.54%', players: 891,
+    id: 'blackjack', title: 'Speed Blackjack', provider: 'Evolution', rtp: '99.54%', players: 891, path: '/blackjack',
     gradient: 'linear-gradient(135deg, #001515 0%, #003030 50%, #00ffff22 100%)',
     icon: <Box sx={{ fontSize: 56 }}>🃏</Box>,
   },
   {
-    id: 'baccarat', title: 'Baccarat Deluxe', provider: 'Playtech', rtp: '98.76%', players: 1204,
+    id: 'baccarat', title: 'Baccarat Deluxe', provider: 'Playtech', rtp: '98.76%', players: 1204, path: '/baccarat',
     gradient: 'linear-gradient(135deg, #10000a 0%, #300015 50%, #ff006622 100%)',
     icon: <Box sx={{ fontSize: 56 }}>👑</Box>,
   },
   {
-    id: 'mines', title: 'Mines', provider: 'Nexus Originals', rtp: '99.00%', players: 2789,
+    id: 'mines', title: 'Mines', provider: 'Nexus Originals', rtp: '99.00%', players: 2789, path: '/mines',
     badge: 'HOT', badgeColor: '#ff4757',
     gradient: 'linear-gradient(135deg, #050a00 0%, #102000 50%, #44ff0022 100%)',
     icon: <Box sx={{ fontSize: 56 }}>💣</Box>,
