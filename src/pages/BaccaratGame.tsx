@@ -6,6 +6,8 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 type Suit = '♠' | '♥' | '♦' | '♣';
 type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
@@ -73,7 +75,9 @@ function BaccaratCard({ card, delay = 0 }: { card: Card; delay?: number }) {
 }
 
 export default function BaccaratGame() {
-  const [betAmount, setBetAmount] = useState('0.01');
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [betChoice, setBetChoice] = useState<BetChoice>('player');
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [bankerHand, setBankerHand] = useState<Card[]>([]);
@@ -82,7 +86,16 @@ export default function BaccaratGame() {
   const [history, setHistory] = useState<RoundResult[]>([]);
   const [stats, setStats] = useState({ rounds: 0, won: 0, lost: 0, tied: 0 });
 
-  function deal() {
+  async function deal() {
+    const stake = Math.max(0, parseFloat(betAmount) || 0);
+    const placed = await wallet.placeBet({
+      gameId: 'baccarat',
+      gameName: 'Baccarat',
+      stake,
+      details: `On ${betChoice.toUpperCase()}`,
+    });
+    if (!placed) return;  // auth/balance gate
+
     const deck = makeDeck();
     const p: Card[] = [deck.pop()!, deck.pop()!];
     const b: Card[] = [deck.pop()!, deck.pop()!];
@@ -106,7 +119,7 @@ export default function BaccaratGame() {
       else if (pTotal > bTotal) winner = 'player';
       else winner = 'banker';
 
-      const bet = parseFloat(betAmount) || 0.01;
+      const bet = stake;
       let payout = -bet;
       if (winner === betChoice) {
         if (betChoice === 'tie') payout = bet * 8;
@@ -126,6 +139,19 @@ export default function BaccaratGame() {
         lost: prev.lost + (winner !== betChoice && !(winner === 'tie' && betChoice !== 'tie') ? 1 : 0),
         tied: prev.tied + (winner === 'tie' ? 1 : 0),
       }));
+
+      // Map the local `payout` (which is profit/-bet) onto the wallet model
+      // (total amount returned to the user).
+      const totalReturned = winner === betChoice
+        ? bet + payout                                 // win → stake + winnings
+        : (winner === 'tie' && betChoice !== 'tie')
+          ? bet                                        // push → refund stake
+          : 0;                                         // straight loss
+      void wallet.settleBet(placed.id, {
+        won: winner === betChoice,
+        payout: totalReturned,
+        details: `Player ${pTotal} · Banker ${bTotal} · Winner: ${winner}`,
+      });
     }, 1600);
   }
 

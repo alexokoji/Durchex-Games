@@ -9,10 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import BoltIcon from '@mui/icons-material/Bolt';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
-import CasinoIcon from '@mui/icons-material/Casino';
-import DiamondIcon from '@mui/icons-material/Diamond';
-import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
 import StarIcon from '@mui/icons-material/Star';
 import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
@@ -23,50 +19,77 @@ const GAMES: GameCardData[] = [
     id: 'crash', title: 'Crash', provider: 'Nexus Originals', rtp: '99.00%', players: 1842,
     badge: 'HOT', badgeColor: '#ff4757', path: '/crash',
     gradient: 'linear-gradient(135deg, #1a0a0a 0%, #3d0000 50%, #ff1a1a22 100%)',
-    icon: <ShowChartIcon sx={{ fontSize: 56, color: '#ff4757' }} />,
+    image: '/assets/Games Images/Crash.png',
   },
   {
     id: 'dice', title: 'Dice', provider: 'Nexus Originals', rtp: '99.00%', players: 3201,
     badge: 'POPULAR', badgeColor: neonBlue, path: '/dice',
     gradient: 'linear-gradient(135deg, #0a1020 0%, #001540 50%, #0044ff22 100%)',
-    icon: <CasinoIcon sx={{ fontSize: 56, color: neonBlue }} />,
+    image: '/assets/Games Images/Dice.png',
   },
   {
     id: 'plinko', title: 'Plinko', provider: 'Nexus Originals', rtp: '99.00%', players: 987,
     badge: 'NEW', badgeColor: '#a855f7', path: '/plinko',
     gradient: 'linear-gradient(135deg, #0e0a1a 0%, #200040 50%, #aa00ff22 100%)',
-    icon: <DiamondIcon sx={{ fontSize: 56, color: '#a855f7' }} />,
+    image: '/assets/Games Images/Plinko.png',
   },
   {
-    id: 'slots', title: 'Fortune Spin', provider: 'Pragmatic Play', rtp: '96.50%', players: 4512, path: '/slots',
+    id: 'slots', title: 'Fortune Spin', provider: 'Pragmatic Play', rtp: '96.50%', players: 4512,
     gradient: 'linear-gradient(135deg, #0a1505 0%, #103000 50%, #00ff0022 100%)',
-    icon: <SportsEsportsIcon sx={{ fontSize: 56, color: neonGreen }} />,
+    image: '/assets/Games Images/Spin.png',
+    path: '/slots',
   },
   {
     id: 'roulette', title: 'Lightning Roulette', provider: 'Evolution', rtp: '97.30%', players: 2156,
-    badge: 'LIVE', badgeColor: '#ff9f43' , path: '/roulette',
+    badge: 'LIVE', badgeColor: '#ff9f43', path: '/roulette',
     gradient: 'linear-gradient(135deg, #1a1000 0%, #402200 50%, #ff880022 100%)',
-    icon: <Box sx={{ fontSize: 56 }}>🎡</Box>,
+    image: '/assets/Games Images/Roulette.png',
   },
   {
-    id: 'blackjack', title: 'Speed Blackjack', provider: 'Evolution', rtp: '99.54%', players: 891, path: '/blackjack',
+    id: 'blackjack', title: 'Speed Blackjack', provider: 'Evolution', rtp: '99.54%', players: 891,
     gradient: 'linear-gradient(135deg, #001515 0%, #003030 50%, #00ffff22 100%)',
-    icon: <Box sx={{ fontSize: 56 }}>🃏</Box>,
+    image: '/assets/Games Images/Blackjack.png',
+    path: '/blackjack',
   },
   {
-    id: 'baccarat', title: 'Baccarat Deluxe', provider: 'Playtech', rtp: '98.76%', players: 1204, path: '/baccarat',
+    id: 'baccarat', title: 'Baccarat Deluxe', provider: 'Playtech', rtp: '98.76%', players: 1204,
     gradient: 'linear-gradient(135deg, #10000a 0%, #300015 50%, #ff006622 100%)',
-    icon: <Box sx={{ fontSize: 56 }}>👑</Box>,
+    image: '/assets/Games Images/Baccarat.png',
+    path: '/baccarat',
   },
   {
-    id: 'mines', title: 'Mines', provider: 'Nexus Originals', rtp: '99.00%', players: 2789, path: '/mines',
-    badge: 'HOT', badgeColor: '#ff4757',
+    id: 'mines', title: 'Mines', provider: 'Nexus Originals', rtp: '99.00%', players: 2789,
+    badge: 'HOT', badgeColor: '#ff4757', path: '/mines',
     gradient: 'linear-gradient(135deg, #050a00 0%, #102000 50%, #44ff0022 100%)',
-    icon: <Box sx={{ fontSize: 56 }}>💣</Box>,
+    image: '/assets/Games Images/Mines.png',
+  },
+  {
+    id: 'soccer', title: 'Virtual Soccer', provider: 'Nexus Sports', rtp: '97.50%', players: 1523,
+    gradient: 'linear-gradient(135deg, #0a1510 0%, #102015 50%, #00ff3322 100%)',
+    image: '/assets/Games Images/Soccer.png',
+    path: '/virtual/soccer',
+  },
+  {
+    id: 'basketball', title: 'Virtual Basketball', provider: 'Nexus Sports', rtp: '97.50%', players: 1287,
+    gradient: 'linear-gradient(135deg, #1a0505 0%, #301010 50%, #ff6b3322 100%)',
+    image: '/assets/Games Images/Basketball.png',
+    path: '/virtual/basketball',
+  },
+  {
+    id: 'hockey', title: 'Virtual Hockey', provider: 'Nexus Sports', rtp: '97.50%', players: 892,
+    gradient: 'linear-gradient(135deg, #050a15 0%, #101520 50%, #0088ff22 100%)',
+    image: '/assets/Games Images/Hockey.png',
+    path: '/virtual/hockey',
+  },
+  {
+    id: 'horse-race', title: 'Horse Racing', provider: 'Nexus Sports', rtp: '97.50%', players: 2104,
+    badge: 'LIVE', badgeColor: '#ff9f43', path: '/virtual/horseracing',
+    gradient: 'linear-gradient(135deg, #15090a 0%, #2d0f0a 50%, #ff802222 100%)',
+    image: '/assets/Games Images/Horse Racing.png',
   },
 ];
 
-const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'New'];
+const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'];
 
 const LIVE_WINS = [
   { user: 'Satoshi99', game: 'Crash', mult: '24.5x', amount: '0.012 BTC', color: '#ff4757' },

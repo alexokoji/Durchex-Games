@@ -6,6 +6,8 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 const SYMBOLS = ['7️⃣', '🍒', '🍋', '🍊', '🍇', '💎', '⭐', '🔔'];
 const SYMBOL_MULTIPLIERS: Record<string, number> = {
@@ -69,25 +71,34 @@ interface SpinHistory {
 }
 
 export default function SlotsGame() {
-  const [betAmount, setBetAmount] = useState('0.01');
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [grid, setGrid] = useState<string[][]>(generateGrid());
   const [spinning, setSpinning] = useState(false);
   const [wins, setWins] = useState<WinLine[]>([]);
   const [history, setHistory] = useState<SpinHistory[]>([]);
   const [totalWin, setTotalWin] = useState<number | null>(null);
-  const [reelOffsets, setReelOffsets] = useState([0, 0, 0, 0, 0]);
+  const [, setReelOffsets] = useState([0, 0, 0, 0, 0]);
   const [stats, setStats] = useState({ spins: 0, totalWagered: 0, totalWon: 0 });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
-  function spin() {
+  async function spin() {
     if (spinning) return;
+    const bet = parseFloat(betAmount) || 0.01;
+    const placed = await wallet.placeBet({
+      gameId: 'slots',
+      gameName: 'Fortune Spin',
+      stake: bet,
+      details: `${PAYLINES} paylines`,
+    });
+    if (!placed) return;  // auth/balance gate
+
     setSpinning(true);
     setWins([]);
     setTotalWin(null);
-
-    const bet = parseFloat(betAmount) || 0.01;
 
     // Animate reels sequentially
     const tempGrids: string[][][] = Array.from({ length: 20 }, generateGrid);
@@ -114,6 +125,14 @@ export default function SlotsGame() {
           totalWagered: prev.totalWagered + bet,
           totalWon: prev.totalWon + winAmt,
         }));
+        void wallet.settleBet(placed.id, {
+          won: winLines.length > 0,
+          multiplier: winLines.length > 0 ? totalMult : undefined,
+          payout: winAmt,
+          details: winLines.length > 0
+            ? `${winLines.length} payline${winLines.length > 1 ? 's' : ''} · ${totalMult}×`
+            : 'No paylines hit',
+        });
         setSpinning(false);
       }
     }, 60);

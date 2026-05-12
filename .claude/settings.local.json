@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($out = npm run build 2>&1; \"EXIT: $LASTEXITCODE\"; $out | Select-Object -Last 80 | Out-String)",
+      "PowerShell($out = npm run build 2>&1; \"EXIT: $LASTEXITCODE\"; \\($out | Out-String\\) -split \"`n\" | Where-Object { $_ -match 'error TS|EXIT|built in|warning' } | Select-Object -Last 30)",
+      "PowerShell(Set-Location server; npm install --no-audit --no-fund --silent 2>&1 | Select-Object -Last 30; \"EXIT: $LASTEXITCODE\")",
+      "PowerShell(Set-Location server; $out = npm run typecheck 2>&1; \"EXIT: $LASTEXITCODE\"; $out | Select-Object -Last 40 | Out-String)"
+    ]
+  }
+}

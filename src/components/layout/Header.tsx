@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   AppBar, Toolbar, Box, Typography, IconButton, Button, Avatar,
   InputBase, Badge, Chip, Tooltip,
@@ -9,9 +9,19 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MenuIcon from '@mui/icons-material/Menu';
+import PersonIcon from '@mui/icons-material/Person';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import WalletModal from '../wallet/WalletModal';
+import BalanceMenu from '../wallet/BalanceMenu';
+import NotificationsMenu from '../notifications/NotificationsMenu';
+import ProfileMenu from '../profile/ProfileMenu';
+import { useAuth } from '../../contexts/AuthContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { formatMoney, symbolOf } from '../../utils/currency';
+import DiGLogo from './DiGLogo';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -19,7 +29,30 @@ interface HeaderProps {
 
 export default function Header({ onToggleSidebar }: HeaderProps) {
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, signOut, openAuthPrompt } = useAuth();
+  const { balance, currency } = useWallet();
+  const { unreadCount: liveUnread } = useNotifications();
+
   const [walletOpen, setWalletOpen] = useState(false);
+
+  const balanceAnchor = useRef<HTMLDivElement | null>(null);
+  const notifAnchor = useRef<HTMLButtonElement | null>(null);
+  const profileAnchor = useRef<HTMLDivElement | null>(null);
+
+  const [balanceOpen, setBalanceOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const unreadCount = liveUnread;
+
+  function handleDepositClick() {
+    if (!isAuthenticated) {
+      openAuthPrompt();
+      return;
+    }
+    setWalletOpen(true);
+  }
 
   return (
     <>
@@ -35,24 +68,13 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
         }}
       >
         <Toolbar sx={{ height: 64, gap: 1, px: { xs: 1, md: 2 } }}>
-          {/* Menu toggle */}
           <IconButton onClick={onToggleSidebar} size="small" sx={{ mr: 0.5 }}>
             <MenuIcon fontSize="small" />
           </IconButton>
 
-          {/* Logo */}
-          <motion.div whileHover={{ scale: 1.03 }}>
+          <motion.div whileHover={{ scale: 1.03 }} onClick={() => navigate('/')}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}>
-              <Box
-                sx={{
-                  width: 32, height: 32, borderRadius: '8px',
-                  background: `linear-gradient(135deg, ${neonGreen}, ${neonBlue})`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: `0 0 15px ${alpha(neonGreen, 0.5)}`,
-                }}
-              >
-                <Typography sx={{ fontSize: '1rem', fontWeight: 900, color: '#000' }}>N</Typography>
-              </Box>
+              <DiGLogo size={36} />
               <Typography
                 variant="h6"
                 sx={{
@@ -61,14 +83,14 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   display: { xs: 'none', sm: 'block' },
+                  letterSpacing: '-0.01em',
                 }}
               >
-                NEXUS.BET
+                DURCHEXiGAMES
               </Typography>
             </Box>
           </motion.div>
 
-          {/* Search */}
           <Box
             sx={{
               display: { xs: 'none', md: 'flex' },
@@ -97,44 +119,54 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
 
           <Box sx={{ flex: 1 }} />
 
-          {/* Balance */}
-          <Box
-            sx={{
-              display: { xs: 'none', sm: 'flex' },
-              alignItems: 'center',
-              background: alpha('#fff', 0.04),
-              border: `1px solid ${darkBorder}`,
-              borderRadius: 2,
-              px: 1.5,
-              py: 0.8,
-              gap: 1,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              '&:hover': { borderColor: alpha(neonGold, 0.4) },
-            }}
-          >
+          {isAuthenticated && (
             <Box
+              ref={balanceAnchor}
+              onClick={() => setBalanceOpen(true)}
               sx={{
-                width: 20, height: 20, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #f7931a, #ffb347)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: { xs: 'none', sm: 'flex' },
+                alignItems: 'center',
+                background: alpha('#fff', 0.04),
+                border: `1px solid ${balanceOpen ? alpha(neonGold, 0.4) : darkBorder}`,
+                borderRadius: 2,
+                px: 1.5,
+                py: 0.8,
+                gap: 1,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': { borderColor: alpha(neonGold, 0.4) },
               }}
             >
-              <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: '#000' }}>₿</Typography>
+              <Box
+                sx={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${neonGold}, #cc8800)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 900, color: '#000' }}>
+                  {symbolOf(currency).slice(0, 2)}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: neonGold, fontVariantNumeric: 'tabular-nums' }}>
+                {formatMoney(balance, currency)}
+              </Typography>
+              <ExpandMoreIcon
+                sx={{
+                  fontSize: 16, color: 'text.secondary',
+                  transition: 'transform 0.2s',
+                  transform: balanceOpen ? 'rotate(180deg)' : 'rotate(0)',
+                }}
+              />
             </Box>
-            <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: neonGold }}>
-              0.04821
-            </Typography>
-            <ExpandMoreIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-          </Box>
+          )}
 
-          {/* Deposit button */}
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
             <Button
               variant="contained"
               size="small"
               startIcon={<AccountBalanceWalletIcon sx={{ fontSize: 16 }} />}
-              onClick={() => setWalletOpen(true)}
+              onClick={handleDepositClick}
               sx={{
                 background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
                 color: '#000',
@@ -150,44 +182,90 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
             </Button>
           </motion.div>
 
-          {/* Notifications */}
-          <IconButton size="small">
-            <Badge badgeContent={3} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem' } }}>
-              <NotificationsIcon sx={{ fontSize: 20 }} />
-            </Badge>
-          </IconButton>
+          {isAuthenticated && (
+            <IconButton
+              ref={notifAnchor}
+              size="small"
+              onClick={() => setNotifOpen(true)}
+            >
+              <Badge
+                badgeContent={unreadCount}
+                color="error"
+                sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem' } }}
+              >
+                <NotificationsIcon sx={{ fontSize: 20 }} />
+              </Badge>
+            </IconButton>
+          )}
 
-          {/* Avatar */}
-          <Tooltip title="Profile">
-            <motion.div whileHover={{ scale: 1.05 }}>
+          <Tooltip title={isAuthenticated ? user!.username : 'Sign in'}>
+            <motion.div
+              ref={profileAnchor}
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setProfileOpen(true)}
+              style={{ cursor: 'pointer' }}
+            >
               <Avatar
                 sx={{
-                  width: 34, height: 34, cursor: 'pointer',
-                  background: `linear-gradient(135deg, ${neonBlue}, #0080aa)`,
-                  border: `2px solid ${alpha(neonBlue, 0.4)}`,
+                  width: 34, height: 34,
+                  background: isAuthenticated
+                    ? `linear-gradient(135deg, ${neonBlue}, #0080aa)`
+                    : alpha('#fff', 0.06),
+                  border: `2px solid ${isAuthenticated ? alpha(neonBlue, 0.4) : darkBorder}`,
                   fontSize: '0.8rem', fontWeight: 700,
                 }}
               >
-                VX
+                {isAuthenticated
+                  ? user!.initials
+                  : <PersonIcon sx={{ fontSize: 18, color: 'text.secondary' }} />}
               </Avatar>
             </motion.div>
           </Tooltip>
 
-          {/* VIP Chip */}
-          <Chip
-            label="VIP 5"
-            size="small"
-            sx={{
-              background: `linear-gradient(135deg, ${neonGold}, #cc8800)`,
-              color: '#000',
-              fontWeight: 800,
-              fontSize: '0.65rem',
-              height: 22,
-              display: { xs: 'none', lg: 'flex' },
-            }}
-          />
+          {isAuthenticated && (
+            <Chip
+              label={`VIP ${user!.vipLevel}`}
+              size="small"
+              sx={{
+                background: `linear-gradient(135deg, ${neonGold}, #cc8800)`,
+                color: '#000',
+                fontWeight: 800,
+                fontSize: '0.65rem',
+                height: 22,
+                display: { xs: 'none', lg: 'flex' },
+              }}
+            />
+          )}
         </Toolbar>
       </AppBar>
+
+      {isAuthenticated && (
+        <>
+          <BalanceMenu
+            anchorEl={balanceAnchor.current}
+            open={balanceOpen}
+            onClose={() => setBalanceOpen(false)}
+            onDeposit={() => setWalletOpen(true)}
+            onWithdraw={() => setWalletOpen(true)}
+          />
+
+          <NotificationsMenu
+            anchorEl={notifAnchor.current}
+            open={notifOpen}
+            onClose={() => setNotifOpen(false)}
+          />
+        </>
+      )}
+
+      <ProfileMenu
+        anchorEl={profileAnchor.current}
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        isAuthenticated={isAuthenticated}
+        user={user ?? undefined}
+        onSignInClick={openAuthPrompt}
+        onLogout={signOut}
+      />
 
       <WalletModal open={walletOpen} onClose={() => setWalletOpen(false)} />
     </>

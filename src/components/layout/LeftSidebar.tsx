@@ -8,13 +8,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CasinoIcon from '@mui/icons-material/Casino';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
-import TableRestaurantIcon from '@mui/icons-material/TableRestaurant';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import HomeIcon from '@mui/icons-material/Home';
+import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import SportsBasketballIcon from '@mui/icons-material/SportsBasketball';
+import SportsHockeyIcon from '@mui/icons-material/SportsHockey';
+import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
+import HistoryIcon from '@mui/icons-material/History';
+import PersonIcon from '@mui/icons-material/Person';
 import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
-import BoltIcon from '@mui/icons-material/Bolt';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import GrassIcon from '@mui/icons-material/Grass';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkSurface } from '../../theme';
 
 const SIDEBAR_WIDTH = 220;
@@ -26,29 +29,44 @@ interface LeftSidebarProps {
 
 const navItems = [
   {
-    section: 'CASINO',
+    section: 'HOUSE',
     items: [
-      { label: 'Originals', icon: <BoltIcon />, path: '/', color: neonGreen },
-      { label: 'Crash', icon: <ShowChartIcon />, path: '/crash', color: '#ff4757' },
-      { label: 'Dice', icon: <CasinoIcon />, path: '/dice', color: neonBlue },
-      { label: 'Plinko', icon: <DiamondIcon />, path: '/plinko', color: '#a855f7' },
+      { label: 'Home',     icon: <HomeIcon />,     path: '/',         color: neonGreen },
     ],
   },
   {
-    section: 'GAMES',
+    section: 'ORIGINALS',
     items: [
-      { label: 'Slots', icon: <SportsEsportsIcon />, path: '/slots', color: '#ff9f43' },
-      { label: 'Live Casino', icon: <TableRestaurantIcon />, path: '/live', color: '#ee5a24' },
-      { label: 'Table Games', icon: <CasinoIcon />, path: '/tables', color: neonBlue },
+      { label: 'Crash',     icon: <ShowChartIcon />,      path: '/crash',     color: '#ff4757' },
+      { label: 'Dice',      icon: <CasinoIcon />,         path: '/dice',      color: neonBlue },
+      { label: 'Plinko',    icon: <DiamondIcon />,        path: '/plinko',    color: '#a855f7' },
+      { label: 'Mines',     icon: <GrassIcon />,          path: '/mines',     color: '#22c55e' },
     ],
   },
   {
-    section: 'MORE',
+    section: 'TABLE & SLOTS',
     items: [
-      { label: 'Favorites', icon: <FavoriteIcon />, path: '/favorites', color: '#ff4757' },
-      { label: 'Promotions', icon: <LocalOfferIcon />, path: '/promotions', color: neonGold },
-      { label: 'VIP Club', icon: <MilitaryTechIcon />, path: '/vip', color: neonGold },
-      { label: 'Tournaments', icon: <EmojiEventsIcon />, path: '/tournaments', color: '#a855f7' },
+      { label: 'Blackjack', icon: <CasinoIcon />,         path: '/blackjack', color: '#0ea5e9' },
+      { label: 'Baccarat',  icon: <CasinoIcon />,         path: '/baccarat',  color: '#ec4899' },
+      { label: 'Roulette',  icon: <CasinoIcon />,         path: '/roulette',  color: '#f59e0b' },
+      { label: 'Slots',     icon: <SportsEsportsIcon />,  path: '/slots',     color: '#ff9f43' },
+    ],
+  },
+  {
+    section: 'VIRTUAL SPORTS',
+    items: [
+      { label: 'Soccer',     icon: <SportsSoccerIcon />,     path: '/virtual/soccer',     color: '#10b981' },
+      { label: 'Basketball', icon: <SportsBasketballIcon />, path: '/virtual/basketball', color: '#f97316' },
+      { label: 'Hockey',     icon: <SportsHockeyIcon />,     path: '/virtual/hockey',     color: '#3b82f6' },
+      { label: 'Horse Race', icon: <DirectionsRunIcon />,    path: '/virtual/horseracing', color: '#a16207' },
+    ],
+  },
+  {
+    section: 'ACCOUNT',
+    items: [
+      { label: 'My Profile',  icon: <PersonIcon />,        path: '/profile',     color: neonBlue },
+      { label: 'Bet History', icon: <HistoryIcon />,       path: '/bet-history', color: '#a855f7' },
+      { label: 'VIP Club',    icon: <MilitaryTechIcon />,  path: '/vip',         color: neonGold },
     ],
   },
 ];

@@ -6,6 +6,8 @@ import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 const ROWS = 12;
 const RISK_LEVELS = ['Low', 'Medium', 'High'];
@@ -28,7 +30,9 @@ interface Ball {
 interface PegState { row: number; col: number; lit: boolean; color: string }
 
 export default function PlinkoGame() {
-  const [betAmount, setBetAmount] = useState('0.01');
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [risk, setRisk] = useState('Medium');
   const [balls, setBalls] = useState<Ball[]>([]);
   const [pegs, setPegs] = useState<PegState[]>([]);
@@ -37,6 +41,7 @@ export default function PlinkoGame() {
   const idRef = useRef(0);
   const ballsRef = useRef<Ball[]>([]);
   const pegsRef = useRef<PegState[]>([]);
+  const ballBetsRef = useRef<Map<number, { betId: string; stake: number }>>(new Map());
 
   const mults = MULTIPLIERS[risk];
   const BOARD_W = 500;
@@ -65,7 +70,15 @@ export default function PlinkoGame() {
     pegsRef.current = ps;
   }, []);
 
-  function dropBall() {
+  async function dropBall() {
+    const stake = Math.max(0, parseFloat(betAmount) || 0);
+    const bet = await wallet.placeBet({
+      gameId: 'plinko',
+      gameName: 'Plinko',
+      stake,
+      details: `Risk: ${risk}`,
+    });
+    if (!bet) return;  // auth/balance gate
     const ball: Ball = {
       id: idRef.current++,
       x: BOARD_W / 2 + (Math.random() - 0.5) * 4,
@@ -74,6 +87,7 @@ export default function PlinkoGame() {
       row: 0, col: 0,
       done: false, bucket: null,
     };
+    ballBetsRef.current.set(ball.id, { betId: bet.id, stake });
     ballsRef.current = [...ballsRef.current, ball];
     setBalls([...ballsRef.current]);
     animateBall(ball.id);
@@ -135,6 +149,21 @@ export default function PlinkoGame() {
         const mult = mults[bucket];
         setActiveResult({ mult, bucket });
         setHistory(prev => [{ mult, color: BUCKET_COLORS[bucket] }, ...prev.slice(0, 19)]);
+
+        // Settle the bet attached to this ball.
+        const bet = ballBetsRef.current.get(id);
+        if (bet) {
+          // A multiplier < 1 returns a partial refund — treat as a "loss" with payout.
+          // Anything > 1 is a clear win.
+          void wallet.settleBet(bet.betId, {
+            won: mult > 1,
+            multiplier: mult,
+            payout: bet.stake * mult,
+            details: `Landed bucket ${bucket + 1}/${bucketCount} · ${mult}×`,
+          });
+          ballBetsRef.current.delete(id);
+        }
+
         setTimeout(() => {
           ballsRef.current = ballsRef.current.filter(bb => bb.id !== id);
           setBalls([...ballsRef.current]);

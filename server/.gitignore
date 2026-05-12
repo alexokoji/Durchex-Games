@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+
+# OAuth / signing assets — never commit these
+*.p8
+*.pem
+*.key

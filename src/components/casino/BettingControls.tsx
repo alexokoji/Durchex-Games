@@ -4,6 +4,7 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { neonGreen, darkBorder, darkCard } from '../../theme';
+import { useCurrencyDefaults } from '../../utils/useCurrencyDefaults';
 
 interface BettingControlsProps {
   betAmount: string;
@@ -22,10 +23,11 @@ export default function BettingControls({
   stopLabel = 'Stop', betLabel = 'Bet', autoBet = false,
   onAutoChange, children,
 }: BettingControlsProps) {
+  const defaults = useCurrencyDefaults();
 
   function adjust(mult: number) {
     const v = parseFloat(betAmount) || 0;
-    onBetChange((v * mult).toFixed(5));
+    onBetChange((v * mult).toFixed(defaults.decimals === 0 ? 0 : 2));
   }
 
   return (
@@ -73,16 +75,16 @@ export default function BettingControls({
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <Box
-                    sx={{
-                      width: 18, height: 18, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #f7931a, #ffb347)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.55rem', fontWeight: 900, color: '#000',
-                    }}
-                  >
-                    ₿
-                  </Box>
+                  <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, color: 'text.secondary' }}>
+                    {defaults.symbol}
+                  </Typography>
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', fontWeight: 700 }}>
+                    {defaults.currency}
+                  </Typography>
                 </InputAdornment>
               ),
             }}
@@ -104,12 +106,12 @@ export default function BettingControls({
         </Box>
       </Box>
 
-      {/* Quick amounts */}
+      {/* Quick amounts — sized to the user's currency */}
       <Box sx={{ display: 'flex', gap: 0.5 }}>
-        {['0.001', '0.01', '0.05', '0.1'].map(v => (
+        {defaults.quickStakes.map(amount => (
           <Box
-            key={v}
-            onClick={() => onBetChange(v)}
+            key={amount}
+            onClick={() => onBetChange(amount.toFixed(defaults.decimals === 0 ? 0 : 2))}
             sx={{
               flex: 1, textAlign: 'center', py: 0.5, borderRadius: 1,
               background: alpha('#fff', 0.04), border: `1px solid ${darkBorder}`,
@@ -117,7 +119,9 @@ export default function BettingControls({
               '&:hover': { borderColor: alpha(neonGreen, 0.5), background: alpha(neonGreen, 0.08) },
             }}
           >
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: 'text.secondary' }}>{v}</Typography>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: 'text.secondary' }}>
+              {defaults.formatAmount(amount)}
+            </Typography>
           </Box>
         ))}
       </Box>

@@ -7,6 +7,8 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet, type BetRecord } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 type GameState = 'waiting' | 'running' | 'crashed';
 
@@ -23,9 +25,11 @@ interface Player {
 }
 
 export default function CrashGame() {
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.0);
-  const [betAmount, setBetAmount] = useState('0.01');
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [autoCashout, setAutoCashout] = useState('2.00');
   const [betPlaced, setBetPlaced] = useState(false);
   const [cashedOut, setCashedOut] = useState<number | null>(null);
@@ -40,6 +44,7 @@ export default function CrashGame() {
   const multRef = useRef(1.0);
   const crashAtRef = useRef(1.0);
   const stateRef = useRef<GameState>('waiting');
+  const activeBetRef = useRef<BetRecord | null>(null);
 
   function generateCrash(): number {
     const r = Math.random();
@@ -229,6 +234,16 @@ export default function CrashGame() {
         stateRef.current = 'crashed';
         setGameState('crashed');
         setHistory(prev => [parseFloat(m.toFixed(2)), ...prev.slice(0, 9)]);
+        // Settle the user's bet on crash if they never cashed out.
+        const bet = activeBetRef.current;
+        if (bet && cashedOut === null) {
+          void wallet.settleBet(bet.id, {
+            won: false,
+            payout: 0,
+            details: `Crashed at ${m.toFixed(2)}× before cashout`,
+          });
+          activeBetRef.current = null;
+        }
         setTimeout(startCountdown, 3000);
         return;
       }
@@ -242,13 +257,38 @@ export default function CrashGame() {
     return () => cancelAnimationFrame(frameRef.current);
   }, []);
 
-  function handleBet() {
+  async function handleBet() {
     if (gameState === 'waiting') {
+      const stake = Math.max(0, parseFloat(betAmount) || 0);
+      const bet = await wallet.placeBet({
+        gameId: 'crash',
+        gameName: 'Crash',
+        stake,
+        details: `Auto-cashout @ ${parseFloat(autoCashout || '0').toFixed(2)}×`,
+      });
+      if (!bet) return;  // auth modal opens automatically when not signed in
+      activeBetRef.current = bet;
       setBetPlaced(true);
-    } else if (gameState === 'running' && betPlaced && !cashedOut) {
+    } else if (gameState === 'running' && betPlaced && cashedOut === null) {
+      // Manual cashout — useEffect on `cashedOut` settles the bet via wallet.
       setCashedOut(multiplier);
     }
   }
+
+  // Settle a winning cashout once `cashedOut` flips from null to a number.
+  useEffect(() => {
+    if (cashedOut === null) return;
+    const bet = activeBetRef.current;
+    if (!bet) return;
+    const stake = bet.stake;
+    void wallet.settleBet(bet.id, {
+      won: true,
+      multiplier: cashedOut,
+      payout: stake * cashedOut,
+      details: `Cashed out at ${cashedOut.toFixed(2)}×`,
+    });
+    activeBetRef.current = null;
+  }, [cashedOut, wallet]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, height: 'calc(100vh - 64px)', overflow: 'hidden' }}>

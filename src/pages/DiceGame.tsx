@@ -6,6 +6,8 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 type DiceResult = 'win' | 'lose' | null;
 
@@ -36,7 +38,9 @@ function DiceFace({ value, color }: { value: number; color: string }) {
 interface HistoryEntry { roll: number; target: number; over: boolean; result: DiceResult }
 
 export default function DiceGame() {
-  const [betAmount, setBetAmount] = useState('0.01');
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [target, setTarget] = useState(50.0);
   const [isOver, setIsOver] = useState(true);
   const [rolling, setRolling] = useState(false);
@@ -51,8 +55,17 @@ export default function DiceGame() {
   const multiplier = winChance > 0 ? parseFloat(((99 / winChance)).toFixed(4)) : 0;
   const profit = parseFloat(betAmount) * (multiplier - 1);
 
-  function handleRoll() {
+  async function handleRoll() {
     if (rolling) return;
+    const stake = Math.max(0, parseFloat(betAmount) || 0);
+    const bet = await wallet.placeBet({
+      gameId: 'dice',
+      gameName: 'Dice',
+      stake,
+      details: `${isOver ? 'Over' : 'Under'} ${target.toFixed(2)} · ${multiplier.toFixed(2)}×`,
+    });
+    if (!bet) return;  // not authenticated or insufficient balance — placeBet handles the auth modal
+
     setRolling(true);
     setLastResult(null);
 
@@ -75,6 +88,12 @@ export default function DiceGame() {
             streak,
             bestStreak: Math.max(prev.bestStreak, streak),
           };
+        });
+        void wallet.settleBet(bet.id, {
+          won: win,
+          multiplier: win ? multiplier : undefined,
+          payout: win ? stake * multiplier : 0,
+          details: `Rolled ${r.toFixed(2)} · target ${isOver ? '>' : '<'} ${target.toFixed(2)}`,
         });
         setRolling(false);
       }

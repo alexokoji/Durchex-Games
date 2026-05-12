@@ -21,7 +21,10 @@ export interface GameCardData {
   badgeColor?: string;
   gradient: string;
   path?: string;
-  icon: React.ReactNode;
+  /** Full-bleed cover image (PNG/JPG/WebP). Takes precedence over `icon`. */
+  image?: string;
+  /** Fallback icon (MUI icon or emoji). Used only when `image` is unset. */
+  icon?: React.ReactNode;
 }
 
 interface GameCardProps {
@@ -72,16 +75,34 @@ export default function GameCard({ game }: GameCardProps) {
             overflow: 'hidden',
           }}
         >
-          <Box
-            sx={{
-              fontSize: 56,
-              opacity: 0.9,
-              transition: 'transform 0.3s ease',
-              transform: hovered ? 'scale(1.15) rotate(5deg)' : 'scale(1)',
-            }}
-          >
-            {game.icon}
-          </Box>
+          {game.image ? (
+            <Box
+              component="img"
+              src={game.image}
+              alt={game.title}
+              loading="lazy"
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transition: 'transform 0.4s ease',
+                transform: hovered ? 'scale(1.08)' : 'scale(1)',
+              }}
+            />
+          ) : (
+            <Box
+              sx={{
+                fontSize: 56,
+                opacity: 0.9,
+                transition: 'transform 0.3s ease',
+                transform: hovered ? 'scale(1.15) rotate(5deg)' : 'scale(1)',
+              }}
+            >
+              {game.icon}
+            </Box>
+          )}
 
           {/* Overlay on hover */}
           <motion.div

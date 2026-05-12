@@ -1,14 +1,15 @@
 import { useState, useRef } from 'react';
 import {
-  Box, Typography, Grid, Chip, Button,
+  Box, Typography, Button,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useWallet } from '../contexts/WalletContext';
+import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 
 const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-const NUMBERS = Array.from({ length: 37 }, (_, i) => i); // 0-36
 
 function getColor(n: number): string {
   if (n === 0) return '#00aa44';
@@ -45,7 +46,9 @@ interface HistoryEntry { number: number; color: string }
 const WHEEL_NUMBERS = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 
 export default function RouletteGame() {
-  const [betAmount, setBetAmount] = useState('0.01');
+  const wallet = useWallet();
+  const defaults = useCurrencyDefaults();
+  const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
   const [bets, setBets] = useState<Bet[]>([]);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<number | null>(null);
@@ -70,8 +73,17 @@ export default function RouletteGame() {
 
   function clearBets() { setBets([]); }
 
-  function spin() {
+  async function spin() {
     if (spinning || bets.length === 0) return;
+    const totalStake = bets.reduce((s, b) => s + b.amount, 0);
+    const placed = await wallet.placeBet({
+      gameId: 'roulette',
+      gameName: 'Roulette',
+      stake: totalStake,
+      details: `${bets.length} bet${bets.length > 1 ? 's' : ''} on the table`,
+    });
+    if (!placed) return;  // auth/balance gate
+
     setSpinning(true);
     setResult(null);
     setWinAmount(null);
@@ -84,10 +96,18 @@ export default function RouletteGame() {
     setWheelAngle(targetAngle);
 
     setTimeout(() => {
-      const total = bets.reduce((sum, b) => sum + resolveBet(b, resultNum), 0);
+      // resolveBet returns +profit on a winning leg and -stake on a losing leg.
+      // Translate that into the wallet's stake/payout model.
+      const net = bets.reduce((sum, b) => sum + resolveBet(b, resultNum), 0);
+      const payout = Math.max(0, totalStake + net);   // amount returned to the user
       setResult(resultNum);
-      setWinAmount(total);
+      setWinAmount(net);
       setHistory(prev => [{ number: resultNum, color: getColor(resultNum) }, ...prev.slice(0, 19)]);
+      void wallet.settleBet(placed.id, {
+        won: net > 0,
+        payout,
+        details: `Number ${resultNum} · ${net >= 0 ? '+' : ''}${net.toFixed(5)} net`,
+      });
       setSpinning(false);
     }, 3000);
   }
