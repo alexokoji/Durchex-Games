@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Dialog, Box, Typography, Button, TextField, IconButton,
+  Dialog, Box, Typography, Button, TextField, IconButton, Collapse,
   Tabs, Tab, Divider, InputAdornment, Checkbox, FormControlLabel, Link, Alert,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -8,6 +8,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import PersonIcon from '@mui/icons-material/Person';
+import RedeemIcon from '@mui/icons-material/Redeem';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -20,6 +22,8 @@ interface AuthModalProps {
   open: boolean;
   onClose: () => void;
   initialMode?: 'signin' | 'register';
+  /** Pre-fill the referral code field (e.g. from `?ref=XYZ`). */
+  initialReferralCode?: string;
 }
 
 type Mode = 'signin' | 'register' | 'forgot';
@@ -55,20 +59,44 @@ function humanError(code: string | null): string | null {
   }
 }
 
-export default function AuthModal({ open, onClose, initialMode = 'signin' }: AuthModalProps) {
+function referralHint(error: string | undefined): string | null {
+  if (!error) return null;
+  if (error === 'self_referral') return "You can't use your own referral code.";
+  if (error === 'code_not_found') return "That referral code didn't match an account.";
+  return error.replace(/_/g, ' ');
+}
+
+export default function AuthModal({ open, onClose, initialMode = 'signin', initialReferralCode }: AuthModalProps) {
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
-  const [accepted, setAccepted] = useState(true);
+  // 18+ / terms check must be a deliberate action — default unchecked so the
+  // user has to confirm before we let them sign up.
+  const [accepted, setAccepted] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [forgotSent, setForgotSent] = useState(false);
+
+  // Promo + referral state for registration. The referral panel auto-expands
+  // when the user arrived through a `?ref=XYZ` link.
+  const [showCodes, setShowCodes] = useState<boolean>(Boolean(initialReferralCode));
+  const [referralCode, setReferralCode] = useState<string>(initialReferralCode ?? '');
+  const [promoCode, setPromoCode] = useState('');
+  const [referralHintMsg, setReferralHintMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialReferralCode) {
+      setReferralCode(initialReferralCode);
+      setShowCodes(true);
+    }
+  }, [initialReferralCode]);
 
   function reset() {
     setLocalError(null);
     setForgotSent(false);
+    setReferralHintMsg(null);
   }
 
   function close() {
@@ -87,7 +115,7 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Aut
       return;
     }
     if (mode === 'register' && !accepted) {
-      setLocalError('Please accept the terms to continue.');
+      setLocalError("Please confirm you're 18+ and accept the terms before continuing.");
       return;
     }
     if (!email || !password) {
@@ -99,11 +127,22 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Aut
       return;
     }
 
-    const result = mode === 'signin'
-      ? await auth.signIn(email, password)
-      : await auth.signUp(email, username, password);
-    if (!result.ok) {
-      setLocalError(humanError(result.error));
+    if (mode === 'signin') {
+      const result = await auth.signIn(email, password);
+      if (!result.ok) setLocalError(humanError(result.error));
+      return;
+    }
+
+    const result = await auth.signUp(email, username, password, {
+      referralCode: referralCode.trim() || undefined,
+      promoCode:    promoCode.trim()    || undefined,
+    });
+    if (!result.ok) { setLocalError(humanError(result.error)); return; }
+    // Surface a soft hint if the referral code couldn't be applied — sign-up
+    // itself still succeeded so we just inform via the toast/popover panel.
+    if (referralCode.trim() && result.referralApplied === false) {
+      const note = referralHint('code_not_found');
+      if (note) setReferralHintMsg(note);
     }
   }
 
@@ -245,6 +284,42 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Aut
         )}
 
         {isRegister && (
+          <Box>
+            <Link
+              component="button"
+              type="button"
+              underline="hover"
+              onClick={() => setShowCodes(s => !s)}
+              sx={{ fontSize: '0.78rem', color: neonBlue, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+            >
+              <RedeemIcon sx={{ fontSize: 14 }} />
+              {showCodes ? 'Hide promo / referral' : 'Have a promo or referral code?'}
+            </Link>
+            <Collapse in={showCodes} unmountOnExit>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+                <TextField
+                  label="Referral code (optional)" size="small" value={referralCode}
+                  onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. ABC23XYZ"
+                  inputProps={{ maxLength: 32, style: { textTransform: 'uppercase' } }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><GroupAddIcon fontSize="small" /></InputAdornment> }}
+                />
+                <TextField
+                  label="Promo code (optional)" size="small" value={promoCode}
+                  onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. WELCOME50"
+                  inputProps={{ maxLength: 32, style: { textTransform: 'uppercase' } }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><RedeemIcon fontSize="small" /></InputAdornment> }}
+                />
+                {referralHintMsg && (
+                  <Alert severity="warning" sx={{ py: 0, fontSize: '0.75rem' }}>{referralHintMsg}</Alert>
+                )}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+
+        {isRegister && (
           <FormControlLabel
             control={<Checkbox size="small" checked={accepted} onChange={e => setAccepted(e.target.checked)} />}
             label={<Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>I'm 18+ and accept the terms of service.</Typography>}
@@ -286,7 +361,7 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Aut
               Forgot password?
             </Link>
             <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>
-              {isRegister ? '0.05 BTC welcome' : null}
+              {isRegister ? 'Welcome bonus included' : null}
             </Typography>
           </Box>
         )}
@@ -301,7 +376,7 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Aut
               🎁 Welcome bonus
             </Typography>
             <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-              We'll credit a small playable balance the first time you sign in.
+              Bonus balance is playable immediately. Winnings become withdrawable after the 5× wagering requirement is cleared.
             </Typography>
           </Box>
         )}

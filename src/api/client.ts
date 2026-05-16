@@ -140,6 +140,8 @@ export const apiPost = <T = unknown>(path: string, body?: unknown, opts: ApiOpti
   api<T>(path, { ...opts, method: 'POST', body });
 export const apiPatch = <T = unknown>(path: string, body?: unknown, opts: ApiOptions = {}) =>
   api<T>(path, { ...opts, method: 'PATCH', body });
+export const apiDelete = <T = unknown>(path: string, opts: ApiOptions = {}) =>
+  api<T>(path, { ...opts, method: 'DELETE' });
 
 export function apiBaseUrl(): string {
   return API_BASE;

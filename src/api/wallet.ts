@@ -6,11 +6,15 @@ export interface WalletSnapshot {
   currency: FiatCurrency;
   countryCode?: string;
   balance: number;
+  bonusBalance: number;
+  bonusRollover: number;
   cryptoBalances: Partial<Record<CryptoCurrency, number>>;
   totalWagered: number;
   totalWon: number;
   vipLevel: number;
   vipXp: number;
+  referralCode: string;
+  promoterStatus: 'none' | 'pending' | 'approved' | 'banned';
 }
 
 export interface ApiTransaction {

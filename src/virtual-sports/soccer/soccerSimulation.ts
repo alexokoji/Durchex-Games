@@ -1,5 +1,5 @@
 import type { BetSelection, MatchEvent, Team } from '../core/types';
-import { buildScoreGrid, computeExpectedGoals, extractLine, type ScoreGrid } from './soccerMarkets';
+import { buildScoreGrid, computeExpectedGoals, computeEventRates, extractLine, type ScoreGrid } from './soccerMarkets';
 
 export interface SimulatedMatch {
   homeId: string;
@@ -109,11 +109,16 @@ export function simulateSoccerMatch(home: Team, away: Team, seed: number): Simul
     description: 'Half-time whistle.',
   });
 
-  // Cards: 3–5 yellows
-  const yellowCount = 3 + Math.floor(rand() * 3);
+  // Personality-driven event rates — aggressive sides produce more cards,
+  // possession-heavy sides produce more corners, etc.
+  const rates = computeEventRates(home, away);
+
+  // Yellow cards — Poisson-style around `avgYellow`, biased toward the
+  // more-aggressive side via `yellowHomeShare`.
+  const yellowCount = Math.max(1, Math.round(rates.avgYellow + (rand() - 0.5) * 2));
   for (let i = 0; i < yellowCount; i++) {
     const minute = 10 + Math.floor(rand() * 75);
-    const team: 'home' | 'away' = rand() < 0.5 ? 'home' : 'away';
+    const team: 'home' | 'away' = rand() < rates.yellowHomeShare ? 'home' : 'away';
     const player = randomPlayer(rand);
     events.push({
       id: `e-y-${seed}-${i}`,
@@ -125,10 +130,10 @@ export function simulateSoccerMatch(home: Team, away: Team, seed: number): Simul
     });
   }
 
-  // Red card – ~12% chance
-  if (rand() < 0.12) {
+  // Red card — chance from aggregate aggression/discipline.
+  if (rand() < rates.redChance) {
     const minute = 30 + Math.floor(rand() * 55);
-    const team: 'home' | 'away' = rand() < 0.5 ? 'home' : 'away';
+    const team: 'home' | 'away' = rand() < rates.yellowHomeShare ? 'home' : 'away';
     const player = randomPlayer(rand);
     events.push({
       id: `e-r-${seed}`,
@@ -140,8 +145,8 @@ export function simulateSoccerMatch(home: Team, away: Team, seed: number): Simul
     });
   }
 
-  // VAR disallowed goal – ~10% chance
-  if (rand() < 0.1) {
+  // VAR disallowed goal — fixed-ish chance.
+  if (rand() < rates.varDisallowed) {
     const minute = 20 + Math.floor(rand() * 65);
     const team: 'home' | 'away' = rand() < 0.5 ? 'home' : 'away';
     events.push({
@@ -153,11 +158,13 @@ export function simulateSoccerMatch(home: Team, away: Team, seed: number): Simul
     });
   }
 
-  // Corners – 6–12 across the match
-  const cornerCount = 6 + Math.floor(rand() * 7);
+  // Corners — rate from combined possession + pressing.
+  const cornerCount = Math.max(2, Math.round(rates.cornersAvg + (rand() - 0.5) * 3));
   for (let i = 0; i < cornerCount; i++) {
     const minute = 5 + Math.floor(rand() * 85);
-    const team: 'home' | 'away' = rand() < 0.5 ? 'home' : 'away';
+    // Possession-heavy side wins more corners (xG-tilt as proxy).
+    const homeShare = xg.home / Math.max(0.001, xg.home + xg.away);
+    const team: 'home' | 'away' = rand() < homeShare ? 'home' : 'away';
     events.push({
       id: `e-c-${seed}-${i}`,
       minute,
@@ -167,8 +174,8 @@ export function simulateSoccerMatch(home: Team, away: Team, seed: number): Simul
     });
   }
 
-  // Injury – ~25% chance
-  if (rand() < 0.25) {
+  // Injury — chance from combined injury factors.
+  if (rand() < rates.injuryChance) {
     const minute = 25 + Math.floor(rand() * 60);
     const team: 'home' | 'away' = rand() < 0.5 ? 'home' : 'away';
     const player = randomPlayer(rand);

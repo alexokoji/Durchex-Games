@@ -63,9 +63,14 @@ export default function BettingControls({
 
       {/* Bet amount */}
       <Box>
-        <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 0.5, fontWeight: 600 }}>
-          BET AMOUNT
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 600 }}>
+            BET AMOUNT
+          </Typography>
+          <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600 }}>
+            Min {defaults.minBetLabel}
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
           <TextField
             value={betAmount}

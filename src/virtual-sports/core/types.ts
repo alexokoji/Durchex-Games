@@ -24,6 +24,28 @@ export interface TeamRatings {
   form: number;       // -10 .. +10
 }
 
+/**
+ * Behaviour profile that gives every club a distinct playstyle. Drives
+ * goal/card/foul/corner rates and shot timing in the simulation engine.
+ * All values 0–100 unless noted; "currentForm" is a -10..+10 short-term modifier.
+ */
+export interface TeamPersonality {
+  attackStrength:        number;
+  defenseStrength:       number;
+  pressingIntensity:     number;   // high-press → forces turnovers in opp half
+  possessionStyle:       number;   // 0 = direct, 100 = tiki-taka
+  passingSpeed:          number;   // 0 = slow buildup, 100 = quick combinations
+  counterAttackStrength: number;
+  finishing:             number;
+  setPieceStrength:      number;
+  goalkeeping:           number;
+  aggression:            number;   // higher → more fouls + cards
+  discipline:            number;   // higher → fewer cards from late tackles
+  currentForm:           number;   // -10..+10
+  injuryFactor:          number;
+  fatigueFactor:         number;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -34,8 +56,15 @@ export interface Team {
   primary: string;       // hex
   secondary: string;     // hex
   accent?: string;
-  emblemKey: string;     // key into TeamEmblem switch
+  emblemKey: string;     // key into TeamEmblem switch (or 'procedural')
   ratings: TeamRatings;
+  /**
+   * Personality is optional in the type so we can still load older fixtures,
+   * but every team in the production database has one — `teamDatabase.ts`
+   * provides a `withDefaults` helper that fills sensible defaults from
+   * `ratings` if a personality block is missing.
+   */
+  personality?: TeamPersonality;
 }
 
 export interface League {

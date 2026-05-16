@@ -16,10 +16,14 @@ import betsRouter     from './routes/bets';
 import paymentsRouter from './routes/payments';
 import chatRouter     from './routes/chat';
 import usersRouter    from './routes/users';
+import bookingCodesRouter from './routes/bookingCodes';
+import adminRouter        from './routes/admin';
+import promoRouter        from './routes/promo';
 
 import { attachChat } from './sockets/chat';
 import { setIoInstance } from './sockets/notifier';
 import { notFoundHandler, errorHandler } from './middleware/error';
+import { startCashbackScheduler } from './services/cashbackJob';
 
 async function main(): Promise<void> {
   await connectDb();
@@ -82,6 +86,9 @@ async function main(): Promise<void> {
   app.use('/api/bets',     betsRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/chat',     chatRouter);
+  app.use('/api/booking-codes', bookingCodesRouter);
+  app.use('/api/admin',    adminRouter);
+  app.use('/api/promo',    promoRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -100,6 +107,11 @@ async function main(): Promise<void> {
     console.log(`[server] listening on :${env.port} · public ${env.publicUrl}`);
     console.log(`[server] CORS origins: ${env.corsOrigins.join(', ')}`);
   });
+
+  // Recurring background jobs — cheap setInterval based scheduling so we
+  // don't need to add a cron dependency. JobState persists last-run so a
+  // restart can't double-credit users.
+  startCashbackScheduler();
 }
 
 main().catch(err => {

@@ -36,7 +36,7 @@ export interface SettleBetBody {
 
 export const betsApi = {
   place: (body: PlaceBetBody) =>
-    apiPost<{ bet: ApiBet; balance: number; currency: AnyCurrency }>('/bets', body),
+    apiPost<{ bet: ApiBet; balance: number; bonusBalance: number; currency: AnyCurrency }>('/bets', body),
   settle: (id: string, body: SettleBetBody) =>
     apiPost<{ bet: ApiBet; balance: number }>(`/bets/${id}/settle`, body),
   history: (params: { limit?: number; gameId?: string; status?: ApiBetStatus } = {}) => {

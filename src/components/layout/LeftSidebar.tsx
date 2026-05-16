@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Drawer, Box, List, ListItemButton, ListItemIcon, ListItemText,
   Typography, Divider, Tooltip,
@@ -18,6 +19,9 @@ import PersonIcon from '@mui/icons-material/Person';
 import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import GrassIcon from '@mui/icons-material/Grass';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import { useAuth } from '../../contexts/AuthContext';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkSurface } from '../../theme';
 
 const SIDEBAR_WIDTH = 220;
@@ -25,7 +29,11 @@ const SIDEBAR_COLLAPSED = 64;
 
 interface LeftSidebarProps {
   open: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
+
+const MOBILE_DRAWER_WIDTH = 280;
 
 const navItems = [
   {
@@ -66,32 +74,63 @@ const navItems = [
     items: [
       { label: 'My Profile',  icon: <PersonIcon />,        path: '/profile',     color: neonBlue },
       { label: 'Bet History', icon: <HistoryIcon />,       path: '/bet-history', color: '#a855f7' },
+      { label: 'Promoter',    icon: <CampaignIcon />,      path: '/promoter',    color: '#ec4899' },
       { label: 'VIP Club',    icon: <MilitaryTechIcon />,  path: '/vip',         color: neonGold },
     ],
   },
 ];
 
-export default function LeftSidebar({ open }: LeftSidebarProps) {
+export default function LeftSidebar({ open, isMobile = false, onClose }: LeftSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+
+  // Append the admin section only for users on the ADMIN_EMAILS allowlist.
+  // We rebuild the items array each render so the panel disappears the moment
+  // the user signs out without forcing a remount.
+  const itemsForUser = user?.isAdmin
+    ? [
+        ...navItems,
+        {
+          section: 'ADMIN',
+          items: [
+            { label: 'Admin console', icon: <AdminPanelSettingsIcon />, path: '/admin', color: '#ff6b7a' },
+          ],
+        },
+      ]
+    : navItems;
+
+  // Close the drawer automatically after a navigation on mobile.
+  useEffect(() => {
+    if (isMobile && open && onClose) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // On mobile the sidebar is the temporary overlay, so we always show the
+  // full content (no collapsed/icon-only state).
+  const expanded = isMobile ? true : open;
+  const drawerWidth = isMobile ? MOBILE_DRAWER_WIDTH : (expanded ? SIDEBAR_WIDTH : SIDEBAR_COLLAPSED);
 
   const drawerContent = (
     <Box
       sx={{
-        width: open ? SIDEBAR_WIDTH : SIDEBAR_COLLAPSED,
+        width: drawerWidth,
         transition: 'width 0.3s ease',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        pt: '64px',
+        // On mobile the drawer slides over the AppBar, but the AppBar still
+        // renders on top — pad the content down so the first menu item
+        // (Home) clears the 64px header instead of being hidden behind it.
+        pt: isMobile ? '72px' : '64px',
       }}
     >
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1 }}>
-        {navItems.map((group, gi) => (
+        {itemsForUser.map((group, gi) => (
           <Box key={gi} sx={{ mb: 0.5 }}>
             <AnimatePresence>
-              {open && (
+              {expanded && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -117,11 +156,18 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
             </AnimatePresence>
             <List dense disablePadding sx={{ px: 1 }}>
               {group.items.map((item) => {
-                const active = location.pathname === item.path;
+                // Highlight the current page. "/" must be an exact match (otherwise
+                // it would match every route). Everything else also matches its
+                // sub-routes (e.g. "/virtual/soccer" highlights when on a deeper
+                // soccer sub-path, and "/bet-history/x" still highlights Bet History).
+                const active = item.path === '/'
+                  ? location.pathname === '/'
+                  : location.pathname === item.path
+                    || location.pathname.startsWith(item.path + '/');
                 const btn = (
                   <motion.div
                     key={item.path}
-                    whileHover={{ x: open ? 4 : 0 }}
+                    whileHover={{ x: expanded ? 4 : 0 }}
                     transition={{ duration: 0.15 }}
                   >
                     <ListItemButton
@@ -131,8 +177,8 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
                         borderRadius: 2,
                         mb: 0.25,
                         minHeight: 42,
-                        justifyContent: open ? 'flex-start' : 'center',
-                        px: open ? 1.5 : 1,
+                        justifyContent: expanded ? 'flex-start' : 'center',
+                        px: expanded ? 1.5 : 1,
                         ...(active && {
                           background: alpha(item.color, 0.12),
                           boxShadow: `inset 0 0 0 1px ${alpha(item.color, 0.3)}`,
@@ -147,7 +193,7 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
                       <ListItemIcon
                         className="sidebar-icon"
                         sx={{
-                          minWidth: open ? 36 : 'auto',
+                          minWidth: expanded ? 36 : 'auto',
                           color: active ? item.color : 'text.secondary',
                           transition: 'all 0.2s',
                           filter: active ? `drop-shadow(0 0 6px ${item.color})` : 'none',
@@ -157,7 +203,7 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
                         {item.icon}
                       </ListItemIcon>
                       <AnimatePresence>
-                        {open && (
+                        {expanded && (
                           <motion.div
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
@@ -181,14 +227,14 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
                   </motion.div>
                 );
 
-                return open ? btn : (
+                return expanded ? btn : (
                   <Tooltip key={item.path} title={item.label} placement="right">
                     {btn}
                   </Tooltip>
                 );
               })}
             </List>
-            {gi < navItems.length - 1 && (
+            {gi < itemsForUser.length - 1 && (
               <Divider sx={{ my: 1, mx: 1.5, borderColor: darkBorder }} />
             )}
           </Box>
@@ -197,6 +243,36 @@ export default function LeftSidebar({ open }: LeftSidebarProps) {
     </Box>
   );
 
+  if (isMobile) {
+    // Temporary overlay drawer — tappable backdrop, slides out from the left,
+    // floats above content. The hamburger in the Header toggles `open`.
+    return (
+      <Drawer
+        variant="temporary"
+        anchor="left"
+        open={open}
+        onClose={onClose}
+        ModalProps={{ keepMounted: true }}   // smoother re-open
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: MOBILE_DRAWER_WIDTH,
+            backgroundColor: darkSurface,
+            border: 'none',
+            borderRight: `1px solid ${darkBorder}`,
+            zIndex: (theme) => theme.zIndex.drawer + 2,  // above the AppBar
+          },
+          '& .MuiBackdrop-root': {
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(4px)',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+    );
+  }
+
+  // Desktop — permanent, collapses to a 64px icon rail when `open` is false.
   return (
     <Drawer
       variant="permanent"

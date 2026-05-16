@@ -10,34 +10,51 @@ export interface ApiUser {
   currency: FiatCurrency;
   countryCode?: string;
   balance: number;
+  bonusBalance: number;
+  bonusRollover: number;
   cryptoBalances: Partial<Record<CryptoCurrency, number>>;
   totalWagered: number;
   totalWon: number;
   vipLevel: number;
   vipXp: number;
+  referralCode: string;
+  promoterStatus: 'none' | 'pending' | 'approved' | 'banned';
+  isAdmin: boolean;
+}
+
+export interface RegisterExtras {
+  referralCode?: string;
+  promoCode?: string;
+  deviceSignature?: string;
 }
 
 export interface AuthResponse {
   user: ApiUser;
   accessToken: string;
   refreshToken: string;
+  referral?: { applied: boolean; error?: string } | null;
+  promo?: { code: string; bonus: number; rollover: number } | null;
 }
 
-function applyAuthResponse(r: AuthResponse): ApiUser {
+function applyAuthResponse(r: AuthResponse): AuthResponse {
   setTokens(r.accessToken, r.refreshToken);
-  return r.user;
+  return r;
 }
 
 export const authApi = {
-  async register(email: string, username: string, password: string, countryCode?: string, currency?: FiatCurrency): Promise<ApiUser> {
+  async register(
+    email: string, username: string, password: string,
+    countryCode?: string, currency?: FiatCurrency,
+    extras?: RegisterExtras,
+  ): Promise<AuthResponse> {
     const r = await apiPost<AuthResponse>('/auth/register',
-      { email, username, password, countryCode, currency },
+      { email, username, password, countryCode, currency, ...extras },
       { skipAuth: true });
     return applyAuthResponse(r);
   },
   async login(email: string, password: string): Promise<ApiUser> {
     const r = await apiPost<AuthResponse>('/auth/login', { email, password }, { skipAuth: true });
-    return applyAuthResponse(r);
+    return applyAuthResponse(r).user;
   },
   async me(): Promise<ApiUser> {
     const r = await apiGet<{ user: ApiUser }>('/auth/me');

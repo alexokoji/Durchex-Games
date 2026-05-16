@@ -41,7 +41,6 @@ if (env.google.enabled) {
             username,
             googleId: profile.id,
             emailVerified: true,
-            balanceBtc: env.economy.welcomeBonusBtc,
           });
         } else if (!user.googleId) {
           user.googleId = profile.id;
@@ -90,7 +89,6 @@ if (env.apple.enabled && fs.existsSync(env.apple.privateKeyPath)) {
             username,
             appleId: sub,
             emailVerified: true,
-            balanceBtc: env.economy.welcomeBonusBtc,
           });
         } else if (!user.appleId) {
           user.appleId = sub;

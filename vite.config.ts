@@ -47,12 +47,28 @@ export default defineConfig(({ mode }) => {
           // would otherwise be skipped.
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff,woff2}'],
-          // Network-first for the API — never serve stale balance / bets.
+
+          // CRITICAL — without these, a previous deploy's HTML stays cached
+          // pointing to JS asset hashes that no longer exist after the next
+          // deploy, and Service Worker–enabled (i.e. HTTPS) clients keep
+          // loading a 404'd bundle → white screen. HTTP clients have no SW
+          // so they always pull the fresh HTML and work fine. This was the
+          // mismatch the user reported.
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+
+          // SPA navigation fallback so React Router routes resolve even if
+          // the network is flaky. Excludes API + Socket.IO + files with
+          // extensions so they keep going to the network.
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/, /\.\w{2,4}$/],
+
+          // Network-only for the API — never serve a stale balance or bet
+          // record from cache.
           runtimeCaching: [
-            {
-              urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-              handler: 'NetworkOnly',
-            },
+            { urlPattern: ({ url }) => url.pathname.startsWith('/api/'),       handler: 'NetworkOnly' },
+            { urlPattern: ({ url }) => url.pathname.startsWith('/socket.io'),  handler: 'NetworkOnly' },
             {
               urlPattern: ({ request }) => request.destination === 'image',
               handler: 'CacheFirst',

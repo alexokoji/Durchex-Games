@@ -10,11 +10,15 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     currency:        user.currency,
     countryCode:     user.countryCode,
     balance:         user.balance,
+    bonusBalance:    user.bonusBalance ?? 0,
+    bonusRollover:   user.bonusRollover ?? 0,
     cryptoBalances:  user.cryptoBalances ?? {},
     totalWagered:    user.totalWagered,
     totalWon:        user.totalWon,
     vipLevel:        user.vipLevel,
     vipXp:           user.vipXp,
+    referralCode:    user.referralCode,
+    promoterStatus:  user.promoterStatus,
   });
 });
 

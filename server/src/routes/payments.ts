@@ -215,7 +215,13 @@ router.post(
         reference,
         status: 'pending',
       });
-      if ('error' in debit) { res.status(402).json({ error: debit.error }); return; }
+      if ('error' in debit) {
+        const code = debit.error === 'rollover_outstanding' ? 423 : 402;
+        const payload: Record<string, unknown> = { error: debit.error };
+        if ('rollover' in debit && debit.rollover != null) payload.rollover = debit.rollover;
+        res.status(code).json(payload);
+        return;
+      }
       // Crypto withdrawals require manual approval — no Flutterwave call here.
       notifyWalletUpdate(user._id.toString(), 'crypto_withdraw_queued');
       notifyUser(user._id.toString(), {
@@ -236,7 +242,13 @@ router.post(
       reference,
       status: 'pending',
     });
-    if ('error' in debit) { res.status(402).json({ error: debit.error }); return; }
+    if ('error' in debit) {
+      const code = debit.error === 'rollover_outstanding' ? 423 : 402;
+      const payload: Record<string, unknown> = { error: debit.error };
+      if ('rollover' in debit && debit.rollover != null) payload.rollover = debit.rollover;
+      res.status(code).json(payload);
+      return;
+    }
 
     if (method === 'bank' || method === 'mobilemoney') {
       try {

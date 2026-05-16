@@ -45,7 +45,12 @@ router.post(
     }
 
     notifyWalletUpdate(user._id.toString(), 'bet_placed');
-    res.status(201).json({ bet: result.bet, balance: result.balance, currency: user.currency });
+    res.status(201).json({
+      bet: result.bet,
+      balance: result.balance,
+      bonusBalance: result.bonusBalance,
+      currency: user.currency,
+    });
   },
 );
 

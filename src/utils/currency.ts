@@ -96,6 +96,25 @@ export function defaultStakeFor(code: AnyCurrency): number {
   return 5;
 }
 
+/**
+ * Global minimum bet: $0.01 USD equivalent, expressed in the user's currency.
+ * Applies to every game and every market — the platform's hard floor.
+ */
+export const MIN_BET_USD = 0.01;
+export function minBetFor(code: AnyCurrency): number {
+  if (isFiat(code)) {
+    const raw = MIN_BET_USD / FIAT[code].usdPerUnit;
+    // Round up to one tick of the currency's smallest unit so we never accept
+    // sub-cent stakes that won't render.
+    const decimals = FIAT[code].decimals;
+    const factor = Math.pow(10, decimals);
+    return Math.ceil(raw * factor) / factor;
+  }
+  if (code === 'BTC')  return MIN_BET_USD / CRYPTO.BTC.usdPerUnit;
+  if (code === 'USDT' || code === 'USDC') return MIN_BET_USD;
+  return MIN_BET_USD;
+}
+
 const formatterCache = new Map<string, Intl.NumberFormat>();
 function getFormatter(currency: AnyCurrency, opts: { compact?: boolean } = {}): Intl.NumberFormat {
   const key = `${currency}:${opts.compact ? 'c' : 'f'}`;

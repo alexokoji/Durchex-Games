@@ -11,6 +11,8 @@ export interface IBet extends Document {
   gameName: string;
 
   stake: number;
+  /** Portion of `stake` paid out of bonus funds (rest is real balance). */
+  bonusStake: number;
   payout: number;
   multiplier?: number;
   currency: AnyCurrency;       // currency of stake/payout (user's local fiat for casino)
@@ -27,6 +29,7 @@ const betSchema = new Schema<IBet>({
   gameId:    { type: String, required: true, index: true },
   gameName:  { type: String, required: true },
   stake:     { type: Number, required: true, min: 0 },
+  bonusStake:{ type: Number, default: 0, min: 0 },
   payout:    { type: Number, default: 0, min: 0 },
   multiplier:{ type: Number },
   currency:  { type: String, required: true },

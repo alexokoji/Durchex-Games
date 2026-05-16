@@ -291,9 +291,18 @@ export default function CrashGame() {
   }, [cashedOut, wallet]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: { xs: 'column', lg: 'row' },
+      // On desktop, the page fills the viewport and the right panel scrolls
+      // independently. On mobile we let the page scroll naturally so the
+      // canvas + history + players + controls all stack.
+      height: { xs: 'auto', lg: 'calc(100vh - 64px)' },
+      minHeight: { xs: 'calc(100vh - 64px)', lg: 0 },
+      overflow: { xs: 'visible', lg: 'hidden' },
+    }}>
       {/* Main game area */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2, minWidth: 0 }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: { xs: 1.5, md: 2 }, minWidth: 0 }}>
         {/* History bar */}
         <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5, flexWrap: 'wrap' }}>
           {history.map((h, i) => (
@@ -314,9 +323,13 @@ export default function CrashGame() {
         {/* Canvas */}
         <Box
           sx={{
-            flex: 1, position: 'relative', borderRadius: 3, overflow: 'hidden',
+            flex: { xs: '0 0 auto', lg: 1 },
+            position: 'relative', borderRadius: 3, overflow: 'hidden',
             background: darkCard, border: `1px solid ${darkBorder}`,
-            minHeight: 300,
+            // On mobile the canvas takes a fixed height (~50vh) so the chart
+            // stays sized while the rest of the page scrolls underneath it.
+            minHeight: { xs: 280, md: 300 },
+            height:    { xs: '50vh', lg: 'auto' },
           }}
         >
           <canvas
@@ -461,9 +474,12 @@ export default function CrashGame() {
         sx={{
           width: { xs: '100%', lg: 280 },
           flexShrink: 0,
-          p: 2,
+          p: { xs: 1.5, md: 2 },
           borderLeft: { lg: `1px solid ${darkBorder}` },
-          overflowY: 'auto',
+          borderTop:  { xs: `1px solid ${darkBorder}`, lg: 'none' },
+          // The right panel only needs an internal scroll on desktop; on
+          // mobile it shares the page scroll with the canvas + history above.
+          overflowY: { xs: 'visible', lg: 'auto' },
         }}
       >
         <BettingControls

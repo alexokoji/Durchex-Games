@@ -18,18 +18,35 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
   const soccerLeagues = leaguesBySport('soccer');
   const [featuredId, setFeaturedId] = useState<string | null>(null);
   const [tab, setTab] = useState<'fixtures' | 'standings'>('fixtures');
+  /** 0 = live session, 1 = next, 2 = after-next. Pre-booking lets users place
+   *  bets on any of the three. */
+  const [sessionTab, setSessionTab] = useState<number>(0);
 
   const league = getLeague(leagueId) ?? soccerLeagues[0];
   const schedule = useSoccerSchedule({ leagueId, matchesPerRound: 10 });
 
-  useEffect(() => {
-    if (!schedule.matches.length) return;
-    if (!schedule.matches.find(m => m.id === featuredId)) {
-      setFeaturedId(schedule.matches[0].id);
-    }
-  }, [schedule.matches, featuredId]);
+  // Build the unified session list — index 0 is always the live round.
+  const sessions = useMemo(() => [
+    {
+      sessionId: schedule.round,
+      state: 'live' as const,
+      matches: schedule.matches,
+      secondsUntilLive: 0,
+    },
+    ...schedule.upcomingSessions,
+  ], [schedule.round, schedule.matches, schedule.upcomingSessions]);
 
-  const featured = schedule.matches.find(m => m.id === featuredId) ?? schedule.matches[0] ?? null;
+  const activeSession = sessions[Math.min(sessionTab, sessions.length - 1)] ?? sessions[0];
+  const activeMatches = activeSession?.matches ?? [];
+
+  useEffect(() => {
+    if (!activeMatches.length) return;
+    if (!activeMatches.find(m => m.id === featuredId)) {
+      setFeaturedId(activeMatches[0].id);
+    }
+  }, [activeMatches, featuredId]);
+
+  const featured = activeMatches.find(m => m.id === featuredId) ?? activeMatches[0] ?? null;
   const featuredTeamIds = useMemo(() => featured ? [featured.home.id, featured.away.id] : [], [featured]);
 
   const phaseLabel = schedule.phase === 'betting'
@@ -67,6 +84,39 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
         </Typography>
       </Box>
 
+      {/* Session selector — Live + pre-bookable future sessions. */}
+      <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto' }}>
+        {sessions.map((s, i) => {
+          const active = i === sessionTab;
+          const isLive = s.state === 'live';
+          const tone = isLive ? '#ff4757' : neonGold;
+          return (
+            <Box
+              key={s.sessionId}
+              onClick={() => setSessionTab(i)}
+              sx={{
+                px: 1.5, py: 0.75, borderRadius: 1.5, cursor: 'pointer',
+                background: active ? alpha(tone, 0.16) : alpha('#fff', 0.04),
+                border: `1px solid ${active ? alpha(tone, 0.6) : darkBorder}`,
+                minWidth: 140, flexShrink: 0,
+              }}
+            >
+              <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: tone, letterSpacing: '0.1em' }}>
+                {isLive ? '● LIVE' : i === 1 ? 'NEXT' : 'AFTER NEXT'}
+              </Typography>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, lineHeight: 1.1 }}>
+                Session {s.sessionId}
+              </Typography>
+              <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                {isLive
+                  ? `${schedule.matches.length} fixtures live`
+                  : `Kick-off in ${s.secondsUntilLive}s`}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
+
       {/* Animated match window — full width on top */}
       {featured ? (
         <SoccerFeaturedMatch match={featured} />
@@ -93,7 +143,7 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
         </Tabs>
         {tab === 'fixtures' && (
           <Box sx={{ p: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.75 }}>
-            {schedule.matches.map(m => (
+            {activeMatches.map(m => (
               <SoccerMatchCard
                 key={m.id}
                 match={m}

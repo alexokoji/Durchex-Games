@@ -9,6 +9,7 @@ import { paymentsApi, type DepositInitBody, type WithdrawBody } from '../api/pay
 import { ApiError } from '../api/client';
 import { getChatSocket } from '../api/chat';
 import type { FiatCurrency, CryptoCurrency, AnyCurrency } from '../utils/currency';
+import { minBetFor, formatMoney } from '../utils/currency';
 import { useToasts } from './ToastContext';
 import { useNotifications } from './NotificationContext';
 
@@ -41,6 +42,8 @@ export interface TxRecord {
 interface WalletContextValue {
   currency: FiatCurrency;
   balance: number;
+  bonusBalance: number;
+  bonusRollover: number;
   cryptoBalances: Partial<Record<CryptoCurrency, number>>;
 
   history: BetRecord[];
@@ -104,6 +107,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const [currency, setCurrency] = useState<FiatCurrency>(user?.currency ?? 'USD');
   const [balance,  setBalance]  = useState(0);
+  const [bonusBalance,  setBonusBalance]  = useState(0);
+  const [bonusRollover, setBonusRollover] = useState(0);
   const [cryptoBalances, setCryptoBalances] = useState<Partial<Record<CryptoCurrency, number>>>({});
   const [history, setHistory] = useState<BetRecord[]>([]);
   const [pendingBets, setPendingBets] = useState<BetRecord[]>([]);
@@ -123,6 +128,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       ]);
       setCurrency(snap.currency);
       setBalance(snap.balance);
+      setBonusBalance(snap.bonusBalance ?? 0);
+      setBonusRollover(snap.bonusRollover ?? 0);
       setCryptoBalances(snap.cryptoBalances ?? {});
       setHistory(hist.bets.map(toBetRecord));
       setPendingBets(pend.bets.map(toBetRecord));
@@ -136,7 +143,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setBalance(0); setCryptoBalances({});
+      setBalance(0); setBonusBalance(0); setBonusRollover(0); setCryptoBalances({});
       setHistory([]); setPendingBets([]); setTransactions([]);
       return;
     }
@@ -179,16 +186,26 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const placeBet = useCallback<WalletContextValue['placeBet']>(async ({ gameId, gameName, stake, details, selections }) => {
     if (!isAuthenticated) { requireAuth(); return null; }
-    if (stake > balance + 1e-9) {
-      toasts.error('Insufficient balance', `You only have ${balance.toFixed(2)} ${currency}. Top up to keep playing.`);
+    const minBet = minBetFor(currency);
+    if (stake + 1e-9 < minBet) {
+      toasts.warning(
+        'Bet too small',
+        `Minimum bet is ${formatMoney(minBet, currency)} (≈ $0.01).`,
+      );
+      return null;
+    }
+    const spendable = balance + bonusBalance;
+    if (stake > spendable + 1e-9) {
+      toasts.error('Insufficient balance', `You only have ${formatMoney(spendable, currency)} available (incl. bonus). Top up to keep playing.`);
       return null;
     }
     setLastError(null);
     try {
-      const { bet, balance: newBalance } = await betsApi.place({ gameId, gameName, stake, details, selections });
+      const { bet, balance: newBalance, bonusBalance: newBonus } = await betsApi.place({ gameId, gameName, stake, details, selections });
       const rec = toBetRecord(bet);
       setPendingBets(prev => [rec, ...prev]);
       setBalance(newBalance);
+      if (typeof newBonus === 'number') setBonusBalance(newBonus);
       return rec;
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'place_bet_failed';
@@ -199,7 +216,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       );
       return null;
     }
-  }, [isAuthenticated, requireAuth, balance, currency, toasts]);
+  }, [isAuthenticated, requireAuth, balance, bonusBalance, currency, toasts]);
 
   const settleBet = useCallback<WalletContextValue['settleBet']>(async (betId, { won, payout, multiplier, details }) => {
     setLastError(null);
@@ -260,7 +277,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider value={{
-      currency, balance, cryptoBalances,
+      currency, balance, bonusBalance, bonusRollover, cryptoBalances,
       history, pendingBets, transactions,
       isLoading, lastError,
       placeBet, settleBet, cancelBet,

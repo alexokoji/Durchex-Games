@@ -1,6 +1,6 @@
 import type { Market, MarketOption, Team } from '../core/types';
 import { probabilitiesToOdds, DEFAULT_OVERROUND } from '../core/oddsEngine';
-import { teamStrength } from '../core/teamDatabase';
+import { teamStrength, getPersonality } from '../core/teamDatabase';
 
 const HOME_ADVANTAGE = 0.35;
 const LEAGUE_AVG_GOALS = 2.7;
@@ -11,6 +11,16 @@ export interface ExpectedGoals {
   away: number;
 }
 
+/**
+ * Personality-aware xG model. Combines:
+ *  • Numeric strength (existing model)
+ *  • Pressing intensity vs opponent's passing speed — high press squeezes
+ *    weaker passers and adds attacking opportunities.
+ *  • Counter-attack strength — even a low-possession side can be lethal
+ *    against teams that commit forward.
+ *  • Finishing vs opposing goalkeeping — converts shot quality to goals.
+ *  • Form — short-term momentum bump.
+ */
 export function computeExpectedGoals(home: Team, away: Team): ExpectedGoals {
   const hStrength = teamStrength(home);
   const aStrength = teamStrength(away);
@@ -18,13 +28,77 @@ export function computeExpectedGoals(home: Team, away: Team): ExpectedGoals {
   const homeShare = (hStrength + HOME_ADVANTAGE * 5) / Math.max(1, total + HOME_ADVANTAGE * 5);
   const awayShare = aStrength / Math.max(1, total + HOME_ADVANTAGE * 5);
 
-  // Higher combined strength = slightly higher total xG (better attackers + worse defenders)
   const attackBoost = ((home.ratings.attack + away.ratings.attack) - (home.ratings.defense + away.ratings.defense)) / 80;
   const totalGoals = Math.max(1.5, Math.min(4.5, LEAGUE_AVG_GOALS + attackBoost));
 
+  // Personality modifiers (each ≈ -0.15..+0.25 xG)
+  const hp = getPersonality(home);
+  const ap = getPersonality(away);
+
+  // High press disrupts opponent in their defensive third → extra xG for the
+  // pressing side, capped to avoid runaway values.
+  const hPressBonus = clamp01((hp.pressingIntensity - 60) / 100) * 0.4 - clamp01((ap.passingSpeed - 70) / 100) * 0.2;
+  const aPressBonus = clamp01((ap.pressingIntensity - 60) / 100) * 0.4 - clamp01((hp.passingSpeed - 70) / 100) * 0.2;
+
+  // Counter-attack reward for direct, fast teams.
+  const hCounter = clamp01((hp.counterAttackStrength - 70) / 100) * 0.35;
+  const aCounter = clamp01((ap.counterAttackStrength - 70) / 100) * 0.35;
+
+  // Finishing vs opposing goalkeeping difference.
+  const hFinish = ((hp.finishing - 75) - (ap.goalkeeping - 75)) / 400;
+  const aFinish = ((ap.finishing - 75) - (hp.goalkeeping - 75)) / 400;
+
+  // Form swing (current form runs -10..+10).
+  const hForm = hp.currentForm * 0.025;
+  const aForm = ap.currentForm * 0.025;
+
   return {
-    home: Math.max(0.2, totalGoals * homeShare),
-    away: Math.max(0.2, totalGoals * awayShare),
+    home: Math.max(0.15, totalGoals * homeShare + hPressBonus + hCounter + hFinish + hForm),
+    away: Math.max(0.15, totalGoals * awayShare + aPressBonus + aCounter + aFinish + aForm),
+  };
+}
+
+function clamp01(v: number): number {
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
+
+/**
+ * Aggregate per-match event-rate profile derived from both teams'
+ * personality. Used by the simulator to decide how many cards, corners,
+ * fouls, etc. to surface in the timeline.
+ */
+export interface MatchEventRates {
+  avgYellow: number;     // mean total yellow cards in the match
+  redChance: number;     // probability of at least one red
+  cornersAvg: number;    // mean total corners
+  foulsAvg: number;      // mean total fouls
+  penaltyChance: number; // probability of at least one penalty
+  varDisallowed: number; // probability of a VAR-disallowed goal
+  injuryChance: number;  // probability of an injury stoppage
+  // Per-side bias 0–1 for events that lean toward one team's profile.
+  yellowHomeShare: number;
+}
+export function computeEventRates(home: Team, away: Team): MatchEventRates {
+  const hp = getPersonality(home);
+  const ap = getPersonality(away);
+
+  const aggression = (hp.aggression + ap.aggression) / 2;
+  const discipline = (hp.discipline + ap.discipline) / 2;
+  const possession = (hp.possessionStyle + ap.possessionStyle) / 2;
+  const pressing   = (hp.pressingIntensity + ap.pressingIntensity) / 2;
+  const injury     = (hp.injuryFactor + ap.injuryFactor) / 2;
+
+  return {
+    avgYellow:        3 + (aggression - 60) / 16 + (pressing - 65) / 28,
+    redChance:        Math.max(0.04, Math.min(0.28, 0.10 + (aggression - 60) / 220 - (discipline - 65) / 260)),
+    cornersAvg:       7 + (possession - 60) / 14 + (pressing - 65) / 18,
+    foulsAvg:         18 + (aggression - 60) / 6,
+    penaltyChance:    Math.max(0.04, Math.min(0.30, 0.12 + (aggression - 60) / 320)),
+    varDisallowed:    0.10,
+    injuryChance:     Math.max(0.10, Math.min(0.45, 0.20 + (injury - 45) / 220)),
+    yellowHomeShare:  0.5 + (hp.aggression - ap.aggression) / 200,
   };
 }
 

@@ -10,7 +10,7 @@ import { currencyForCountry, type FiatCurrency } from './currency';
 export interface GeoResult {
   country: string;        // ISO-3166-1 alpha-2 (e.g. 'NG')
   currency: FiatCurrency;
-  source: 'ipapi' | 'country.is' | 'language' | 'timezone';
+  source: 'country.is' | 'ipwho.is' | 'language' | 'timezone';
 }
 
 async function tryFetch(url: string, ms = 4000): Promise<unknown | null> {
@@ -58,24 +58,27 @@ function fromTimezone(): string | null {
 }
 
 export async function detectCountryAndCurrency(): Promise<GeoResult | null> {
-  // 1) Free IP geolocation — primary signal.
+  // 1) Primary IP geolocation — api.country.is is small, fast, CORS-open.
   const cIs = await tryFetch('https://api.country.is/');
   const cIsCountry = (cIs as { country?: string } | null)?.country;
   if (cIsCountry && /^[A-Z]{2}$/.test(cIsCountry)) {
     return { country: cIsCountry, currency: currencyForCountry(cIsCountry), source: 'country.is' };
   }
 
-  const ipApi = await tryFetch('https://ipapi.co/json/');
-  const ipApiCountry = (ipApi as { country_code?: string } | null)?.country_code;
-  if (ipApiCountry && /^[A-Z]{2}$/.test(ipApiCountry)) {
-    return { country: ipApiCountry, currency: currencyForCountry(ipApiCountry), source: 'ipapi' };
+  // 2) Backup IP geolocation. ipwho.is has open CORS for browser fetches.
+  //    (ipapi.co was removed — it started blocking deployed domains with 403
+  //    + no CORS headers, which is unrecoverable from the frontend.)
+  const ipwho = await tryFetch('https://ipwho.is/');
+  const ipwhoCountry = (ipwho as { country_code?: string; success?: boolean } | null);
+  if (ipwhoCountry?.success && ipwhoCountry.country_code && /^[A-Z]{2}$/.test(ipwhoCountry.country_code)) {
+    return { country: ipwhoCountry.country_code, currency: currencyForCountry(ipwhoCountry.country_code), source: 'ipwho.is' };
   }
 
-  // 2) Browser language fallback.
+  // 3) Browser language fallback.
   const fromLang = fromLanguage();
   if (fromLang) return { country: fromLang, currency: currencyForCountry(fromLang), source: 'language' };
 
-  // 3) Timezone fallback.
+  // 4) Timezone fallback.
   const fromTz = fromTimezone();
   if (fromTz) return { country: fromTz, currency: currencyForCountry(fromTz), source: 'timezone' };
 

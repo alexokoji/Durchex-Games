@@ -436,12 +436,79 @@ function renderEmblem(t: Team, id: string) {
         </>
       );
 
-    // Default fallback for any unrecognized team
-    default:
+    // Procedural fallback — deterministic per team id, so the same club
+    // always renders the same crest. Picks one of six layout templates
+    // based on a hash of the id, plus an accent shape (stars / chevron /
+    // diagonal / dot ring) for visual variety.
+    default: {
+      const seed = hashSeed(t.id);
+      const variant = seed % 6;
+      return procedural(t, grad, variant, seed);
+    }
+  }
+}
+
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function procedural(t: Team, grad: string, variant: number, seed: number) {
+  const flair = (seed >> 4) % 4;
+  switch (variant) {
+    case 0: // shield + monogram
       return (
         <>
           <path d={shieldD} fill={grad} stroke={t.secondary} strokeWidth="1.2" />
-          <text x="24" y="30" textAnchor="middle" fontSize="13" fontWeight="900" fill={t.secondary} fontFamily="Arial">{t.abbr}</text>
+          <rect x="8" y="20" width="32" height="3" fill={t.secondary} opacity="0.85" />
+          <text x="24" y="32" textAnchor="middle" fontSize="13" fontWeight="900" fill={t.secondary} fontFamily="Arial">{t.abbr}</text>
+          {flair === 0 && <circle cx="24" cy="13" r="2.5" fill={t.accent || t.secondary} />}
+        </>
+      );
+    case 1: // diagonal split
+      return (
+        <>
+          <path d={shieldD} fill={t.secondary} stroke={t.primary} strokeWidth="1.2" />
+          <path d="M24 2 L42 7 L42 24 L24 46 Z" fill={t.primary} />
+          <text x="24" y="30" textAnchor="middle" fontSize="11" fontWeight="900" fill={t.secondary} fontFamily="Arial">{t.abbr}</text>
+        </>
+      );
+    case 2: // vertical stripes
+      return (
+        <>
+          <path d={shieldD} fill={t.secondary} stroke={t.accent || t.primary} strokeWidth="1.2" />
+          <path d="M14 8 L14 44 M20 8 L20 44 M26 8 L26 44 M32 8 L32 44" stroke={t.primary} strokeWidth="3" />
+          <rect x="14" y="6" width="20" height="9" fill={t.accent || t.primary} />
+          <text x="24" y="13" textAnchor="middle" fontSize="5.5" fontWeight="900" fill={t.secondary} fontFamily="Arial">{t.abbr}</text>
+        </>
+      );
+    case 3: // ring + initial
+      return (
+        <>
+          <circle cx="24" cy="24" r="22" fill={grad} stroke={t.secondary} strokeWidth="2" />
+          <circle cx="24" cy="24" r="15" fill="none" stroke={t.accent || t.secondary} strokeWidth="1.5" />
+          <text x="24" y="30" textAnchor="middle" fontSize="14" fontWeight="900" fill={t.secondary} fontFamily="Georgia">{t.abbr[0]}</text>
+        </>
+      );
+    case 4: // chevron
+      return (
+        <>
+          <path d={shieldD} fill={grad} stroke={t.secondary} strokeWidth="1.2" />
+          <path d="M8 18 L24 30 L40 18" stroke={t.secondary} strokeWidth="3" fill="none" />
+          <text x="24" y="40" textAnchor="middle" fontSize="6.5" fontWeight="900" fill={t.secondary} fontFamily="Arial">{t.abbr}</text>
+        </>
+      );
+    case 5:
+    default: // diamond core
+      return (
+        <>
+          <path d={shieldD} fill={grad} stroke={t.secondary} strokeWidth="1.2" />
+          <path d="M24 12 L34 24 L24 36 L14 24 Z" fill={t.secondary} opacity="0.85" />
+          <text x="24" y="27" textAnchor="middle" fontSize="9" fontWeight="900" fill={t.primary} fontFamily="Arial">{t.abbr[0]}</text>
         </>
       );
   }

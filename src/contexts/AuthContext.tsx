@@ -7,6 +7,7 @@ import { walletApi } from '../api/wallet';
 import { ApiError, hasTokens, clearTokens } from '../api/client';
 import { detectCountryAndCurrency } from '../utils/geolocation';
 import { type FiatCurrency, currencyForCountry } from '../utils/currency';
+import { getDeviceSignature } from '../utils/deviceFingerprint';
 
 export interface AuthUser {
   id: string;
@@ -19,9 +20,21 @@ export interface AuthUser {
   currency: FiatCurrency;
   countryCode?: string;
   emailVerified: boolean;
+  referralCode: string;
+  promoterStatus: 'none' | 'pending' | 'approved' | 'banned';
+  isAdmin: boolean;
 }
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
+
+export interface SignUpExtras {
+  referralCode?: string;
+  promoCode?: string;
+}
+
+export type SignUpResult =
+  | { ok: true;  bonus?: { amount: number; rollover: number; code: string } | null; referralApplied?: boolean }
+  | { ok: false; error: string };
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -31,7 +44,7 @@ interface AuthContextValue {
   authError: string | null;
 
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, username: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, username: string, password: string, extras?: SignUpExtras) => Promise<SignUpResult>;
   signInWithGoogle: () => void;
   signInWithApple:  () => void;
   signOut:  () => Promise<void>;
@@ -71,6 +84,9 @@ function toAuthUser(u: ApiUser): AuthUser {
     currency: u.currency,
     countryCode: u.countryCode,
     emailVerified: u.emailVerified,
+    referralCode: u.referralCode,
+    promoterStatus: u.promoterStatus,
+    isAdmin: u.isAdmin ?? false,
   };
 }
 
@@ -148,13 +164,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setIsSubmitting(false); }
   }, []);
 
-  const signUp = useCallback(async (email: string, username: string, password: string): Promise<AuthResult> => {
+  const signUp = useCallback(async (
+    email: string, username: string, password: string, extras?: SignUpExtras,
+  ): Promise<SignUpResult> => {
     setIsSubmitting(true); setAuthError(null);
     try {
-      const u = await authApi.register(email, username, password, detectedCountry, detectedCurrency);
-      setUser(toAuthUser(u));
+      const r = await authApi.register(email, username, password, detectedCountry, detectedCurrency, {
+        ...extras,
+        deviceSignature: getDeviceSignature(),
+      });
+      setUser(toAuthUser(r.user));
       setAuthPromptOpen(false);
-      return { ok: true };
+      return {
+        ok: true,
+        bonus: r.promo ? { amount: r.promo.bonus, rollover: r.promo.rollover, code: r.promo.code } : null,
+        referralApplied: r.referral?.applied ?? false,
+      };
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'register_failed';
       setAuthError(code);

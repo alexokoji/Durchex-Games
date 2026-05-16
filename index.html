@@ -29,5 +29,65 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!--Start of Tawk.to Script-->
+    <script type="text/javascript">
+      var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+      (function () {
+        var s1 = document.createElement('script'),
+            s0 = document.getElementsByTagName('script')[0];
+        s1.async = true;
+        s1.src = 'https://embed.tawk.to/69a7166f7b02b21c3601dcb1/1jiqav9pg';
+        s1.charset = 'UTF-8';
+        s1.setAttribute('crossorigin', '*');
+        s0.parentNode.insertBefore(s1, s0);
+      })();
+    </script>
+    <!--End of Tawk.to Script-->
+
+    <script>
+      // ─── Stale-SW recovery ────────────────────────────────────────────
+      // If a previous deploy's service worker is still serving cached HTML
+      // that references JS bundles that no longer exist, the page goes
+      // blank (404 on the asset URL). HTTP visitors don't register the SW
+      // so they always load the fresh HTML — that's why they "work" while
+      // HTTPS visitors see a white screen.
+      //
+      // The new SW config (cleanupOutdatedCaches + skipWaiting + clientsClaim)
+      // prevents this going forward, but users currently stuck with the
+      // broken cache need a one-shot escape. If React hasn't mounted within
+      // 6 s of page load, we unregister every service worker, clear every
+      // CacheStorage entry, and reload exactly once. A session-storage
+      // flag stops it from looping if the issue is unrelated.
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          try {
+            var root = document.getElementById('root');
+            if (root && root.firstChild) return;                       // app mounted, fine
+            if (sessionStorage.getItem('duchex.recovered')) return;    // already tried once
+            sessionStorage.setItem('duchex.recovered', '1');
+
+            var done = function () { window.location.reload(); };
+
+            var clearCaches = function () {
+              if ('caches' in window) {
+                caches.keys().then(function (keys) {
+                  Promise.all(keys.map(function (k) { return caches.delete(k); })).then(done, done);
+                }, done);
+              } else { done(); }
+            };
+
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                if (!regs.length) { clearCaches(); return; }
+                Promise.all(regs.map(function (r) { return r.unregister(); })).then(clearCaches, clearCaches);
+              }, clearCaches);
+            } else {
+              clearCaches();
+            }
+          } catch (e) { /* never block; worst case the user reloads manually */ }
+        }, 6000);
+      });
+    </script>
   </body>
 </html>

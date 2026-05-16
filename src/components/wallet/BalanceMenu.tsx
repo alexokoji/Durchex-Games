@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Popover, Box, Typography, IconButton, Button, Divider, Chip,
+  Popover, Box, Typography, IconButton, Button, Divider, Chip, LinearProgress, Tooltip,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -9,6 +9,8 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import LockIcon from '@mui/icons-material/Lock';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { motion } from 'framer-motion';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import { useWallet } from '../../contexts/WalletContext';
@@ -24,13 +26,22 @@ interface BalanceMenuProps {
 
 export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWithdraw }: BalanceMenuProps) {
   const [hidden, setHidden] = useState(false);
-  const { balance, currency, cryptoBalances } = useWallet();
+  const { balance, bonusBalance, bonusRollover, currency, cryptoBalances } = useWallet();
 
   function mask<T>(value: T): T | string {
     return hidden ? '••••••' : (value as unknown as T);
   }
 
   const fiatMeta = FIAT[currency];
+
+  // Rollover progress: we don't track the starting amount, just the remaining
+  // obligation. Use bonusBalance × a heuristic factor (5 by default) as the
+  // visual baseline if we ever want a bar — for now just show the remaining
+  // figure, which is the actionable number.
+  const rolloverPending = bonusRollover > 0;
+  const rolloverProgress = rolloverPending && bonusBalance > 0
+    ? Math.max(0, Math.min(100, 100 * (1 - bonusRollover / (bonusBalance * 5))))
+    : 0;
 
   // Crypto subaccounts only render when they hold something. Since we route
   // crypto deposits through Flutterwave (which converts to fiat), these are
@@ -74,8 +85,11 @@ export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWith
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <AccountBalanceWalletIcon sx={{ fontSize: 18, color: neonGold }} />
             <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontWeight: 600 }}>
-              {fiatMeta.name} balance
+              Withdrawable · {fiatMeta.name}
             </Typography>
+            <Tooltip title="Real balance — yours to withdraw anytime (once any active rollover clears).">
+              <InfoOutlinedIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+            </Tooltip>
           </Box>
           <IconButton size="small" onClick={() => setHidden(p => !p)}>
             {hidden ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
@@ -113,6 +127,53 @@ export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWith
           </Button>
         </Box>
       </Box>
+
+      {(bonusBalance > 0 || rolloverPending) && (
+        <Box sx={{
+          px: 2, py: 1.5,
+          background: alpha(neonBlue, 0.05),
+          borderBottom: `1px solid ${darkBorder}`,
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <CardGiftcardIcon sx={{ fontSize: 16, color: neonBlue }} />
+              <Typography sx={{ fontSize: '0.74rem', fontWeight: 700, color: neonBlue }}>
+                Bonus balance
+              </Typography>
+              <Tooltip title="Spent first on bets. Winnings are credited to your withdrawable balance; the bonus itself stays locked until rollover is cleared.">
+                <InfoOutlinedIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+              </Tooltip>
+            </Box>
+            <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: neonBlue, fontVariantNumeric: 'tabular-nums' }}>
+              {hidden ? '••••••' : formatMoney(bonusBalance, currency)}
+            </Typography>
+          </Box>
+
+          {rolloverPending && (
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <LockIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
+                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                    Wager {hidden ? '••••' : formatMoney(bonusRollover, currency)} more to unlock withdrawals
+                  </Typography>
+                </Box>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={rolloverProgress}
+                sx={{
+                  height: 4, borderRadius: 2,
+                  backgroundColor: alpha(neonBlue, 0.15),
+                  '& .MuiLinearProgress-bar': {
+                    background: `linear-gradient(90deg, ${neonBlue}, ${neonGreen})`,
+                  },
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
 
       {cryptoRows.length > 0 && (
         <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${darkBorder}` }}>

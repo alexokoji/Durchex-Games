@@ -33,9 +33,20 @@ export interface ScheduledMatch {
   endsAt: number;
 }
 
+/** A pre-booked / live / finished bundle of fixtures for one round. */
+export interface ScheduledSession {
+  sessionId: number;       // round number, exposed as the public "Session #" to the user
+  state: 'live' | 'upcoming';
+  matches: ScheduledMatch[];
+  /** Seconds until this session's phase changes (kickoff / settle / next). */
+  secondsUntilLive: number;
+}
+
 interface UseSoccerScheduleArgs {
   leagueId: string;
   matchesPerRound?: number;
+  /** How many future rounds to pre-build for pre-booking. Default 2 → Live + Next + After-next. */
+  upcomingCount?: number;
 }
 
 export interface UseSoccerScheduleResult {
@@ -43,6 +54,8 @@ export interface UseSoccerScheduleResult {
   phase: MatchPhase;
   secondsToNextPhase: number;
   matches: ScheduledMatch[];
+  /** Pre-booking layer — future sessions users can already bet on. */
+  upcomingSessions: ScheduledSession[];
   nextRoundIn: number;
   liveCount: number;
 }
@@ -56,7 +69,7 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
-export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerScheduleArgs): UseSoccerScheduleResult {
+export function useSoccerSchedule({ leagueId, matchesPerRound, upcomingCount = 2 }: UseSoccerScheduleArgs): UseSoccerScheduleResult {
   const teams = useMemo(() => teamsByLeague(leagueId), [leagueId]);
   const slip = useBetSlip();
   const settledRoundsRef = useRef<Set<string>>(new Set());
@@ -91,6 +104,12 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
 
   const [round, setRound] = useState(1);
   const [matches, setMatches] = useState<ScheduledMatch[]>(() => buildRound(1));
+  /** Future rounds keyed by round number — pre-built so users can bet on them now. */
+  const [upcoming, setUpcoming] = useState<Record<number, ScheduledMatch[]>>(() => {
+    const out: Record<number, ScheduledMatch[]> = {};
+    for (let i = 1; i <= upcomingCount; i++) out[1 + i] = buildRound(1 + i);
+    return out;
+  });
   const [phaseClock, setPhaseClock] = useState({ phase: 'betting' as MatchPhase, secondsInto: 0 });
 
   // Rebuild round when league changes (fresh history per league).
@@ -98,8 +117,11 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
     historyRef.current = createRecentPairsHistory();
     setRound(1);
     setMatches(buildRound(1));
+    const out: Record<number, ScheduledMatch[]> = {};
+    for (let i = 1; i <= upcomingCount; i++) out[1 + i] = buildRound(1 + i);
+    setUpcoming(out);
     setPhaseClock({ phase: 'betting', secondsInto: 0 });
-  }, [buildRound]);
+  }, [buildRound, upcomingCount]);
 
   // 1 Hz tick: advance phase clock + live minute on live matches
   useEffect(() => {
@@ -113,11 +135,27 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
         if (secondsInto >= cap) {
           if (phase === 'betting') return { phase: 'live', secondsInto: 0 };
           if (phase === 'live')    return { phase: 'finished', secondsInto: 0 };
-          // finished → new round
+          // finished → promote upcoming[round+1] into current, shift everything down,
+          // generate a new tail upcoming round.
           setRound(r => {
-            const next = r + 1;
-            setMatches(buildRound(next));
-            return next;
+            const nextRound = r + 1;
+            setUpcoming(prevUpcoming => {
+              const next = { ...prevUpcoming };
+              const promoted = next[nextRound];
+              if (promoted) setMatches(promoted);
+              else          setMatches(buildRound(nextRound));
+              delete next[nextRound];
+              // Shift: build a fresh tail at the highest round.
+              const tailRound = nextRound + upcomingCount;
+              next[tailRound] = buildRound(tailRound);
+              // Re-seed lower upcoming rounds that were already there.
+              for (let i = 1; i < upcomingCount; i++) {
+                const r2 = nextRound + i;
+                if (!next[r2]) next[r2] = buildRound(r2);
+              }
+              return next;
+            });
+            return nextRound;
           });
           return { phase: 'betting', secondsInto: 0 };
         }
@@ -125,9 +163,9 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
       });
     }, 1000);
     return () => window.clearInterval(t);
-  }, [buildRound]);
+  }, [buildRound, upcomingCount]);
 
-  // Sync matches with phase clock (update liveMinute, visibleEvents, phase)
+  // Sync the LIVE round's matches with phase clock.
   useEffect(() => {
     setMatches(prev => prev.map(m => {
       if (phaseClock.phase === 'betting') {
@@ -143,17 +181,12 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
           visibleEvents: eventsUpTo(m.simulation.events, liveMinute),
         };
       }
-      // finished
-      return {
-        ...m,
-        phase: 'finished',
-        liveMinute: 90,
-        visibleEvents: m.simulation.events,
-      };
+      return { ...m, phase: 'finished', liveMinute: 90, visibleEvents: m.simulation.events };
     }));
   }, [phaseClock]);
 
-  // Settle bet slip outcomes when round transitions into 'finished'.
+  // Settle bet slip outcomes when round transitions into 'finished'. Includes
+  // any pre-booked bets on this round that came in via the future-round UI.
   useEffect(() => {
     if (phaseClock.phase !== 'finished' || phaseClock.secondsInto !== 0) return;
     const roundKey = `r-${round}-${leagueId}`;
@@ -161,7 +194,6 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
     settledRoundsRef.current.add(roundKey);
 
     const outcomes: SettlementOutcome[] = [];
-    // collect every pending selection from openTickets + slip that matches these matchIds
     const pendingSelections: BetSelection[] = [
       ...slip.openTickets.flatMap(t => t.selections),
     ];
@@ -187,13 +219,25 @@ export function useSoccerSchedule({ leagueId, matchesPerRound }: UseSoccerSchedu
       ? LIVE_SECONDS - phaseClock.secondsInto + FINISHED_SECONDS
       : FINISHED_SECONDS - phaseClock.secondsInto;
 
+  // Build the upcoming-session bundles. Each upcoming round's kickoff
+  // happens `nextRoundIn + (offset-1) * ROUND_SECONDS` seconds from now.
+  const upcomingSessions: ScheduledSession[] = useMemo(() => {
+    const keys = Object.keys(upcoming).map(Number).sort((a, b) => a - b);
+    return keys.map((k, idx) => ({
+      sessionId: k,
+      state: 'upcoming' as const,
+      matches: upcoming[k],
+      secondsUntilLive: nextRoundIn + idx * ROUND_SECONDS,
+    }));
+  }, [upcoming, nextRoundIn]);
+
   return {
     round,
     phase: phaseClock.phase,
     secondsToNextPhase,
     matches,
+    upcomingSessions,
     nextRoundIn,
     liveCount: phaseClock.phase === 'live' ? matches.length : 0,
   };
-  void ROUND_SECONDS;
 }

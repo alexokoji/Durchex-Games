@@ -10,11 +10,18 @@ import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import HistoryIcon from '@mui/icons-material/History';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import ShareIcon from '@mui/icons-material/Share';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LinkIcon from '@mui/icons-material/Link';
 import { useAuth } from '../../contexts/AuthContext';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard, darkSurface } from '../../theme';
 import { useBetSlip, QUICK_STAKE_PRESETS } from '../core/BetSlipContext';
 import { formatOdds } from '../core/oddsEngine';
-import type { BetMode, OddsFormat } from '../core/types';
+import type { BetMode, OddsFormat, BetSelection } from '../core/types';
+import { bookingCodesApi } from '../../api/bookingCodes';
+import { ApiError } from '../../api/client';
+
+interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
 export default function RightBetSlipPanel() {
   const [tab, setTab] = useState<'slip' | 'open' | 'history'>('slip');
@@ -91,6 +98,54 @@ function BetSlipBody() {
   const { isAuthenticated, requireAuth } = useAuth();
   const slip = useBetSlip();
   const { selections, mode, stake, systemK, oddsFormat, computedOdds, potentialPayout, totalStake, systemLines } = slip;
+  const [codeInput, setCodeInput] = useState('');
+  const [mintedCode, setMintedCode] = useState<string | null>(null);
+  const [codeStatus, setCodeStatus] = useState<{ kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }>({ kind: 'idle' });
+
+  async function mintCode() {
+    if (!isAuthenticated) { requireAuth(); return; }
+    if (selections.length === 0) return;
+    setCodeStatus({ kind: 'minting' });
+    try {
+      const r = await bookingCodesApi.mint({
+        selections,                    // captured BetSelection[] snapshot
+        suggestedStake: stake,
+        currency: 'USD',
+        label: `${selections.length}-leg slip`,
+      });
+      setMintedCode(r.code);
+      setCodeStatus({ kind: 'ok', message: `Code ${r.code} ready — copy & share` });
+    } catch (err) {
+      setCodeStatus({ kind: 'error', message: err instanceof ApiError ? err.code : 'mint_failed' });
+    }
+  }
+
+  async function copyCode() {
+    if (!mintedCode) return;
+    try { await navigator.clipboard.writeText(mintedCode); } catch { /* ignore */ }
+  }
+
+  async function redeemCode() {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) return;
+    setCodeStatus({ kind: 'redeeming' });
+    try {
+      const r = await bookingCodesApi.redeem(code);
+      // Replay each selection into the slip — same shape as a normal pick.
+      const sels = (r.selections ?? []) as BetSelection[];
+      slip.clearSlip();
+      for (const sel of sels) slip.addSelection(sel);
+      if (typeof r.suggestedStake === 'number' && r.suggestedStake > 0) slip.setStake(r.suggestedStake);
+      setCodeStatus({ kind: 'ok', message: `Loaded ${sels.length} selection${sels.length === 1 ? '' : 's'} from ${code}` });
+      setCodeInput('');
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : 'redeem_failed';
+      const msg = code === 'code_not_found' ? 'Code not found'
+                : code === 'code_expired'   ? 'Code expired'
+                : code;
+      setCodeStatus({ kind: 'error', message: msg });
+    }
+  }
 
   if (selections.length === 0) {
     return (
@@ -99,9 +154,13 @@ function BetSlipBody() {
         <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, mb: 0.5 }}>
           Your slip is empty
         </Typography>
-        <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
-          Tap any market button to add a selection.
+        <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 1.5 }}>
+          Tap any market button to add a selection — or paste a booking code below.
         </Typography>
+        <BookingCodeRow
+          codeInput={codeInput} setCodeInput={setCodeInput}
+          onRedeem={redeemCode} status={codeStatus}
+        />
       </Box>
     );
   }
@@ -131,6 +190,17 @@ function BetSlipBody() {
           </IconButton>
         </Box>
       </Box>
+
+      <BookingCodeRow
+        codeInput={codeInput}
+        setCodeInput={setCodeInput}
+        onRedeem={redeemCode}
+        status={codeStatus}
+        canMint
+        onMint={mintCode}
+        mintedCode={mintedCode}
+        onCopy={copyCode}
+      />
 
       {/* Mode toggle — every slip is one ticket. Multi = all-or-nothing; System = k-of-n. */}
       <ToggleButtonGroup
@@ -322,6 +392,118 @@ function BetSlipBody() {
       >
         {isAuthenticated ? 'Place Bet' : 'Sign in to bet'}
       </Button>
+    </Box>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// BOOKING CODE ROW — share + redeem
+// ────────────────────────────────────────────────────────────────────────────
+
+interface BookingCodeRowProps {
+  codeInput: string;
+  setCodeInput: (v: string) => void;
+  onRedeem: () => void;
+  status: CodeStatus;
+  canMint?: boolean;
+  onMint?: () => void;
+  mintedCode?: string | null;
+  onCopy?: () => void;
+}
+function BookingCodeRow(props: BookingCodeRowProps) {
+  const { codeInput, setCodeInput, onRedeem, status, canMint, onMint, mintedCode, onCopy } = props;
+  return (
+    <Box sx={{
+      p: 1, borderRadius: 1.5,
+      background: alpha(neonGold, 0.04),
+      border: `1px solid ${alpha(neonGold, 0.18)}`,
+      display: 'flex', flexDirection: 'column', gap: 0.5,
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <LinkIcon sx={{ fontSize: 13, color: neonGold }} />
+        <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: neonGold, letterSpacing: '0.08em' }}>
+          BOOKING CODE
+        </Typography>
+      </Box>
+
+      {/* Redeem row — always available */}
+      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+        <Box sx={{
+          flex: 1, display: 'flex', alignItems: 'center',
+          background: alpha('#fff', 0.06),
+          border: `1px solid ${darkBorder}`,
+          borderRadius: 1, px: 1,
+        }}>
+          <InputBase
+            placeholder="AX92LM"
+            value={codeInput}
+            onChange={e => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
+            sx={{ fontSize: '0.78rem', letterSpacing: '0.08em', flex: 1, fontFamily: 'monospace' }}
+            onKeyDown={e => { if (e.key === 'Enter') onRedeem(); }}
+          />
+        </Box>
+        <Button
+          size="small"
+          disabled={!codeInput || status.kind === 'redeeming'}
+          onClick={onRedeem}
+          sx={{
+            fontSize: '0.66rem', fontWeight: 800, py: 0.4, px: 1,
+            background: alpha(neonBlue, 0.18),
+            color: neonBlue,
+            border: `1px solid ${alpha(neonBlue, 0.4)}`,
+            '&:hover': { background: alpha(neonBlue, 0.26) },
+          }}
+        >
+          Load
+        </Button>
+      </Box>
+
+      {/* Mint row — only when there's a slip to share */}
+      {canMint && (
+        mintedCode ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{
+              flex: 1, px: 1, py: 0.4,
+              background: alpha(neonGreen, 0.1),
+              border: `1px solid ${alpha(neonGreen, 0.45)}`,
+              borderRadius: 1,
+              fontFamily: 'monospace', fontSize: '0.88rem', fontWeight: 800,
+              color: neonGreen, letterSpacing: '0.18em', textAlign: 'center',
+            }}>
+              {mintedCode}
+            </Box>
+            <IconButton size="small" onClick={onCopy} title="Copy code">
+              <ContentCopyIcon sx={{ fontSize: 14, color: neonGreen }} />
+            </IconButton>
+          </Box>
+        ) : (
+          <Button
+            size="small"
+            startIcon={<ShareIcon sx={{ fontSize: 13 }} />}
+            disabled={status.kind === 'minting'}
+            onClick={onMint}
+            sx={{
+              fontSize: '0.66rem', fontWeight: 800, py: 0.4,
+              background: alpha(neonGold, 0.14),
+              color: neonGold,
+              border: `1px solid ${alpha(neonGold, 0.35)}`,
+              '&:hover': { background: alpha(neonGold, 0.22) },
+            }}
+          >
+            {status.kind === 'minting' ? 'Saving…' : 'Save & share slip'}
+          </Button>
+        )
+      )}
+
+      {status.message && (
+        <Typography sx={{
+          fontSize: '0.62rem',
+          color: status.kind === 'error' ? '#ff6b7a' : status.kind === 'ok' ? neonGreen : 'text.secondary',
+          mt: 0.25,
+        }}>
+          {status.message}
+        </Typography>
+      )}
     </Box>
   );
 }

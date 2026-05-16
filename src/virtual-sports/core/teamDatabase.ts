@@ -1,4 +1,5 @@
 import type { Team } from './types';
+export { getPersonality } from './teamPersonalities';
 
 // Ratings calibrated against real-world strength (50–95 scale).
 // `form` is a -10..+10 short-term modifier, shuffled at runtime.
@@ -102,6 +103,80 @@ export const TEAMS: Team[] = [
   { id: 'lil', name: 'Lille OSC',           shortName: 'Lille',     abbr: 'LIL', leagueId: 'ligue1', country: 'France',
     primary: '#E01E12', secondary: '#FFFFFF', accent: '#003F87', emblemKey: 'lil',
     ratings: { attack: 76, defense: 78, midfield: 77, pace: 78, finishing: 76, keeping: 77, form: 1 } },
+
+  // --- Eredivisie (Netherlands) ---
+  { id: 'aja', name: 'Ajax',               shortName: 'Ajax',        abbr: 'AJA', leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#D2122E', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 84, defense: 79, midfield: 83, pace: 84, finishing: 83, keeping: 80, form: 3 } },
+  { id: 'psv', name: 'PSV Eindhoven',      shortName: 'PSV',         abbr: 'PSV', leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#ED1C24', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 83, defense: 78, midfield: 81, pace: 83, finishing: 82, keeping: 79, form: 4 } },
+  { id: 'fey', name: 'Feyenoord',          shortName: 'Feyenoord',   abbr: 'FEY', leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#CC0000', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 80, defense: 78, midfield: 79, pace: 80, finishing: 79, keeping: 78, form: 2 } },
+  { id: 'azk', name: 'AZ Alkmaar',         shortName: 'AZ',          abbr: 'AZ',  leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#E20613', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 76, defense: 75, midfield: 76, pace: 77, finishing: 75, keeping: 75, form: 1 } },
+  { id: 'utr', name: 'FC Utrecht',         shortName: 'Utrecht',     abbr: 'UTR', leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#E20613', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 73, defense: 73, midfield: 73, pace: 74, finishing: 72, keeping: 73, form: 0 } },
+  { id: 'twe', name: 'FC Twente',          shortName: 'Twente',      abbr: 'TWE', leagueId: 'eredivisie', country: 'Netherlands',
+    primary: '#DC0814', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 74, defense: 75, midfield: 74, pace: 75, finishing: 73, keeping: 75, form: 1 } },
+
+  // --- Liga Portugal ---
+  { id: 'ben', name: 'SL Benfica',         shortName: 'Benfica',     abbr: 'BEN', leagueId: 'liganos', country: 'Portugal',
+    primary: '#E50019', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 85, defense: 81, midfield: 83, pace: 84, finishing: 84, keeping: 82, form: 4 } },
+  { id: 'por', name: 'FC Porto',           shortName: 'Porto',       abbr: 'POR', leagueId: 'liganos', country: 'Portugal',
+    primary: '#003DA5', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 84, defense: 82, midfield: 82, pace: 83, finishing: 83, keeping: 83, form: 3 } },
+  { id: 'spr', name: 'Sporting CP',        shortName: 'Sporting',    abbr: 'SCP', leagueId: 'liganos', country: 'Portugal',
+    primary: '#008057', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 83, defense: 80, midfield: 82, pace: 82, finishing: 82, keeping: 80, form: 4 } },
+  { id: 'bra', name: 'SC Braga',           shortName: 'Braga',       abbr: 'BRA', leagueId: 'liganos', country: 'Portugal',
+    primary: '#A91D2A', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 76, defense: 75, midfield: 76, pace: 77, finishing: 75, keeping: 75, form: 1 } },
+  { id: 'vit', name: 'Vitória SC',         shortName: 'Vitória',     abbr: 'VIT', leagueId: 'liganos', country: 'Portugal',
+    primary: '#000000', secondary: '#FFFFFF', accent: '#FFFFFF', emblemKey: 'procedural',
+    ratings: { attack: 72, defense: 72, midfield: 72, pace: 73, finishing: 71, keeping: 72, form: 0 } },
+
+  // --- Süper Lig (Turkey) ---
+  { id: 'gal', name: 'Galatasaray',        shortName: 'Galatasaray', abbr: 'GAL', leagueId: 'superlig', country: 'Turkey',
+    primary: '#A90015', secondary: '#FFB400', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 84, defense: 80, midfield: 82, pace: 83, finishing: 83, keeping: 81, form: 4 } },
+  { id: 'fen', name: 'Fenerbahçe',         shortName: 'Fenerbahçe',  abbr: 'FEN', leagueId: 'superlig', country: 'Turkey',
+    primary: '#FFED00', secondary: '#003F87', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 83, defense: 79, midfield: 81, pace: 82, finishing: 82, keeping: 81, form: 3 } },
+  { id: 'bjk', name: 'Beşiktaş',           shortName: 'Beşiktaş',    abbr: 'BJK', leagueId: 'superlig', country: 'Turkey',
+    primary: '#000000', secondary: '#FFFFFF', accent: '#FFFFFF', emblemKey: 'procedural',
+    ratings: { attack: 80, defense: 78, midfield: 79, pace: 80, finishing: 79, keeping: 78, form: 2 } },
+  { id: 'trb', name: 'Trabzonspor',        shortName: 'Trabzon',     abbr: 'TRB', leagueId: 'superlig', country: 'Turkey',
+    primary: '#7C0019', secondary: '#80BFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 77, defense: 76, midfield: 76, pace: 77, finishing: 76, keeping: 76, form: 1 } },
+  { id: 'baş', name: 'İstanbul Başakşehir', shortName: 'Başakşehir', abbr: 'BAŞ', leagueId: 'superlig', country: 'Turkey',
+    primary: '#F58220', secondary: '#003F87', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 74, defense: 74, midfield: 74, pace: 75, finishing: 74, keeping: 75, form: 0 } },
+
+  // --- Championship (England Tier 2) ---
+  { id: 'lds', name: 'Leeds United',       shortName: 'Leeds',       abbr: 'LDS', leagueId: 'efl', country: 'England',
+    primary: '#FFCD00', secondary: '#1D428A', accent: '#FFFFFF', emblemKey: 'procedural',
+    ratings: { attack: 78, defense: 74, midfield: 76, pace: 80, finishing: 77, keeping: 75, form: 3 } },
+  { id: 'sou', name: 'Southampton',        shortName: 'Saints',      abbr: 'SOU', leagueId: 'efl', country: 'England',
+    primary: '#D71920', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 75, defense: 73, midfield: 75, pace: 77, finishing: 74, keeping: 74, form: 2 } },
+  { id: 'wba', name: 'West Bromwich Albion', shortName: 'WBA',        abbr: 'WBA', leagueId: 'efl', country: 'England',
+    primary: '#122F67', secondary: '#FFFFFF', accent: '#FFFFFF', emblemKey: 'procedural',
+    ratings: { attack: 73, defense: 73, midfield: 73, pace: 74, finishing: 72, keeping: 73, form: 1 } },
+  { id: 'mid', name: 'Middlesbrough',      shortName: 'Boro',        abbr: 'MID', leagueId: 'efl', country: 'England',
+    primary: '#E10024', secondary: '#FFFFFF', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 73, defense: 72, midfield: 72, pace: 74, finishing: 72, keeping: 72, form: 0 } },
+  { id: 'shu', name: 'Sheffield United',   shortName: 'Sheff Utd',   abbr: 'SHU', leagueId: 'efl', country: 'England',
+    primary: '#EC2227', secondary: '#000000', accent: '#FFFFFF', emblemKey: 'procedural',
+    ratings: { attack: 74, defense: 75, midfield: 73, pace: 75, finishing: 73, keeping: 74, form: 1 } },
+  { id: 'nor', name: 'Norwich City',       shortName: 'Norwich',     abbr: 'NOR', leagueId: 'efl', country: 'England',
+    primary: '#FFF200', secondary: '#00A650', accent: '#000000', emblemKey: 'procedural',
+    ratings: { attack: 72, defense: 71, midfield: 72, pace: 73, finishing: 71, keeping: 71, form: 0 } },
 
   // --- NBA (Basketball) ---
   { id: 'lal', name: 'Los Angeles Lakers',  shortName: 'Lakers',    abbr: 'LAL', leagueId: 'nba', country: 'USA',

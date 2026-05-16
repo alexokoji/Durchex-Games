@@ -9,6 +9,7 @@ import { sendMail, verificationEmailTemplate, passwordResetTemplate } from '../s
 import { requireAuth } from '../middleware/auth';
 import { HttpError } from '../middleware/error';
 import { newReference } from '../services/wallet';
+import { attributeReferral, redeemPromo } from '../services/promo';
 import { currencyForCountry, isFiat, FIAT, type FiatCurrency } from '../config/currencies';
 
 const router = Router();
@@ -25,14 +26,16 @@ function token32(): string {
 }
 
 /**
- * Welcome bonus is a per-currency table. Keep these modest — they're real
- * playable money once a payment provider is wired up.
+ * Default welcome bonus, applied when the user signs up WITHOUT a promo code.
+ * Goes into `bonusBalance` (not real balance), with a 5× wagering requirement.
+ * Per-currency to give roughly equal value across regions.
  */
 const WELCOME_BONUS: Partial<Record<FiatCurrency, number>> = {
   NGN: 1000, USD: 5, EUR: 5, GBP: 5, CAD: 7, AUD: 7,
   GHS: 50, KES: 500, ZAR: 80, ZMW: 100, RWF: 5000, UGX: 15000, TZS: 10000, EGP: 200,
   JPY: 500, INR: 400, BRL: 25, MXN: 100,
 };
+const DEFAULT_WELCOME_ROLLOVER = 5;
 function welcomeBonusFor(currency: FiatCurrency): number {
   return WELCOME_BONUS[currency] ?? 0;
 }
@@ -44,11 +47,20 @@ router.post(
   body('password').isString().isLength({ min: 8 }),
   body('countryCode').optional().isString().isLength({ min: 2, max: 2 }),
   body('currency').optional().isString().isLength({ min: 3, max: 3 }),
+  body('referralCode').optional().isString().isLength({ min: 3, max: 32 }),
+  body('promoCode').optional().isString().isLength({ min: 3, max: 32 }),
+  body('deviceSignature').optional().isString().isLength({ min: 8, max: 64 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const { email, username, password } = req.body as { email: string; username: string; password: string };
     const countryCode = (req.body.countryCode as string | undefined)?.toUpperCase();
     const hintCurrency = (req.body.currency as string | undefined)?.toUpperCase();
+    const referralCode = (req.body.referralCode as string | undefined)?.trim().toUpperCase();
+    const promoCode    = (req.body.promoCode    as string | undefined)?.trim().toUpperCase();
+    const deviceSignature = (req.body.deviceSignature as string | undefined)?.trim();
+    // `trust proxy` is set in index.ts so Express extracts the real IP from
+    // the X-Forwarded-For chain; this is the value we hash against later.
+    const signupIp = (req.ip ?? req.socket.remoteAddress ?? '').toString();
 
     const existing = await User.findOne({ $or: [{ email }, { username }] });
     if (existing) {
@@ -59,7 +71,6 @@ router.post(
     const currency: FiatCurrency = (hintCurrency && isFiat(hintCurrency))
       ? hintCurrency
       : currencyForCountry(countryCode);
-    const bonus = welcomeBonusFor(currency);
 
     const verificationToken = token32();
     const user = await User.create({
@@ -70,29 +81,74 @@ router.post(
       emailVerificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       currency,
       countryCode,
-      balance: bonus,
       cryptoBalances: {},
+      signupDeviceSignature: deviceSignature,
+      signupIp: signupIp || undefined,
     });
 
-    if (bonus > 0) {
-      await Transaction.create({
-        userId:   user._id,
-        kind:     'bonus',
-        status:   'completed',
-        method:   'internal',
-        amount:   bonus,
-        currency,
-        reference: newReference('welcome'),
-        notes:    `Welcome bonus — ${FIAT[currency].name}`,
-        completedAt: new Date(),
+    // ─── Referral attribution ────────────────────────────────────────────
+    // Best-effort: if the inviter code is invalid we still let signup succeed.
+    const referralResult: { applied: boolean; error?: string } = { applied: false };
+    if (referralCode) {
+      const r = await attributeReferral({
+        newUser: user,
+        referralCode,
+        deviceSignature,
+        ip: signupIp,
       });
+      if ('ok' in r) referralResult.applied = true;
+      else referralResult.error = r.error;
+    }
+
+    // ─── Promo code (welcome) ────────────────────────────────────────────
+    // If the user supplied a promo code, redeem it through the proper service
+    // so it respects all the gates. Otherwise apply the default per-currency
+    // welcome bonus into the bonus pot with a 5× rollover.
+    let promoApplied: { code: string; bonus: number; rollover: number } | null = null;
+    if (promoCode) {
+      const r = await redeemPromo({ user, code: promoCode, trigger: 'signup' });
+      if ('ok' in r) {
+        promoApplied = {
+          code: promoCode,
+          bonus: r.data.bonusCredited,
+          rollover: r.data.rollover,
+        };
+      }
+    }
+    if (!promoApplied) {
+      const bonus = welcomeBonusFor(currency);
+      if (bonus > 0) {
+        const rollover = bonus * DEFAULT_WELCOME_ROLLOVER;
+        user.bonusBalance  = (user.bonusBalance  ?? 0) + bonus;
+        user.bonusRollover = (user.bonusRollover ?? 0) + rollover;
+        await user.save();
+        await Transaction.create({
+          userId:   user._id,
+          kind:     'bonus',
+          status:   'completed',
+          method:   'internal',
+          amount:   bonus,
+          currency,
+          reference: newReference('welcome'),
+          notes:    `Welcome bonus — ${FIAT[currency].name} (rollover ${rollover.toFixed(2)})`,
+          completedAt: new Date(),
+        });
+        promoApplied = { code: 'WELCOME', bonus, rollover };
+      }
     }
 
     const link = `${env.clientUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
     await sendMail({ to: email, ...verificationEmailTemplate(username, link) });
 
+    // Reload to surface the updated bonusBalance/rollover/referredBy in the response.
+    const refreshed = await User.findById(user._id);
     const tokens = issueTokenPair(user._id.toString());
-    res.status(201).json({ user: user.publicProfile(), ...tokens });
+    res.status(201).json({
+      user: refreshed?.publicProfile() ?? user.publicProfile(),
+      ...tokens,
+      referral: referralResult.applied ? { applied: true } : referralResult.error ? { applied: false, error: referralResult.error } : null,
+      promo: promoApplied,
+    });
   },
 );
 

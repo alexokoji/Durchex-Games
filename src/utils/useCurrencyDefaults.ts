@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { defaultStakeFor, formatMoney, FIAT } from './currency';
+import { defaultStakeFor, formatMoney, minBetFor, FIAT } from './currency';
 
 /**
  * Currency-aware betting defaults for casino game pages. Reads the user's
@@ -10,7 +10,11 @@ import { defaultStakeFor, formatMoney, FIAT } from './currency';
 export function useCurrencyDefaults() {
   const { currency, balance } = useWallet();
   return useMemo(() => {
-    const defaultStake = defaultStakeFor(currency);
+    const baseDefault = defaultStakeFor(currency);
+    const minBet = minBetFor(currency);
+    // Initial stake is the larger of the per-currency "nice" default and the
+    // platform-wide $0.01 minimum, so the game never starts below the floor.
+    const defaultStake = Math.max(baseDefault, minBet);
     const meta = FIAT[currency];
     return {
       currency,
@@ -18,6 +22,8 @@ export function useCurrencyDefaults() {
       decimals: meta.decimals,
       defaultStake,
       defaultStakeString: defaultStake.toFixed(meta.decimals === 0 ? 0 : 2),
+      minBet,
+      minBetLabel: formatMoney(minBet, currency),
       balance,
       formatAmount: (amount: number) => formatMoney(amount, currency),
       // Sensible quick-stake presets keyed off the per-currency default.

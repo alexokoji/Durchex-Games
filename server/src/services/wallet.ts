@@ -20,33 +20,60 @@ export interface PlaceBetArgs {
 }
 
 /**
- * Atomic placement: the conditional findOneAndUpdate ensures balance ≥ stake
- * AND the user's currency matches what the frontend thinks it is. If either
- * check fails, nothing is decremented and we return an error.
+ * Atomic placement with bonus-first ordering.
+ *
+ *   1. Read the user once to see the bonus / real split.
+ *   2. Compute bonusUsed = min(bonusBalance, stake); realUsed = stake − bonusUsed.
+ *   3. Conditional update that decrements both fields with the exact gates,
+ *      so a race that drained either pot since step 1 fails the update.
+ *   4. Wagering reduces `bonusRollover` proportionally — bonus stake counts
+ *      directly toward clearing the rollover requirement.
  */
 export async function placeBetAtomic(args: PlaceBetArgs): Promise<
-  | { bet: IBet; balance: number }
+  | { bet: IBet; balance: number; bonusBalance: number }
   | { error: 'insufficient_funds' | 'user_not_found' | 'currency_mismatch' }
 > {
   if (args.stake <= 0) return { error: 'insufficient_funds' };
 
+  const user = await User.findById(args.userId).select('balance bonusBalance bonusRollover currency');
+  if (!user) return { error: 'user_not_found' };
+  if (user.currency !== args.currency) return { error: 'currency_mismatch' };
+
+  const bonus = user.bonusBalance ?? 0;
+  const real  = user.balance ?? 0;
+  if (bonus + real + EPS < args.stake) return { error: 'insufficient_funds' };
+
+  const bonusUsed = Math.min(bonus, args.stake);
+  const realUsed  = Math.max(0, args.stake - bonusUsed);
+
+  // Conditional update: each pot must still cover its share when the write lands.
   const debited = await User.findOneAndUpdate(
-    { _id: args.userId, balance: { $gte: args.stake - EPS }, currency: args.currency },
-    { $inc: { balance: -args.stake, totalWagered: args.stake } },
+    {
+      _id: args.userId,
+      currency: args.currency,
+      balance:      { $gte: realUsed  - EPS },
+      bonusBalance: { $gte: bonusUsed - EPS },
+    },
+    {
+      $inc: {
+        balance:       -realUsed,
+        bonusBalance:  -bonusUsed,
+        totalWagered:  args.stake,
+        // Clearing rollover — every unit of bonus actually wagered chips
+        // away at the outstanding requirement, never going below 0.
+        bonusRollover: -Math.min(bonusUsed, user.bonusRollover ?? 0),
+      },
+    },
     { new: true },
   );
-  if (!debited) {
-    const exists = await User.findById(args.userId).select('currency');
-    if (!exists) return { error: 'user_not_found' };
-    if (exists.currency !== args.currency) return { error: 'currency_mismatch' };
-    return { error: 'insufficient_funds' };
-  }
+  if (!debited) return { error: 'insufficient_funds' };
 
   const bet = await Bet.create({
     userId:   debited._id,
     gameId:   args.gameId,
     gameName: args.gameName,
     stake:    args.stake,
+    bonusStake: bonusUsed,
     currency: args.currency,
     status:   'pending',
     details:  args.details,
@@ -63,10 +90,11 @@ export async function placeBetAtomic(args: PlaceBetArgs): Promise<
     currency:  args.currency,
     reference: `stake-${bet._id.toString()}-${ref()}`,
     betId:     bet._id,
+    notes:     bonusUsed > 0 ? `bonus_stake=${bonusUsed}` : undefined,
     completedAt: new Date(),
   });
 
-  return { bet, balance: debited.balance };
+  return { bet, balance: debited.balance, bonusBalance: debited.bonusBalance ?? 0 };
 }
 
 export interface SettleBetArgs {
@@ -78,6 +106,13 @@ export interface SettleBetArgs {
   details?: string;
 }
 
+/**
+ * Settles a pending bet. Winnings (payout) always credit the REAL balance,
+ * never the bonus pot — that's the rule that makes bonus-funded profit
+ * withdrawable. Bonus stake that was already wagered is gone whether the
+ * bet won or lost; only the profit (payout − stake) is "new money" and it
+ * lands in real balance like any other payout.
+ */
 export async function settleBetAtomic(args: SettleBetArgs): Promise<
   | { bet: IBet; balance: number }
   | { error: 'bet_not_found' | 'bet_already_settled' }
@@ -110,6 +145,7 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
       currency:  bet.currency,
       reference: `payout-${bet._id.toString()}-${ref()}`,
       betId:     bet._id,
+      notes:     bet.bonusStake > 0 ? `from_bonus_stake=${bet.bonusStake}` : undefined,
       completedAt: new Date(),
     });
   } else {
@@ -189,15 +225,30 @@ interface DebitFiatArgs {
   reference: string;
   status?: 'pending' | 'completed';
 }
-export async function debitFiatWithdrawal(args: DebitFiatArgs): Promise<{ ok: true } | { error: 'insufficient_funds' | 'currency_mismatch' }> {
+export async function debitFiatWithdrawal(args: DebitFiatArgs): Promise<
+  | { ok: true }
+  | { error: 'insufficient_funds' | 'currency_mismatch' | 'rollover_outstanding'; rollover?: number }
+> {
+  // Withdrawals are blocked while any bonus-rollover requirement is outstanding.
+  // The conditional update also checks rollover === 0 to close a race where a
+  // pending bet settles into a new rollover obligation between read and write.
   const debited = await User.findOneAndUpdate(
-    { _id: args.user._id, balance: { $gte: args.amount - EPS }, currency: args.currency },
+    {
+      _id: args.user._id,
+      currency: args.currency,
+      balance: { $gte: args.amount - EPS },
+      $or: [{ bonusRollover: { $exists: false } }, { bonusRollover: { $lte: EPS } }],
+    },
     { $inc: { balance: -args.amount } },
     { new: true },
   );
   if (!debited) {
-    const exists = await User.findById(args.user._id).select('currency');
-    if (exists && exists.currency !== args.currency) return { error: 'currency_mismatch' };
+    const exists = await User.findById(args.user._id).select('currency balance bonusRollover');
+    if (!exists) return { error: 'insufficient_funds' };
+    if (exists.currency !== args.currency) return { error: 'currency_mismatch' };
+    if ((exists.bonusRollover ?? 0) > EPS) {
+      return { error: 'rollover_outstanding', rollover: exists.bonusRollover ?? 0 };
+    }
     return { error: 'insufficient_funds' };
   }
   await Transaction.create({
@@ -221,15 +272,31 @@ interface DebitCryptoArgs {
   reference: string;
   status?: 'pending' | 'completed';
 }
-export async function debitCryptoWithdrawal(args: DebitCryptoArgs): Promise<{ ok: true } | { error: 'insufficient_funds' }> {
-  // Conditional update — match by user AND a sub-balance ≥ amount.
-  const cond = { _id: args.user._id, [`cryptoBalances.${args.currency}`]: { $gte: args.amount - EPS } };
+export async function debitCryptoWithdrawal(args: DebitCryptoArgs): Promise<
+  | { ok: true }
+  | { error: 'insufficient_funds' | 'rollover_outstanding'; rollover?: number }
+> {
+  // Crypto subaccounts share the SAME rollover gate as fiat: any outstanding
+  // bonus wagering requirement on the primary account blocks all withdrawals,
+  // because the bonus pot was funded in fiat and rollover is the platform-wide
+  // anti-abuse mechanism, not a per-currency one.
+  const cond = {
+    _id: args.user._id,
+    [`cryptoBalances.${args.currency}`]: { $gte: args.amount - EPS },
+    $or: [{ bonusRollover: { $exists: false } }, { bonusRollover: { $lte: EPS } }],
+  };
   const debited = await User.findOneAndUpdate(
     cond,
     { $inc: { [`cryptoBalances.${args.currency}`]: -args.amount } },
     { new: true },
   );
-  if (!debited) return { error: 'insufficient_funds' };
+  if (!debited) {
+    const exists = await User.findById(args.user._id).select('bonusRollover');
+    if (exists && (exists.bonusRollover ?? 0) > EPS) {
+      return { error: 'rollover_outstanding', rollover: exists.bonusRollover ?? 0 };
+    }
+    return { error: 'insufficient_funds' };
+  }
   await Transaction.create({
     userId:        args.user._id,
     kind:          'withdraw',
