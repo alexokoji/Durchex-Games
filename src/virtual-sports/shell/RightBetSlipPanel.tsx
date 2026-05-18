@@ -14,12 +14,15 @@ import ShareIcon from '@mui/icons-material/Share';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LinkIcon from '@mui/icons-material/Link';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useToasts } from '../../contexts/ToastContext';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard, darkSurface } from '../../theme';
 import { useBetSlip, QUICK_STAKE_PRESETS } from '../core/BetSlipContext';
 import { formatOdds } from '../core/oddsEngine';
 import type { BetMode, OddsFormat, BetSelection } from '../core/types';
 import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
+import { formatMoney, usdApprox } from '../../utils/currency';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
@@ -96,8 +99,15 @@ function TabBtn({ label, count, active, onClick, icon }: { label: string; count:
 
 function BetSlipBody() {
   const { isAuthenticated, requireAuth } = useAuth();
+  const wallet = useWallet();
+  const toasts = useToasts();
   const slip = useBetSlip();
   const { selections, mode, stake, systemK, oddsFormat, computedOdds, potentialPayout, totalStake, systemLines } = slip;
+
+  // Spendable = real + bonus pots, matching the server's atomic placement rule.
+  const spendable = isAuthenticated ? wallet.balance + wallet.bonusBalance : 0;
+  const insufficient = isAuthenticated && totalStake > spendable + 1e-9;
+  const shortBy = Math.max(0, totalStake - spendable);
   const [codeInput, setCodeInput] = useState('');
   const [mintedCode, setMintedCode] = useState<string | null>(null);
   const [codeStatus, setCodeStatus] = useState<{ kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }>({ kind: 'idle' });
@@ -375,22 +385,54 @@ function BetSlipBody() {
         </Box>
       </Box>
 
+      {/* Balance / shortfall hint — only shown for signed-in users so guests
+          aren't nagged before they've even chosen to bet. */}
+      {isAuthenticated && selections.length > 0 && (
+        <Box sx={{
+          mb: 1, px: 1, py: 0.75, borderRadius: 1,
+          background: insufficient ? alpha('#ff6b7a', 0.1) : alpha(neonGreen, 0.06),
+          border: `1px solid ${insufficient ? alpha('#ff6b7a', 0.3) : alpha(neonGreen, 0.2)}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+        }}>
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+            {insufficient
+              ? `Short by ${formatMoney(shortBy, wallet.currency)}`
+              : `Balance: ${formatMoney(spendable, wallet.currency)}`}
+          </Typography>
+          <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>
+            {usdApprox(spendable, wallet.currency)}
+          </Typography>
+        </Box>
+      )}
+
       <Button
         fullWidth
-        disabled={selections.length === 0 || stake <= 0}
+        disabled={selections.length === 0 || stake <= 0 || insufficient}
         onClick={() => {
           if (!isAuthenticated) { requireAuth(); return; }
+          if (insufficient) {
+            toasts.error('Insufficient balance', `Top up ${formatMoney(shortBy, wallet.currency)} to place this slip.`);
+            return;
+          }
           slip.placeBet();
         }}
         sx={{
           py: 1, fontWeight: 900, fontSize: '0.85rem',
-          background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
-          color: '#000',
-          '&:hover': { boxShadow: `0 0 30px ${alpha(neonGreen, 0.5)}` },
+          background: insufficient
+            ? `linear-gradient(135deg, #6b3a3a, #4a2424)`
+            : `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
+          color: insufficient ? '#fff' : '#000',
+          '&:hover': insufficient
+            ? undefined
+            : { boxShadow: `0 0 30px ${alpha(neonGreen, 0.5)}` },
           '&.Mui-disabled': { background: alpha('#fff', 0.08), color: 'text.disabled' },
         }}
       >
-        {isAuthenticated ? 'Place Bet' : 'Sign in to bet'}
+        {!isAuthenticated
+          ? 'Sign in to bet'
+          : insufficient
+            ? 'Insufficient balance'
+            : 'Place Bet'}
       </Button>
     </Box>
   );

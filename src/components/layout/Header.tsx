@@ -20,7 +20,7 @@ import ProfileMenu from '../profile/ProfileMenu';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { formatMoney, symbolOf } from '../../utils/currency';
+import { formatMoney, symbolOf, usdApprox } from '../../utils/currency';
 import DiGLogo from './DiGLogo';
 
 interface HeaderProps {
@@ -72,22 +72,16 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
             <MenuIcon fontSize="small" />
           </IconButton>
 
+          {/* Logo only — the wordmark used to sit beside this. We sized the
+              image past the AppBar's natural 64px and constrained it with
+              maxHeight so the toolbar height itself stays fixed. */}
           <motion.div whileHover={{ scale: 1.03 }} onClick={() => navigate('/')}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}>
-              <DiGLogo size={36} />
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 900,
-                  background: `linear-gradient(90deg, ${neonGreen}, ${neonBlue})`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  display: { xs: 'none', sm: 'block' },
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                DURCHEXiGAMES
-              </Typography>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', cursor: 'pointer',
+              height: 64,
+              '& img': { maxHeight: 56, width: 'auto', height: 'auto' },
+            }}>
+              <DiGLogo size={56} />
             </Box>
           </motion.div>
 
@@ -148,9 +142,16 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                   {symbolOf(currency).slice(0, 2)}
                 </Typography>
               </Box>
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: neonGold, fontVariantNumeric: 'tabular-nums' }}>
-                {formatMoney(balance, currency)}
-              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1 }}>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: neonGold, fontVariantNumeric: 'tabular-nums' }}>
+                  {formatMoney(balance, currency)}
+                </Typography>
+                {currency !== 'USD' && (
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontVariantNumeric: 'tabular-nums', mt: 0.15 }}>
+                    {usdApprox(balance, currency)}
+                  </Typography>
+                )}
+              </Box>
               <ExpandMoreIcon
                 sx={{
                   fontSize: 16, color: 'text.secondary',

@@ -156,3 +156,32 @@ export function parseAmount(text: string): number {
   const n = parseFloat(cleaned);
   return Number.isFinite(n) ? n : 0;
 }
+
+/**
+ * Convert any supported currency to USD using the static `usdPerUnit` table.
+ * Reference rates only — replace with a live FX feed before launch. We never
+ * settle bets in USD, just show it next to native amounts for context.
+ */
+export function toUsd(amount: number, currency: AnyCurrency): number {
+  if (!Number.isFinite(amount)) return 0;
+  if (currency === 'USD') return amount;
+  if (isFiat(currency)) return amount * FIAT[currency].usdPerUnit;
+  if (isCrypto(currency)) return amount * CRYPTO[currency].usdPerUnit;
+  return amount;
+}
+
+/**
+ * Pretty-format a USD approximation suffix — "≈ $12.34". Returns the empty
+ * string if the source currency *is* USD (no point duplicating it).
+ */
+export function usdApprox(amount: number, currency: AnyCurrency): string {
+  if (currency === 'USD') return '';
+  const usd = toUsd(amount, currency);
+  if (!Number.isFinite(usd) || usd <= 0) return '';
+  const formatted = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: usd < 1 ? 4 : 2,
+  }).format(usd);
+  return `≈ ${formatted}`;
+}

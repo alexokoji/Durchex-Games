@@ -14,7 +14,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { motion } from 'framer-motion';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import { useWallet } from '../../contexts/WalletContext';
-import { CRYPTO, FIAT, formatMoney, type CryptoCurrency } from '../../utils/currency';
+import { CRYPTO, FIAT, formatMoney, usdApprox, type CryptoCurrency } from '../../utils/currency';
 
 interface BalanceMenuProps {
   anchorEl: HTMLElement | null;
@@ -95,9 +95,16 @@ export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWith
             {hidden ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
           </IconButton>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, color: neonGold, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
-          {hidden ? '••••••' : formatMoney(balance, currency)}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: neonGold, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+            {hidden ? '••••••' : formatMoney(balance, currency)}
+          </Typography>
+          {!hidden && currency !== 'USD' && (
+            <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {usdApprox(balance, currency)}
+            </Typography>
+          )}
+        </Box>
         <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mt: 0.5 }}>
           Bets and payouts settle in this account.
         </Typography>
@@ -144,9 +151,16 @@ export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWith
                 <InfoOutlinedIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
               </Tooltip>
             </Box>
-            <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: neonBlue, fontVariantNumeric: 'tabular-nums' }}>
-              {hidden ? '••••••' : formatMoney(bonusBalance, currency)}
-            </Typography>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: neonBlue, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+                {hidden ? '••••••' : formatMoney(bonusBalance, currency)}
+              </Typography>
+              {!hidden && currency !== 'USD' && bonusBalance > 0 && (
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                  {usdApprox(bonusBalance, currency)}
+                </Typography>
+              )}
+            </Box>
           </Box>
 
           {rolloverPending && (

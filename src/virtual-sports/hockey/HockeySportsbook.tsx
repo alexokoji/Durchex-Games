@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import SportsbookHeader from '../shell/SportsbookHeader';
 import MatchListView, { type ListMatch } from '../shell/MatchListView';
 import WeekSelector from '../shell/WeekSelector';
+import MatchPreview2D from '../shell/MatchPreview2D';
 import RecentResultsPanel from '../shell/RecentResultsPanel';
 import { useLeagueSeason } from '../core/useLeagueSeason';
 import { simulateHockeyMatch, resolveHockeySelection, type SimulatedHockey } from './hockeySimulation';
@@ -103,6 +104,19 @@ export default function HockeySection({ leagueId, onSelectLeague }: Props) {
               phaseLabel={isLiveWeek ? phaseLabel : 'UPCOMING'}
               secondsToNextWeek={season.secondsToNextWeek}
             />
+            {isLiveWeek && activeWeek && activeWeek.matches[0] && (
+              <MatchPreview2D
+                sport="hockey"
+                home={activeWeek.matches[0].home}
+                away={activeWeek.matches[0].away}
+                events={activeWeek.matches[0].simulation.events}
+                finalScore={activeWeek.matches[0].simulation.finalScore}
+                progress={season.phase === 'betting' ? 0 : season.phase === 'live'
+                  ? 1 - (season.secondsToNextPhase / 180)
+                  : 1}
+                phaseLabel={phaseLabel}
+              />
+            )}
             <MatchListView
               sport="hockey"
               matches={listMatches}

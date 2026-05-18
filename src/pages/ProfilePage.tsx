@@ -5,6 +5,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
+import { formatMoney, usdApprox } from '../utils/currency';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -21,11 +22,14 @@ export default function ProfilePage() {
     );
   }
 
+  // Stats render in the user's chosen fiat (formatMoney respects locale +
+  // symbol), and we append the USD equivalent so traders can compare across
+  // accounts at a glance.
   const stats = [
-    { label: 'Balance',      value: `${wallet.balance.toFixed(5)} BTC`, color: neonGold },
-    { label: 'Total Wagered', value: `${wallet.totalWagered.toFixed(5)} BTC`, color: neonBlue },
-    { label: 'Net Profit',   value: `${wallet.netProfit >= 0 ? '+' : ''}${wallet.netProfit.toFixed(5)} BTC`, color: wallet.netProfit >= 0 ? neonGreen : '#ff6b7a' },
-    { label: 'Bets Played',  value: wallet.history.length, color: '#a855f7' },
+    { label: 'Balance',       value: formatMoney(wallet.balance, wallet.currency),       sub: usdApprox(wallet.balance, wallet.currency),       color: neonGold },
+    { label: 'Total Wagered', value: formatMoney(wallet.totalWagered, wallet.currency),  sub: usdApprox(wallet.totalWagered, wallet.currency),  color: neonBlue },
+    { label: 'Net Profit',    value: `${wallet.netProfit >= 0 ? '+' : ''}${formatMoney(wallet.netProfit, wallet.currency)}`, sub: usdApprox(Math.abs(wallet.netProfit), wallet.currency), color: wallet.netProfit >= 0 ? neonGreen : '#ff6b7a' },
+    { label: 'Bets Played',   value: String(wallet.history.length), sub: '',             color: '#a855f7' },
   ];
 
   return (
@@ -84,6 +88,11 @@ export default function ProfilePage() {
               <Typography sx={{ fontSize: '1.25rem', fontWeight: 900, color: s.color, fontVariantNumeric: 'tabular-nums' }}>
                 {s.value}
               </Typography>
+              {s.sub && (
+                <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', fontVariantNumeric: 'tabular-nums', mt: 0.25 }}>
+                  {s.sub}
+                </Typography>
+              )}
             </Box>
           </Grid>
         ))}

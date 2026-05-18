@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Chip, Tabs, Tab } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import type { BetSelection, Market, MarketCategory, MarketOption, SportKey, Team } from '../core/types';
@@ -40,14 +40,18 @@ interface TabConfig {
 const TAB_CONFIG: Record<MarketTab, TabConfig> = {
   '1X2':           { id: '1X2',           label: '1X2',              category: '1X2',           marketIdHint: '1x2',     columns: [{ id: '1', label: '1' }, { id: 'X', label: 'X' }, { id: '2', label: '2' }] },
   'DOUBLE_CHANCE': { id: 'DOUBLE_CHANCE', label: 'Double Chance',    category: 'DOUBLE_CHANCE', marketIdHint: 'dc',      columns: [{ id: '1X', label: '1X' }, { id: '12', label: '12' }, { id: 'X2', label: 'X2' }] },
-  'OVER_UNDER':    { id: 'OVER_UNDER',    label: 'Over/Under (2.5)', category: 'OVER_UNDER',    marketIdHint: 'ou-2.5',  columns: [{ id: 'over-2.5', label: 'Over' }, { id: 'under-2.5', label: 'Under' }] },
+  // Over/Under columns use id 'over' / 'under' — the actual market is chosen
+  // dynamically by the selected line (see `ouLine` state in the component).
+  'OVER_UNDER':    { id: 'OVER_UNDER',    label: 'Over/Under',       category: 'OVER_UNDER',                              columns: [{ id: 'over', label: 'Over' }, { id: 'under', label: 'Under' }] },
   'WINNER':        { id: 'WINNER',        label: 'Winner',           category: 'WINNER',        marketIdHint: 'winner',  columns: [{ id: 'home', label: '1' }, { id: 'away', label: '2' }] },
-  // For basketball/hockey total markets we pick whichever market the engine
-  // generated and surface "over" / "under" by id — list view just shows the
-  // first total market it finds (typically the central line).
-  'TOTAL_POINTS':  { id: 'TOTAL_POINTS',  label: 'Total Points',     category: 'TOTAL_POINTS',  columns: [{ id: 'over', label: 'Over' }, { id: 'under', label: 'Under' }] },
-  'SPREAD':        { id: 'SPREAD',        label: 'Spread',           category: 'SPREAD',        columns: [{ id: 'home', label: 'Home' }, { id: 'away', label: 'Away' }] },
+  // For basketball total markets the engine generates several lines (e.g.
+  // 215.5, 220.5, 225.5). The picker surfaces them at runtime.
+  'TOTAL_POINTS':  { id: 'TOTAL_POINTS',  label: 'Total Points',     category: 'TOTAL_POINTS',                            columns: [{ id: 'over', label: 'Over' }, { id: 'under', label: 'Under' }] },
+  'SPREAD':        { id: 'SPREAD',        label: 'Spread',           category: 'SPREAD',                                  columns: [{ id: 'home', label: 'Home' }, { id: 'away', label: 'Away' }] },
 };
+
+/** Default lines surfaced in the picker for goal-totals (soccer / hockey). */
+const GOAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5];
 
 const DEFAULT_TABS: MarketTab[] = ['1X2', 'DOUBLE_CHANCE', 'OVER_UNDER'];
 
@@ -76,6 +80,33 @@ export default function MatchListView({ sport, matches, leagueName, weekLabel, m
   const visibleTabs = useMemo(() => marketTabs.map(t => TAB_CONFIG[t]), [marketTabs]);
   const [tab, setTab] = useState<MarketTab>(marketTabs[0]);
   const config = useMemo(() => TAB_CONFIG[tab] ?? visibleTabs[0], [tab, visibleTabs]);
+
+  // Line state — goal totals for OVER_UNDER and points totals for TOTAL_POINTS.
+  // Goal lines are fixed; point lines vary per match so we surface whatever
+  // the engine generated for the first match in the week.
+  const [ouLine, setOuLine] = useState<number>(2.5);
+  const [totalLine, setTotalLine] = useState<number | null>(null);
+
+  // For TOTAL_POINTS, discover the available lines from the first match.
+  const totalLines = useMemo(() => {
+    if (tab !== 'TOTAL_POINTS' || matches.length === 0) return [];
+    const lines = new Set<number>();
+    for (const m of matches[0].markets) {
+      if (m.category !== 'TOTAL_POINTS') continue;
+      const match = m.id.match(/total-(-?\d+(\.\d+)?)/);
+      if (match) lines.add(parseFloat(match[1]));
+    }
+    return Array.from(lines).sort((a, b) => a - b);
+  }, [tab, matches]);
+
+  // Snap totalLine to the closest available value when the tab activates.
+  useEffect(() => {
+    if (tab !== 'TOTAL_POINTS' || totalLines.length === 0) return;
+    if (totalLine == null || !totalLines.includes(totalLine)) {
+      const mid = totalLines[Math.floor(totalLines.length / 2)];
+      setTotalLine(mid);
+    }
+  }, [tab, totalLines, totalLine]);
 
   function pick(match: ListMatch, market: Market | undefined, option: MarketOption | undefined) {
     if (!market || !option || match.closed) return;
@@ -130,6 +161,36 @@ export default function MatchListView({ sport, matches, leagueName, weekLabel, m
         {visibleTabs.map(t => <Tab key={t.id} value={t.id} label={t.label} />)}
       </Tabs>
 
+      {/* Line picker — only shown for over/under markets */}
+      {(tab === 'OVER_UNDER' || tab === 'TOTAL_POINTS') && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 700, mr: 0.5 }}>
+            Line:
+          </Typography>
+          {(tab === 'OVER_UNDER' ? GOAL_LINES : totalLines).map(line => {
+            const active = tab === 'OVER_UNDER' ? ouLine === line : totalLine === line;
+            return (
+              <Box
+                key={line}
+                onClick={() => tab === 'OVER_UNDER' ? setOuLine(line) : setTotalLine(line)}
+                sx={{
+                  cursor: 'pointer',
+                  px: 1.25, py: 0.5, borderRadius: 1,
+                  fontSize: '0.75rem', fontWeight: 800,
+                  fontVariantNumeric: 'tabular-nums',
+                  background: active ? alpha(neonGreen, 0.18) : alpha('#fff', 0.04),
+                  color: active ? neonGreen : 'text.secondary',
+                  border: `1px solid ${active ? alpha(neonGreen, 0.5) : darkBorder}`,
+                  transition: 'background 0.15s, border-color 0.15s',
+                  '&:hover': { background: alpha(neonGreen, 0.1), borderColor: alpha(neonGreen, 0.35) },
+                }}>
+                {line}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+
       {/* Column header */}
       <Box sx={{
         display: 'grid',
@@ -171,7 +232,11 @@ export default function MatchListView({ sport, matches, leagueName, weekLabel, m
             </Typography>
           </Box>
         ) : matches.map((m, i) => {
-          const market = findMarket(m.markets, config.category, config.marketIdHint);
+          // Resolve the right market depending on tab + line picker.
+          let hint = config.marketIdHint;
+          if (tab === 'OVER_UNDER')        hint = `ou-${ouLine}`;
+          else if (tab === 'TOTAL_POINTS' && totalLine != null) hint = `total-${totalLine}`;
+          const market = findMarket(m.markets, config.category, hint);
           return (
             <Box key={m.id} sx={{
               display: 'grid',
