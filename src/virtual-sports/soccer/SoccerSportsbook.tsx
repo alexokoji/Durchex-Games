@@ -5,6 +5,7 @@ import SportsbookHeader from '../shell/SportsbookHeader';
 import SoccerMatchCard from './SoccerMatchCard';
 import SoccerFeaturedMatch from './SoccerFeaturedMatch';
 import LeagueTable from './LeagueTable';
+import RecentResultsPanel from '../shell/RecentResultsPanel';
 import { useSoccerSchedule } from './useSoccerSchedule';
 import { getLeague, leaguesBySport } from '../core/leagueDatabase';
 import { neonGreen, neonGold, darkBorder, darkCard } from '../../theme';
@@ -17,7 +18,7 @@ interface SoccerSectionProps {
 export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectionProps) {
   const soccerLeagues = leaguesBySport('soccer');
   const [featuredId, setFeaturedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'fixtures' | 'standings'>('fixtures');
+  const [tab, setTab] = useState<'fixtures' | 'standings' | 'results'>('fixtures');
   /** 0 = live session, 1 = next, 2 = after-next. Pre-booking lets users place
    *  bets on any of the three. */
   const [sessionTab, setSessionTab] = useState<number>(0);
@@ -140,6 +141,7 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
         >
           <Tab label={`Fixtures (${schedule.matches.length})`} value="fixtures" />
           <Tab label="Standings" value="standings" />
+          <Tab label="Results"   value="results" />
         </Tabs>
         {tab === 'fixtures' && (
           <Box sx={{ p: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.75 }}>
@@ -157,6 +159,11 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
         {tab === 'standings' && (
           <Box sx={{ p: 1 }}>
             <LeagueTable leagueId={leagueId} highlightTeamIds={featuredTeamIds} />
+          </Box>
+        )}
+        {tab === 'results' && (
+          <Box sx={{ p: 1 }}>
+            <RecentResultsPanel sport="soccer" fixedLeagueId={leagueId} limit={40} />
           </Box>
         )}
       </Box>

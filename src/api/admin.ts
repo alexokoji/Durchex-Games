@@ -52,6 +52,74 @@ export interface AdminPromoCode extends PromoCodeSummary {
   perUserLimit?: number;
 }
 
+export interface AuditEntry {
+  _id: string;
+  actorEmail: string;
+  action: string;
+  targetType: 'user' | 'promo_code' | 'risk_config' | 'system';
+  targetId?: string;
+  payload?: Record<string, unknown>;
+  ip?: string;
+  createdAt: string;
+}
+
+export interface FlaggedReferral {
+  _id: string;
+  email: string;
+  username: string;
+  createdAt: string;
+  countryCode?: string;
+  totalWagered: number;
+  referralAbuseFlag: 'self_device' | 'self_ip' | 'duplicate_device' | 'duplicate_ip';
+  signupIp?: string;
+  signupDeviceSignature?: string;
+  referredBy?: { _id: string; email: string; username: string; referralCode: string } | string | null;
+}
+
+export interface AdminUserSummary {
+  _id: string;
+  email: string;
+  username: string;
+  createdAt: string;
+  currency: string;
+  countryCode?: string;
+  balance: number;
+  bonusBalance: number;
+  totalWagered: number;
+  totalWon: number;
+  promoterStatus: 'none' | 'pending' | 'approved' | 'banned';
+  referralAbuseFlag?: string | null;
+}
+
+export interface RiskConfigDto {
+  rtpTargetMin: number;
+  rtpTargetMax: number;
+  baseOverround: number;
+  volatility: number;
+  drawRate: number;
+  upsetRate: number;
+  maxLiabilityUsd: number;
+  maxUserConcentration: number;
+  bookingCodeDays: number;
+}
+
+export interface RiskSnapshot {
+  config: RiskConfigDto;
+  rtp24h: number;
+  overround: { base: number; adjusted: number };
+  exposure: Array<{ market: string; liabilityUsd: number; count: number }>;
+}
+
+export interface CashbackJobInfo {
+  state: {
+    _id: string;
+    lastRunAt: string;
+    lastRunCount: number;
+    lastRunError?: string;
+  } | null;
+  cashbackCode: string;
+}
+
 export const adminApi = {
   // Promoters
   promoters: (status?: 'pending' | 'approved' | 'banned') =>
@@ -78,4 +146,38 @@ export const adminApi = {
     apiPatch<{ code: AdminPromoCode }>(`/admin/promo-codes/${code}`, body),
   deletePromoCode: (code: string) =>
     apiDelete<{ ok: true }>(`/admin/promo-codes/${code}`),
+
+  // Audit
+  auditLog: (filters?: { action?: string; limit?: number; before?: string }) => {
+    const qs = new URLSearchParams();
+    if (filters?.action) qs.set('action', filters.action);
+    if (filters?.limit)  qs.set('limit', String(filters.limit));
+    if (filters?.before) qs.set('before', filters.before);
+    const q = qs.toString();
+    return apiGet<{ entries: AuditEntry[] }>(`/admin/audit-log${q ? `?${q}` : ''}`);
+  },
+
+  // Flagged referrals
+  flaggedReferrals: () =>
+    apiGet<{ flagged: FlaggedReferral[] }>('/admin/flagged-referrals'),
+  clearFlag: (userId: string) =>
+    apiPost<{ ok: true }>(`/admin/flagged-referrals/${userId}/clear`, {}),
+
+  // Users
+  searchUsers: (q: string) =>
+    apiGet<{ users: AdminUserSummary[] }>(`/admin/users?q=${encodeURIComponent(q)}`),
+  userDetail: (id: string) =>
+    apiGet<{ user: AdminUserSummary & Record<string, unknown> }>(`/admin/users/${id}`),
+
+  // Risk
+  risk: () =>
+    apiGet<RiskSnapshot>('/admin/risk'),
+  updateRisk: (body: Partial<RiskConfigDto>) =>
+    apiPatch<{ config: RiskConfigDto }>('/admin/risk', body),
+
+  // Cashback job
+  cashbackInfo: () =>
+    apiGet<CashbackJobInfo>('/admin/jobs/cashback'),
+  runCashback: (force?: boolean) =>
+    apiPost<{ ran: boolean; credited: number; skipped: number; reason?: string }>('/admin/jobs/cashback/run', { force: !!force }),
 };

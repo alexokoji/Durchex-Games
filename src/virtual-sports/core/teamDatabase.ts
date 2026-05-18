@@ -1,6 +1,41 @@
 import type { Team } from './types';
 export { getPersonality } from './teamPersonalities';
 
+// Terse constructor for the long tail of teams. Hand-crafted top clubs above
+// keep their full verbose entries (more readable for the marquee names); the
+// rest of each league is filled out below via `t(...)` for compactness.
+interface MkTeamArgs {
+  id: string; name: string; abbr: string; leagueId: string; country: string;
+  short?: string;
+  p?: string; s?: string; a?: string;             // primary/secondary/accent
+  atk?: number; def?: number; mid?: number;       // attacking / defensive / midfield
+  pac?: number; fin?: number; kee?: number;       // pace / finishing / keeping
+  form?: number;
+}
+function mk(args: MkTeamArgs): Team {
+  return {
+    id: args.id,
+    name: args.name,
+    shortName: args.short ?? args.name,
+    abbr: args.abbr,
+    leagueId: args.leagueId,
+    country: args.country,
+    primary:   args.p ?? '#444444',
+    secondary: args.s ?? '#FFFFFF',
+    accent:    args.a ?? '#000000',
+    emblemKey: 'procedural',
+    ratings: {
+      attack:    args.atk  ?? 71,
+      defense:   args.def  ?? 71,
+      midfield:  args.mid  ?? 71,
+      pace:      args.pac  ?? 72,
+      finishing: args.fin  ?? 70,
+      keeping:   args.kee  ?? 71,
+      form:      args.form ?? 0,
+    },
+  };
+}
+
 // Ratings calibrated against real-world strength (50–95 scale).
 // `form` is a -10..+10 short-term modifier, shuffled at runtime.
 export const TEAMS: Team[] = [
@@ -200,7 +235,7 @@ export const TEAMS: Team[] = [
   { id: 'phi', name: 'Philadelphia 76ers',  shortName: '76ers',     abbr: 'PHI', leagueId: 'nba', country: 'USA',
     primary: '#006BB6', secondary: '#ED174C', accent: '#FFFFFF', emblemKey: 'phi',
     ratings: { attack: 84, defense: 82, midfield: 82, pace: 81, finishing: 85, keeping: 80, form: 2 } },
-  { id: 'mil', name: 'Milwaukee Bucks',     shortName: 'Bucks',     abbr: 'MIL_BB', leagueId: 'nba', country: 'USA',
+  { id: 'mil_bb', name: 'Milwaukee Bucks',  shortName: 'Bucks',     abbr: 'MIL', leagueId: 'nba', country: 'USA',
     primary: '#00471B', secondary: '#EEE1C6', accent: '#0077C0', emblemKey: 'mil_bb',
     ratings: { attack: 87, defense: 82, midfield: 84, pace: 83, finishing: 88, keeping: 82, form: 3 } },
 
@@ -223,6 +258,204 @@ export const TEAMS: Team[] = [
   { id: 'bru', name: 'Boston Bruins',       shortName: 'Bruins',    abbr: 'BOS_NHL', leagueId: 'nhl', country: 'USA',
     primary: '#000000', secondary: '#FFB81C', accent: '#FFFFFF', emblemKey: 'bru',
     ratings: { attack: 84, defense: 86, midfield: 84, pace: 80, finishing: 83, keeping: 86, form: 3 } },
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Full-league expansion. Procedural emblems; ratings tuned to plausible
+  // mid-table strength unless the team is a known top-flight regular.
+  // ──────────────────────────────────────────────────────────────────────
+
+  // EPL fill (top 20)
+  mk({ id: 'avl', name: 'Aston Villa',          short: 'Villa',       abbr: 'AVL', leagueId: 'epl', country: 'England', p: '#670E36', s: '#95BFE5', a: '#FFFFFF', atk: 80, def: 78, mid: 80, pac: 80, fin: 79, kee: 78, form: 3 }),
+  mk({ id: 'bri', name: 'Brighton & Hove Albion', short: 'Brighton',  abbr: 'BRI', leagueId: 'epl', country: 'England', p: '#0057B8', s: '#FFCD00', a: '#FFFFFF', atk: 76, def: 74, mid: 78, pac: 79, fin: 75, kee: 75, form: 2 }),
+  mk({ id: 'cry', name: 'Crystal Palace',       short: 'Palace',      abbr: 'CRY', leagueId: 'epl', country: 'England', p: '#1B458F', s: '#C4122E', a: '#FFFFFF', atk: 73, def: 73, mid: 72, pac: 76, fin: 72, kee: 73, form: 0 }),
+  mk({ id: 'eve', name: 'Everton',              short: 'Everton',     abbr: 'EVE', leagueId: 'epl', country: 'England', p: '#003399', s: '#FFFFFF', a: '#000000', atk: 70, def: 72, mid: 71, pac: 72, fin: 70, kee: 73, form: -1 }),
+  mk({ id: 'ful', name: 'Fulham',               short: 'Fulham',      abbr: 'FUL', leagueId: 'epl', country: 'England', p: '#FFFFFF', s: '#000000', a: '#CC0000', atk: 73, def: 72, mid: 72, pac: 74, fin: 72, kee: 72 }),
+  mk({ id: 'wol', name: 'Wolverhampton',        short: 'Wolves',      abbr: 'WOL', leagueId: 'epl', country: 'England', p: '#FDB913', s: '#231F20', a: '#FFFFFF', atk: 72, def: 73, mid: 71, pac: 75, fin: 71, kee: 72 }),
+  mk({ id: 'bou', name: 'AFC Bournemouth',      short: 'Bournemouth', abbr: 'BOU', leagueId: 'epl', country: 'England', p: '#DA291C', s: '#000000', a: '#FFFFFF', atk: 72, def: 70, mid: 71, pac: 76, fin: 72, kee: 70, form: 1 }),
+  mk({ id: 'bre', name: 'Brentford',            short: 'Brentford',   abbr: 'BRE', leagueId: 'epl', country: 'England', p: '#E30613', s: '#FFFFFF', a: '#FBB800', atk: 74, def: 73, mid: 73, pac: 75, fin: 73, kee: 72 }),
+  mk({ id: 'not', name: 'Nottingham Forest',    short: 'Forest',      abbr: 'NOT', leagueId: 'epl', country: 'England', p: '#DD0000', s: '#FFFFFF', a: '#000000', atk: 72, def: 71, mid: 70, pac: 73, fin: 72, kee: 71 }),
+  mk({ id: 'bur', name: 'Burnley',              short: 'Burnley',     abbr: 'BUR', leagueId: 'epl', country: 'England', p: '#6C1D45', s: '#99D6EA', a: '#FFFFFF', atk: 68, def: 70, mid: 68, pac: 70, fin: 67, kee: 70, form: -2 }),
+  mk({ id: 'lei', name: 'Leicester City',       short: 'Leicester',   abbr: 'LEI', leagueId: 'epl', country: 'England', p: '#003090', s: '#FDBE11', a: '#FFFFFF', atk: 73, def: 71, mid: 72, pac: 74, fin: 72, kee: 72 }),
+  mk({ id: 'ips', name: 'Ipswich Town',         short: 'Ipswich',     abbr: 'IPS', leagueId: 'epl', country: 'England', p: '#0F4D92', s: '#FFFFFF', a: '#E03A3E', atk: 69, def: 69, mid: 68, pac: 71, fin: 68, kee: 68, form: -1 }),
+
+  // La Liga fill (top 20)
+  mk({ id: 'ath', name: 'Athletic Club',        short: 'Athletic',    abbr: 'ATH', leagueId: 'laliga', country: 'Spain', p: '#EE2523', s: '#FFFFFF', a: '#000000', atk: 79, def: 79, mid: 79, pac: 78, fin: 78, kee: 79, form: 2 }),
+  mk({ id: 'bet', name: 'Real Betis',           short: 'Betis',       abbr: 'BET', leagueId: 'laliga', country: 'Spain', p: '#0BB363', s: '#FFFFFF', a: '#000000', atk: 76, def: 75, mid: 77, pac: 76, fin: 76, kee: 75, form: 1 }),
+  mk({ id: 'vil', name: 'Villarreal CF',        short: 'Villarreal',  abbr: 'VIL', leagueId: 'laliga', country: 'Spain', p: '#FFE667', s: '#005CB9', a: '#000000', atk: 78, def: 76, mid: 78, pac: 76, fin: 77, kee: 76 }),
+  mk({ id: 'cel', name: 'Celta Vigo',           short: 'Celta',       abbr: 'CEL', leagueId: 'laliga', country: 'Spain', p: '#8AC3EE', s: '#FFFFFF', a: '#CC0000', atk: 73, def: 72, mid: 72, pac: 75, fin: 73, kee: 72 }),
+  mk({ id: 'osa', name: 'CA Osasuna',           short: 'Osasuna',     abbr: 'OSA', leagueId: 'laliga', country: 'Spain', p: '#D91A21', s: '#1A2A4F', a: '#FFFFFF', atk: 71, def: 73, mid: 71, pac: 73, fin: 70, kee: 72 }),
+  mk({ id: 'mll', name: 'RCD Mallorca',         short: 'Mallorca',    abbr: 'MLL', leagueId: 'laliga', country: 'Spain', p: '#CB1F2C', s: '#000000', a: '#FFD700', atk: 70, def: 72, mid: 71, pac: 71, fin: 70, kee: 72 }),
+  mk({ id: 'lpa', name: 'UD Las Palmas',        short: 'Las Palmas',  abbr: 'LPA', leagueId: 'laliga', country: 'Spain', p: '#FFE100', s: '#005EB8', a: '#FFFFFF', atk: 70, def: 70, mid: 70, pac: 72, fin: 70, kee: 70 }),
+  mk({ id: 'gtf', name: 'Getafe CF',            short: 'Getafe',      abbr: 'GTF', leagueId: 'laliga', country: 'Spain', p: '#005AC3', s: '#FFFFFF', a: '#000000', atk: 69, def: 72, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'gra', name: 'Granada CF',           short: 'Granada',     abbr: 'GRA', leagueId: 'laliga', country: 'Spain', p: '#C8102E', s: '#FFFFFF', a: '#000000', atk: 69, def: 69, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'alm', name: 'UD Almería',           short: 'Almería',     abbr: 'ALM', leagueId: 'laliga', country: 'Spain', p: '#E30613', s: '#FFFFFF', a: '#000000', atk: 68, def: 68, mid: 68, pac: 69, fin: 68, kee: 68 }),
+  mk({ id: 'gir', name: 'Girona FC',            short: 'Girona',      abbr: 'GIR', leagueId: 'laliga', country: 'Spain', p: '#CB0F1E', s: '#FFFFFF', a: '#FFCC00', atk: 76, def: 73, mid: 75, pac: 76, fin: 75, kee: 73, form: 3 }),
+  mk({ id: 'ray', name: 'Rayo Vallecano',       short: 'Rayo',        abbr: 'RAY', leagueId: 'laliga', country: 'Spain', p: '#FFFFFF', s: '#E20E0E', a: '#000000', atk: 71, def: 70, mid: 70, pac: 73, fin: 70, kee: 70 }),
+  mk({ id: 'ale', name: 'Deportivo Alavés',     short: 'Alavés',      abbr: 'ALE', leagueId: 'laliga', country: 'Spain', p: '#003DA5', s: '#FFFFFF', a: '#000000', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'cad', name: 'Cádiz CF',             short: 'Cádiz',       abbr: 'CAD', leagueId: 'laliga', country: 'Spain', p: '#FFE600', s: '#005CB9', a: '#000000', atk: 67, def: 70, mid: 68, pac: 69, fin: 67, kee: 70 }),
+
+  // Bundesliga fill (18)
+  mk({ id: 'wob', name: 'VfL Wolfsburg',        short: 'Wolfsburg',   abbr: 'WOB', leagueId: 'bunds', country: 'Germany', p: '#65B32E', s: '#FFFFFF', a: '#000000', atk: 75, def: 74, mid: 75, pac: 76, fin: 74, kee: 75 }),
+  mk({ id: 'stu', name: 'VfB Stuttgart',        short: 'Stuttgart',   abbr: 'STU', leagueId: 'bunds', country: 'Germany', p: '#E32219', s: '#FFFFFF', a: '#000000', atk: 78, def: 76, mid: 77, pac: 78, fin: 77, kee: 76, form: 2 }),
+  mk({ id: 'wer', name: 'SV Werder Bremen',     short: 'Werder',      abbr: 'WER', leagueId: 'bunds', country: 'Germany', p: '#008F37', s: '#FFFFFF', a: '#000000', atk: 73, def: 73, mid: 73, pac: 74, fin: 73, kee: 73 }),
+  mk({ id: 'hof', name: 'TSG Hoffenheim',       short: 'Hoffenheim',  abbr: 'HOF', leagueId: 'bunds', country: 'Germany', p: '#1961AD', s: '#FFFFFF', a: '#000000', atk: 74, def: 73, mid: 74, pac: 74, fin: 74, kee: 73 }),
+  mk({ id: 'mgb', name: 'Borussia M’gladbach', short: 'M’gladbach', abbr: 'BMG', leagueId: 'bunds', country: 'Germany', p: '#FFFFFF', s: '#000000', a: '#00B140', atk: 74, def: 72, mid: 73, pac: 75, fin: 73, kee: 73 }),
+  mk({ id: 'koe', name: '1. FC Köln',           short: 'Köln',        abbr: 'KOE', leagueId: 'bunds', country: 'Germany', p: '#E1000F', s: '#FFFFFF', a: '#000000', atk: 71, def: 71, mid: 71, pac: 72, fin: 71, kee: 71 }),
+  mk({ id: 'mai', name: '1. FSV Mainz 05',      short: 'Mainz',       abbr: 'MAI', leagueId: 'bunds', country: 'Germany', p: '#C5011E', s: '#FFFFFF', a: '#FFEB00', atk: 71, def: 72, mid: 71, pac: 72, fin: 70, kee: 72 }),
+  mk({ id: 'fre', name: 'SC Freiburg',          short: 'Freiburg',    abbr: 'FRE', leagueId: 'bunds', country: 'Germany', p: '#D72C2C', s: '#FFFFFF', a: '#000000', atk: 75, def: 75, mid: 75, pac: 75, fin: 74, kee: 75, form: 1 }),
+  mk({ id: 'aug', name: 'FC Augsburg',          short: 'Augsburg',    abbr: 'AUG', leagueId: 'bunds', country: 'Germany', p: '#BA3733', s: '#005CA9', a: '#FFFFFF', atk: 70, def: 71, mid: 70, pac: 71, fin: 70, kee: 71 }),
+  mk({ id: 'uni', name: 'Union Berlin',         short: 'Union',       abbr: 'UNI', leagueId: 'bunds', country: 'Germany', p: '#EB1923', s: '#FFE001', a: '#FFFFFF', atk: 73, def: 75, mid: 73, pac: 73, fin: 72, kee: 75 }),
+  mk({ id: 'boc', name: 'VfL Bochum',           short: 'Bochum',      abbr: 'BOC', leagueId: 'bunds', country: 'Germany', p: '#005CA9', s: '#FFFFFF', a: '#000000', atk: 68, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'hei', name: '1. FC Heidenheim',     short: 'Heidenheim',  abbr: 'HEI', leagueId: 'bunds', country: 'Germany', p: '#E1000F', s: '#0F4D92', a: '#FFFFFF', atk: 69, def: 70, mid: 69, pac: 70, fin: 69, kee: 70 }),
+  mk({ id: 'dar', name: 'SV Darmstadt 98',      short: 'Darmstadt',   abbr: 'DAR', leagueId: 'bunds', country: 'Germany', p: '#1B449C', s: '#FFFFFF', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68, form: -1 }),
+
+  // Serie A fill (20)
+  mk({ id: 'ata', name: 'Atalanta BC',          short: 'Atalanta',    abbr: 'ATA', leagueId: 'seriea', country: 'Italy', p: '#1E71B8', s: '#000000', a: '#FFFFFF', atk: 82, def: 78, mid: 80, pac: 81, fin: 82, kee: 78, form: 3 }),
+  mk({ id: 'fio', name: 'Fiorentina',           short: 'Viola',       abbr: 'FIO', leagueId: 'seriea', country: 'Italy', p: '#592C82', s: '#FFFFFF', a: '#000000', atk: 76, def: 75, mid: 76, pac: 75, fin: 75, kee: 75, form: 1 }),
+  mk({ id: 'trn', name: 'Torino FC',            short: 'Torino',      abbr: 'TRN', leagueId: 'seriea', country: 'Italy', p: '#881620', s: '#FFFFFF', a: '#000000', atk: 73, def: 75, mid: 73, pac: 73, fin: 73, kee: 75 }),
+  mk({ id: 'sas', name: 'Sassuolo',             short: 'Sassuolo',    abbr: 'SAS', leagueId: 'seriea', country: 'Italy', p: '#00A651', s: '#000000', a: '#FFFFFF', atk: 72, def: 71, mid: 72, pac: 73, fin: 72, kee: 71 }),
+  mk({ id: 'bol', name: 'Bologna FC',           short: 'Bologna',     abbr: 'BOL', leagueId: 'seriea', country: 'Italy', p: '#7A1E2C', s: '#001A4B', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 75, kee: 75, form: 2 }),
+  mk({ id: 'gen', name: 'Genoa CFC',            short: 'Genoa',       abbr: 'GEN', leagueId: 'seriea', country: 'Italy', p: '#CC0000', s: '#000044', a: '#FFFFFF', atk: 71, def: 71, mid: 71, pac: 72, fin: 71, kee: 71 }),
+  mk({ id: 'udi', name: 'Udinese Calcio',       short: 'Udinese',     abbr: 'UDI', leagueId: 'seriea', country: 'Italy', p: '#000000', s: '#FFFFFF', a: '#FBE001', atk: 71, def: 73, mid: 71, pac: 72, fin: 70, kee: 73 }),
+  mk({ id: 'cag', name: 'Cagliari',             short: 'Cagliari',    abbr: 'CAG', leagueId: 'seriea', country: 'Italy', p: '#A2122F', s: '#10295C', a: '#FFFFFF', atk: 69, def: 71, mid: 70, pac: 70, fin: 69, kee: 71 }),
+  mk({ id: 'ver', name: 'Hellas Verona',        short: 'Verona',      abbr: 'VER', leagueId: 'seriea', country: 'Italy', p: '#003B7A', s: '#FFCE08', a: '#FFFFFF', atk: 69, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'emp', name: 'Empoli FC',            short: 'Empoli',      abbr: 'EMP', leagueId: 'seriea', country: 'Italy', p: '#005EB8', s: '#FFFFFF', a: '#000000', atk: 68, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'mza', name: 'AC Monza',             short: 'Monza',       abbr: 'MZA', leagueId: 'seriea', country: 'Italy', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 70, def: 70, mid: 70, pac: 71, fin: 70, kee: 70 }),
+  mk({ id: 'lec', name: 'US Lecce',             short: 'Lecce',       abbr: 'LEC', leagueId: 'seriea', country: 'Italy', p: '#FBE100', s: '#CC0000', a: '#000000', atk: 68, def: 69, mid: 68, pac: 70, fin: 67, kee: 69 }),
+  mk({ id: 'sal', name: 'US Salernitana',       short: 'Salernitana', abbr: 'SAL', leagueId: 'seriea', country: 'Italy', p: '#5B2D8E', s: '#FFFFFF', a: '#000000', atk: 66, def: 68, mid: 66, pac: 68, fin: 65, kee: 68, form: -2 }),
+  mk({ id: 'fro', name: 'Frosinone',            short: 'Frosinone',   abbr: 'FRO', leagueId: 'seriea', country: 'Italy', p: '#FFD500', s: '#0066B3', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+
+  // Ligue 1 fill (18)
+  mk({ id: 'nic', name: 'OGC Nice',             short: 'Nice',        abbr: 'NIC', leagueId: 'ligue1', country: 'France', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 75, def: 76, mid: 75, pac: 75, fin: 74, kee: 75, form: 1 }),
+  mk({ id: 'ren', name: 'Stade Rennais',        short: 'Rennes',      abbr: 'REN', leagueId: 'ligue1', country: 'France', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 76, def: 74, mid: 76, pac: 76, fin: 75, kee: 74 }),
+  mk({ id: 'str', name: 'RC Strasbourg',        short: 'Strasbourg',  abbr: 'STR', leagueId: 'ligue1', country: 'France', p: '#0066CC', s: '#FFFFFF', a: '#CC0000', atk: 71, def: 71, mid: 71, pac: 72, fin: 70, kee: 71 }),
+  mk({ id: 'nan', name: 'FC Nantes',            short: 'Nantes',      abbr: 'NAN', leagueId: 'ligue1', country: 'France', p: '#FFD500', s: '#005A2E', a: '#FFFFFF', atk: 71, def: 70, mid: 70, pac: 72, fin: 70, kee: 70 }),
+  mk({ id: 'brt', name: 'Stade Brestois 29',    short: 'Brest',       abbr: 'BRT', leagueId: 'ligue1', country: 'France', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 73, def: 73, mid: 73, pac: 73, fin: 72, kee: 73, form: 2 }),
+  mk({ id: 'rim', name: 'Stade de Reims',       short: 'Reims',       abbr: 'RIM', leagueId: 'ligue1', country: 'France', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 71, def: 71, mid: 71, pac: 72, fin: 70, kee: 71 }),
+  mk({ id: 'tou', name: 'Toulouse FC',          short: 'Toulouse',    abbr: 'TOU', leagueId: 'ligue1', country: 'France', p: '#7B1FA2', s: '#FFFFFF', a: '#000000', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'mtp', name: 'Montpellier HSC',      short: 'Montpellier', abbr: 'MTP', leagueId: 'ligue1', country: 'France', p: '#003C71', s: '#F58220', a: '#FFFFFF', atk: 70, def: 70, mid: 70, pac: 71, fin: 70, kee: 70 }),
+  mk({ id: 'met', name: 'FC Metz',              short: 'Metz',        abbr: 'MET', leagueId: 'ligue1', country: 'France', p: '#702C84', s: '#FFFFFF', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'hav', name: 'Le Havre AC',          short: 'Le Havre',    abbr: 'HAV', leagueId: 'ligue1', country: 'France', p: '#003DA5', s: '#FFFFFF', a: '#000000', atk: 67, def: 69, mid: 67, pac: 68, fin: 66, kee: 69 }),
+  mk({ id: 'clr', name: 'Clermont Foot',        short: 'Clermont',    abbr: 'CLR', leagueId: 'ligue1', country: 'France', p: '#1B449C', s: '#CC0000', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'len', name: 'RC Lens',              short: 'Lens',        abbr: 'LEN', leagueId: 'ligue1', country: 'France', p: '#FFD500', s: '#CC0000', a: '#000000', atk: 76, def: 75, mid: 75, pac: 76, fin: 75, kee: 75, form: 1 }),
+  mk({ id: 'bor', name: 'FC Bordeaux',          short: 'Bordeaux',    abbr: 'BOR', leagueId: 'ligue1', country: 'France', p: '#000080', s: '#FFFFFF', a: '#000000', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+
+  // Eredivisie fill (18)
+  mk({ id: 'nec', name: 'NEC Nijmegen',         short: 'NEC',         abbr: 'NEC', leagueId: 'eredivisie', country: 'Netherlands', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 70, def: 70, mid: 70, pac: 71, fin: 70, kee: 70 }),
+  mk({ id: 'spa', name: 'Sparta Rotterdam',     short: 'Sparta',      abbr: 'SPA', leagueId: 'eredivisie', country: 'Netherlands', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 69, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'hee', name: 'SC Heerenveen',        short: 'Heerenveen',  abbr: 'HEE', leagueId: 'eredivisie', country: 'Netherlands', p: '#0066B3', s: '#FFFFFF', a: '#CC0000', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'vts', name: 'Vitesse',              short: 'Vitesse',     abbr: 'VTS', leagueId: 'eredivisie', country: 'Netherlands', p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 69, def: 69, mid: 69, pac: 70, fin: 68, kee: 69 }),
+  mk({ id: 'hrc', name: 'Heracles Almelo',      short: 'Heracles',    abbr: 'HRC', leagueId: 'eredivisie', country: 'Netherlands', p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'gae', name: 'Go Ahead Eagles',      short: 'GA Eagles',   abbr: 'GAE', leagueId: 'eredivisie', country: 'Netherlands', p: '#CC0000', s: '#FFD500', a: '#000000', atk: 68, def: 68, mid: 68, pac: 69, fin: 67, kee: 68 }),
+  mk({ id: 'rkc', name: 'RKC Waalwijk',         short: 'Waalwijk',    abbr: 'RKC', leagueId: 'eredivisie', country: 'Netherlands', p: '#FFD500', s: '#0033A0', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'pec', name: 'PEC Zwolle',           short: 'PEC',         abbr: 'PEC', leagueId: 'eredivisie', country: 'Netherlands', p: '#0033A0', s: '#FFFFFF', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'exc', name: 'Excelsior',            short: 'Excelsior',   abbr: 'EXC', leagueId: 'eredivisie', country: 'Netherlands', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'nac', name: 'NAC Breda',            short: 'NAC',         abbr: 'NAC', leagueId: 'eredivisie', country: 'Netherlands', p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'fsr', name: 'Fortuna Sittard',      short: 'Fortuna',     abbr: 'FSR', leagueId: 'eredivisie', country: 'Netherlands', p: '#FFD500', s: '#1B5E20', a: '#FFFFFF', atk: 65, def: 67, mid: 66, pac: 66, fin: 64, kee: 67 }),
+  mk({ id: 'alc', name: 'Almere City',          short: 'Almere',      abbr: 'ALC', leagueId: 'eredivisie', country: 'Netherlands', p: '#000000', s: '#CC0000', a: '#FFFFFF', atk: 64, def: 66, mid: 65, pac: 65, fin: 63, kee: 66 }),
+
+  // Liga Portugal fill (18)
+  mk({ id: 'boa', name: 'Boavista FC',          short: 'Boavista',    abbr: 'BOA', leagueId: 'liganos', country: 'Portugal', p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 69, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'esl', name: 'Estoril Praia',        short: 'Estoril',     abbr: 'ESL', leagueId: 'liganos', country: 'Portugal', p: '#FFD500', s: '#0033A0', a: '#FFFFFF', atk: 68, def: 69, mid: 68, pac: 69, fin: 67, kee: 69 }),
+  mk({ id: 'fam', name: 'FC Famalicão',         short: 'Famalicão',   abbr: 'FAM', leagueId: 'liganos', country: 'Portugal', p: '#FFD500', s: '#1B5E20', a: '#FFFFFF', atk: 68, def: 69, mid: 68, pac: 69, fin: 67, kee: 69 }),
+  mk({ id: 'gil', name: 'Gil Vicente FC',       short: 'Gil Vicente', abbr: 'GIL', leagueId: 'liganos', country: 'Portugal', p: '#CC0000', s: '#1B5E20', a: '#FFFFFF', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'cap', name: 'Casa Pia AC',          short: 'Casa Pia',    abbr: 'CAP', leagueId: 'liganos', country: 'Portugal', p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'cha', name: 'GD Chaves',            short: 'Chaves',      abbr: 'CHV', leagueId: 'liganos', country: 'Portugal', p: '#CC0000', s: '#000080', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'esa', name: 'Estrela da Amadora',   short: 'Amadora',     abbr: 'ESA', leagueId: 'liganos', country: 'Portugal', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 64, def: 66, mid: 65, pac: 65, fin: 63, kee: 66 }),
+  mk({ id: 'far', name: 'SC Farense',           short: 'Farense',     abbr: 'FAR', leagueId: 'liganos', country: 'Portugal', p: '#000000', s: '#FFFFFF', a: '#CC0000', atk: 65, def: 66, mid: 65, pac: 66, fin: 64, kee: 66 }),
+  mk({ id: 'mor', name: 'Moreirense FC',        short: 'Moreirense',  abbr: 'MOR', leagueId: 'liganos', country: 'Portugal', p: '#FFFFFF', s: '#1B5E20', a: '#FFFFFF', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'prt', name: 'Portimonense SC',      short: 'Portimonense', abbr: 'PRT', leagueId: 'liganos', country: 'Portugal', p: '#000000', s: '#FFFFFF', a: '#FFD500', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'rav', name: 'Rio Ave FC',           short: 'Rio Ave',     abbr: 'RAV', leagueId: 'liganos', country: 'Portugal', p: '#1B5E20', s: '#FFFFFF', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'viz', name: 'FC Vizela',            short: 'Vizela',      abbr: 'VIZ', leagueId: 'liganos', country: 'Portugal', p: '#FFFFFF', s: '#000000', a: '#FFFFFF', atk: 64, def: 65, mid: 64, pac: 65, fin: 63, kee: 65 }),
+  mk({ id: 'aro', name: 'FC Arouca',            short: 'Arouca',      abbr: 'ARO', leagueId: 'liganos', country: 'Portugal', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+
+  // Süper Lig fill (19)
+  mk({ id: 'ada', name: 'Adana Demirspor',      short: 'Adana',       abbr: 'ADA', leagueId: 'superlig', country: 'Turkey', p: '#003DA5', s: '#FFFFFF', a: '#CC0000', atk: 74, def: 73, mid: 73, pac: 74, fin: 73, kee: 73, form: 1 }),
+  mk({ id: 'ant', name: 'Antalyaspor',          short: 'Antalya',     abbr: 'ANT', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'kny', name: 'Konyaspor',            short: 'Konya',       abbr: 'KNY', leagueId: 'superlig', country: 'Turkey', p: '#1B5E20', s: '#FFFFFF', a: '#000000', atk: 71, def: 71, mid: 71, pac: 71, fin: 70, kee: 71 }),
+  mk({ id: 'kay', name: 'Kayserispor',          short: 'Kayseri',     abbr: 'KAY', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#FFD500', a: '#000000', atk: 70, def: 70, mid: 70, pac: 70, fin: 69, kee: 70 }),
+  mk({ id: 'ala', name: 'Alanyaspor',           short: 'Alanya',      abbr: 'ALA', leagueId: 'superlig', country: 'Turkey', p: '#F58220', s: '#1B5E20', a: '#FFFFFF', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'siv', name: 'Sivasspor',            short: 'Sivas',       abbr: 'SIV', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 69, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+  mk({ id: 'hat', name: 'Hatayspor',            short: 'Hatay',       abbr: 'HAT', leagueId: 'superlig', country: 'Turkey', p: '#7B0F2B', s: '#FFFFFF', a: '#000000', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'rzs', name: 'Çaykur Rizespor',      short: 'Rize',        abbr: 'RZS', leagueId: 'superlig', country: 'Turkey', p: '#0F4D92', s: '#1B5E20', a: '#FFFFFF', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'sam', name: 'Samsunspor',           short: 'Samsun',      abbr: 'SAM', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 69, def: 69, mid: 69, pac: 69, fin: 68, kee: 69 }),
+  mk({ id: 'gzt', name: 'Gaziantep FK',         short: 'Gaziantep',   abbr: 'GZT', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 68, def: 69, mid: 68, pac: 69, fin: 67, kee: 69 }),
+  mk({ id: 'krg', name: 'Karagümrük',           short: 'Karagümrük',  abbr: 'KRG', leagueId: 'superlig', country: 'Turkey', p: '#CC0000', s: '#000000', a: '#FFFFFF', atk: 67, def: 68, mid: 67, pac: 68, fin: 66, kee: 68 }),
+  mk({ id: 'ang', name: 'MKE Ankaragücü',       short: 'Ankaragücü',  abbr: 'ANG', leagueId: 'superlig', country: 'Turkey', p: '#0F4D92', s: '#FFD500', a: '#000000', atk: 68, def: 69, mid: 68, pac: 69, fin: 67, kee: 69 }),
+  mk({ id: 'pen', name: 'Pendikspor',           short: 'Pendik',      abbr: 'PEN', leagueId: 'superlig', country: 'Turkey', p: '#1B5E20', s: '#CC0000', a: '#FFFFFF', atk: 65, def: 66, mid: 65, pac: 66, fin: 64, kee: 66 }),
+  mk({ id: 'ist', name: 'İstanbulspor',         short: 'İstanbulspor', abbr: 'IST', leagueId: 'superlig', country: 'Turkey', p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 65, def: 66, mid: 65, pac: 66, fin: 64, kee: 66 }),
+
+  // EFL Championship fill (24)
+  mk({ id: 'bcc', name: 'Birmingham City',      short: 'Birmingham',  abbr: 'BCC', leagueId: 'efl', country: 'England', p: '#0F4D92', s: '#FFFFFF', a: '#CC0000', atk: 70, def: 70, mid: 70, pac: 70, fin: 69, kee: 70 }),
+  mk({ id: 'brs', name: 'Bristol City',         short: 'Bristol C',   abbr: 'BRS', leagueId: 'efl', country: 'England', p: '#E03A3E', s: '#000000', a: '#FFFFFF', atk: 71, def: 71, mid: 71, pac: 72, fin: 70, kee: 71 }),
+  mk({ id: 'car', name: 'Cardiff City',         short: 'Cardiff',     abbr: 'CAR', leagueId: 'efl', country: 'England', p: '#0070B5', s: '#FFFFFF', a: '#000000', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'cov', name: 'Coventry City',        short: 'Coventry',    abbr: 'COV', leagueId: 'efl', country: 'England', p: '#0066B3', s: '#FFFFFF', a: '#000000', atk: 72, def: 72, mid: 72, pac: 73, fin: 71, kee: 72, form: 1 }),
+  mk({ id: 'hul', name: 'Hull City',            short: 'Hull',        abbr: 'HUL', leagueId: 'efl', country: 'England', p: '#F18A01', s: '#000000', a: '#FFFFFF', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'mlw', name: 'Millwall',             short: 'Millwall',    abbr: 'MLW', leagueId: 'efl', country: 'England', p: '#003DA5', s: '#FFFFFF', a: '#000000', atk: 68, def: 70, mid: 69, pac: 69, fin: 68, kee: 70 }),
+  mk({ id: 'ply', name: 'Plymouth Argyle',      short: 'Plymouth',    abbr: 'PLY', leagueId: 'efl', country: 'England', p: '#1B5E20', s: '#FFFFFF', a: '#000000', atk: 69, def: 69, mid: 69, pac: 70, fin: 68, kee: 69 }),
+  mk({ id: 'pmh', name: 'Portsmouth',           short: 'Pompey',      abbr: 'PMH', leagueId: 'efl', country: 'England', p: '#001489', s: '#FFFFFF', a: '#FFD500', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'pnu', name: 'Preston North End',    short: 'Preston',     abbr: 'PNU', leagueId: 'efl', country: 'England', p: '#FFFFFF', s: '#0F4D92', a: '#000000', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'qpr', name: 'Queens Park Rangers',  short: 'QPR',         abbr: 'QPR', leagueId: 'efl', country: 'England', p: '#1B449C', s: '#FFFFFF', a: '#000000', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'rot', name: 'Rotherham United',     short: 'Rotherham',   abbr: 'ROT', leagueId: 'efl', country: 'England', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 66, def: 67, mid: 66, pac: 67, fin: 65, kee: 67 }),
+  mk({ id: 'sto', name: 'Stoke City',           short: 'Stoke',       abbr: 'STO', leagueId: 'efl', country: 'England', p: '#E03A3E', s: '#FFFFFF', a: '#0F4D92', atk: 70, def: 71, mid: 70, pac: 71, fin: 69, kee: 71 }),
+  mk({ id: 'sun', name: 'Sunderland',           short: 'Sunderland',  abbr: 'SUN', leagueId: 'efl', country: 'England', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 72, def: 71, mid: 72, pac: 73, fin: 71, kee: 71 }),
+  mk({ id: 'swa', name: 'Swansea City',         short: 'Swansea',     abbr: 'SWA', leagueId: 'efl', country: 'England', p: '#FFFFFF', s: '#000000', a: '#000000', atk: 70, def: 70, mid: 70, pac: 71, fin: 69, kee: 70 }),
+  mk({ id: 'wat', name: 'Watford',              short: 'Watford',     abbr: 'WAT', leagueId: 'efl', country: 'England', p: '#FBE001', s: '#000000', a: '#CC0000', atk: 73, def: 72, mid: 73, pac: 73, fin: 72, kee: 72 }),
+  mk({ id: 'bla', name: 'Blackburn Rovers',     short: 'Blackburn',   abbr: 'BLA', leagueId: 'efl', country: 'England', p: '#FFFFFF', s: '#0F4D92', a: '#000000', atk: 70, def: 70, mid: 70, pac: 70, fin: 69, kee: 70 }),
+  mk({ id: 'der', name: 'Derby County',         short: 'Derby',       abbr: 'DER', leagueId: 'efl', country: 'England', p: '#FFFFFF', s: '#000000', a: '#000000', atk: 68, def: 69, mid: 68, pac: 69, fin: 67, kee: 69 }),
+  mk({ id: 'lut', name: 'Luton Town',           short: 'Luton',       abbr: 'LUT', leagueId: 'efl', country: 'England', p: '#F58220', s: '#000080', a: '#FFFFFF', atk: 69, def: 70, mid: 69, pac: 70, fin: 68, kee: 70 }),
+
+  // NBA fill (30 total)
+  mk({ id: 'bkn', name: 'Brooklyn Nets',        short: 'Nets',        abbr: 'BKN', leagueId: 'nba', country: 'USA', p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 78, def: 76, mid: 77, pac: 78, fin: 78, kee: 76 }),
+  mk({ id: 'nyk', name: 'New York Knicks',      short: 'Knicks',      abbr: 'NYK', leagueId: 'nba', country: 'USA', p: '#006BB6', s: '#F58426', a: '#FFFFFF', atk: 82, def: 80, mid: 81, pac: 80, fin: 82, kee: 80, form: 2 }),
+  mk({ id: 'trr', name: 'Toronto Raptors',      short: 'Raptors',     abbr: 'TRR', leagueId: 'nba', country: 'Canada', p: '#CE1141', s: '#000000', a: '#A1A1A4', atk: 78, def: 77, mid: 77, pac: 78, fin: 78, kee: 77 }),
+  mk({ id: 'atl', name: 'Atlanta Hawks',        short: 'Hawks',       abbr: 'ATL', leagueId: 'nba', country: 'USA', p: '#E03A3E', s: '#26282A', a: '#C1D32F', atk: 80, def: 76, mid: 79, pac: 81, fin: 80, kee: 75 }),
+  mk({ id: 'chh', name: 'Charlotte Hornets',    short: 'Hornets',     abbr: 'CHH', leagueId: 'nba', country: 'USA', p: '#1D1160', s: '#00788C', a: '#A1A1A4', atk: 75, def: 73, mid: 74, pac: 76, fin: 75, kee: 73 }),
+  mk({ id: 'cav', name: 'Cleveland Cavaliers',  short: 'Cavaliers',   abbr: 'CAV', leagueId: 'nba', country: 'USA', p: '#860038', s: '#FDBB30', a: '#041E42', atk: 84, def: 82, mid: 83, pac: 81, fin: 84, kee: 81, form: 3 }),
+  mk({ id: 'det', name: 'Detroit Pistons',      short: 'Pistons',     abbr: 'DET', leagueId: 'nba', country: 'USA', p: '#C8102E', s: '#1D42BA', a: '#FFFFFF', atk: 73, def: 72, mid: 72, pac: 75, fin: 73, kee: 71 }),
+  mk({ id: 'ind', name: 'Indiana Pacers',       short: 'Pacers',      abbr: 'IND', leagueId: 'nba', country: 'USA', p: '#002D62', s: '#FDBB30', a: '#FFFFFF', atk: 84, def: 78, mid: 83, pac: 85, fin: 85, kee: 78, form: 2 }),
+  mk({ id: 'orl', name: 'Orlando Magic',        short: 'Magic',       abbr: 'ORL', leagueId: 'nba', country: 'USA', p: '#0077C0', s: '#000000', a: '#C4CED4', atk: 80, def: 80, mid: 80, pac: 81, fin: 79, kee: 80, form: 2 }),
+  mk({ id: 'was', name: 'Washington Wizards',   short: 'Wizards',     abbr: 'WAS', leagueId: 'nba', country: 'USA', p: '#002B5C', s: '#E31837', a: '#C4CED4', atk: 73, def: 71, mid: 72, pac: 74, fin: 73, kee: 71 }),
+  mk({ id: 'dal', name: 'Dallas Mavericks',     short: 'Mavs',        abbr: 'DAL', leagueId: 'nba', country: 'USA', p: '#00538C', s: '#B8C4CA', a: '#002B5E', atk: 87, def: 80, mid: 85, pac: 84, fin: 88, kee: 80, form: 3 }),
+  mk({ id: 'hou', name: 'Houston Rockets',      short: 'Rockets',     abbr: 'HOU', leagueId: 'nba', country: 'USA', p: '#CE1141', s: '#000000', a: '#C4CED4', atk: 80, def: 78, mid: 79, pac: 82, fin: 80, kee: 77 }),
+  mk({ id: 'mem', name: 'Memphis Grizzlies',    short: 'Grizzlies',   abbr: 'MEM', leagueId: 'nba', country: 'USA', p: '#5D76A9', s: '#12173F', a: '#F5B112', atk: 80, def: 80, mid: 81, pac: 82, fin: 80, kee: 79 }),
+  mk({ id: 'nop', name: 'New Orleans Pelicans', short: 'Pelicans',    abbr: 'NOP', leagueId: 'nba', country: 'USA', p: '#0C2340', s: '#C8102E', a: '#85714D', atk: 81, def: 78, mid: 80, pac: 82, fin: 81, kee: 78 }),
+  mk({ id: 'spu', name: 'San Antonio Spurs',    short: 'Spurs',       abbr: 'SAS', leagueId: 'nba', country: 'USA', p: '#C4CED4', s: '#000000', a: '#000000', atk: 76, def: 75, mid: 75, pac: 77, fin: 76, kee: 75 }),
+  mk({ id: 'min', name: 'Minnesota Timberwolves', short: 'T’wolves', abbr: 'MIN', leagueId: 'nba', country: 'USA', p: '#0C2340', s: '#236192', a: '#9EA2A2', atk: 84, def: 84, mid: 83, pac: 82, fin: 84, kee: 83, form: 3 }),
+  mk({ id: 'okc', name: 'Oklahoma City Thunder', short: 'Thunder',    abbr: 'OKC', leagueId: 'nba', country: 'USA', p: '#007AC1', s: '#EF3B24', a: '#FDBB30', atk: 87, def: 84, mid: 86, pac: 85, fin: 87, kee: 83, form: 5 }),
+  mk({ id: 'ptb', name: 'Portland Trail Blazers', short: 'Blazers',   abbr: 'PTB', leagueId: 'nba', country: 'USA', p: '#E03A3E', s: '#000000', a: '#FFFFFF', atk: 74, def: 72, mid: 73, pac: 75, fin: 74, kee: 72 }),
+  mk({ id: 'uta', name: 'Utah Jazz',            short: 'Jazz',        abbr: 'UTA', leagueId: 'nba', country: 'USA', p: '#002B5C', s: '#F9A01B', a: '#00471B', atk: 75, def: 73, mid: 74, pac: 76, fin: 75, kee: 73 }),
+  mk({ id: 'sac', name: 'Sacramento Kings',     short: 'Kings',       abbr: 'SAC', leagueId: 'nba', country: 'USA', p: '#5A2D81', s: '#63727A', a: '#000000', atk: 80, def: 76, mid: 79, pac: 80, fin: 80, kee: 76 }),
+  mk({ id: 'lac', name: 'LA Clippers',          short: 'Clippers',    abbr: 'LAC', leagueId: 'nba', country: 'USA', p: '#C8102E', s: '#1D428A', a: '#FFFFFF', atk: 84, def: 80, mid: 83, pac: 83, fin: 84, kee: 80, form: 2 }),
+  mk({ id: 'phx', name: 'Phoenix Suns',         short: 'Suns',        abbr: 'PHX', leagueId: 'nba', country: 'USA', p: '#1D1160', s: '#E56020', a: '#63727A', atk: 84, def: 78, mid: 83, pac: 82, fin: 85, kee: 78, form: 1 }),
+
+  // NHL fill (32 total)
+  mk({ id: 'mtl', name: 'Montreal Canadiens',   short: 'Canadiens',   abbr: 'MTL', leagueId: 'nhl', country: 'Canada', p: '#AF1E2D', s: '#192168', a: '#FFFFFF', atk: 72, def: 73, mid: 72, pac: 75, fin: 71, kee: 73 }),
+  mk({ id: 'ott', name: 'Ottawa Senators',      short: 'Senators',    abbr: 'OTT', leagueId: 'nhl', country: 'Canada', p: '#E31837', s: '#000000', a: '#C8A36E', atk: 76, def: 73, mid: 75, pac: 78, fin: 76, kee: 73 }),
+  mk({ id: 'buf', name: 'Buffalo Sabres',       short: 'Sabres',      abbr: 'BUF', leagueId: 'nhl', country: 'USA', p: '#002654', s: '#FCB514', a: '#FFFFFF', atk: 78, def: 75, mid: 77, pac: 79, fin: 77, kee: 75 }),
+  mk({ id: 'nyi', name: 'New York Islanders',   short: 'Islanders',   abbr: 'NYI', leagueId: 'nhl', country: 'USA', p: '#00539B', s: '#F47D30', a: '#FFFFFF', atk: 78, def: 80, mid: 79, pac: 78, fin: 78, kee: 81 }),
+  mk({ id: 'njd', name: 'New Jersey Devils',    short: 'Devils',      abbr: 'NJD', leagueId: 'nhl', country: 'USA', p: '#CE1126', s: '#000000', a: '#FFFFFF', atk: 82, def: 78, mid: 81, pac: 83, fin: 82, kee: 78, form: 2 }),
+  mk({ id: 'phl', name: 'Philadelphia Flyers',  short: 'Flyers',      abbr: 'PHL', leagueId: 'nhl', country: 'USA', p: '#F74902', s: '#000000', a: '#FFFFFF', atk: 76, def: 75, mid: 75, pac: 77, fin: 76, kee: 75 }),
+  mk({ id: 'wsh', name: 'Washington Capitals',  short: 'Capitals',    abbr: 'WSH', leagueId: 'nhl', country: 'USA', p: '#041E42', s: '#C8102E', a: '#FFFFFF', atk: 80, def: 78, mid: 79, pac: 79, fin: 80, kee: 78 }),
+  mk({ id: 'crh', name: 'Carolina Hurricanes',  short: 'Hurricanes',  abbr: 'CAR', leagueId: 'nhl', country: 'USA', p: '#CC0000', s: '#000000', a: '#A2AAAD', atk: 84, def: 84, mid: 84, pac: 83, fin: 83, kee: 84, form: 3 }),
+  mk({ id: 'cbj', name: 'Columbus Blue Jackets', short: 'Blue Jackets', abbr: 'CBJ', leagueId: 'nhl', country: 'USA', p: '#002654', s: '#CE1126', a: '#A4A9AD', atk: 74, def: 73, mid: 73, pac: 75, fin: 74, kee: 73 }),
+  mk({ id: 'fla', name: 'Florida Panthers',     short: 'Panthers',    abbr: 'FLA', leagueId: 'nhl', country: 'USA', p: '#041E42', s: '#C8102E', a: '#B9975B', atk: 86, def: 84, mid: 85, pac: 84, fin: 85, kee: 84, form: 4 }),
+  mk({ id: 'drw', name: 'Detroit Red Wings',    short: 'Red Wings',   abbr: 'DET', leagueId: 'nhl', country: 'USA', p: '#CE1126', s: '#FFFFFF', a: '#FFFFFF', atk: 78, def: 76, mid: 77, pac: 78, fin: 78, kee: 76 }),
+  mk({ id: 'cbh', name: 'Chicago Blackhawks',   short: 'Blackhawks',  abbr: 'CHI', leagueId: 'nhl', country: 'USA', p: '#CF0A2C', s: '#000000', a: '#FF671F', atk: 73, def: 72, mid: 72, pac: 74, fin: 73, kee: 72 }),
+  mk({ id: 'mnh', name: 'Minnesota Wild',       short: 'Wild',        abbr: 'MNH', leagueId: 'nhl', country: 'USA', p: '#154734', s: '#A6192E', a: '#EAAA00', atk: 80, def: 80, mid: 79, pac: 79, fin: 79, kee: 80 }),
+  mk({ id: 'wpg', name: 'Winnipeg Jets',        short: 'Jets',        abbr: 'WPG', leagueId: 'nhl', country: 'Canada', p: '#041E42', s: '#004C97', a: '#AC162C', atk: 82, def: 82, mid: 82, pac: 81, fin: 81, kee: 82, form: 2 }),
+  mk({ id: 'stl', name: 'St. Louis Blues',      short: 'Blues',       abbr: 'STL', leagueId: 'nhl', country: 'USA', p: '#002F87', s: '#FCB514', a: '#041E42', atk: 78, def: 78, mid: 78, pac: 78, fin: 78, kee: 78 }),
+  mk({ id: 'nsh', name: 'Nashville Predators',  short: 'Predators',   abbr: 'NSH', leagueId: 'nhl', country: 'USA', p: '#FFB81C', s: '#041E42', a: '#FFFFFF', atk: 80, def: 80, mid: 80, pac: 80, fin: 79, kee: 80 }),
+  mk({ id: 'dst', name: 'Dallas Stars',         short: 'Stars',       abbr: 'DAL', leagueId: 'nhl', country: 'USA', p: '#006847', s: '#8F8F8C', a: '#000000', atk: 85, def: 84, mid: 84, pac: 84, fin: 84, kee: 84, form: 3 }),
+  mk({ id: 'edm', name: 'Edmonton Oilers',      short: 'Oilers',      abbr: 'EDM', leagueId: 'nhl', country: 'Canada', p: '#041E42', s: '#FF4C00', a: '#FFFFFF', atk: 89, def: 80, mid: 87, pac: 86, fin: 89, kee: 80, form: 4 }),
+  mk({ id: 'vcv', name: 'Vancouver Canucks',    short: 'Canucks',     abbr: 'VAN', leagueId: 'nhl', country: 'Canada', p: '#00205B', s: '#00843D', a: '#041C2C', atk: 82, def: 81, mid: 81, pac: 82, fin: 82, kee: 81 }),
+  mk({ id: 'cgy', name: 'Calgary Flames',       short: 'Flames',      abbr: 'CGY', leagueId: 'nhl', country: 'Canada', p: '#C8102E', s: '#F1BE48', a: '#111111', atk: 78, def: 78, mid: 78, pac: 78, fin: 78, kee: 78 }),
+  mk({ id: 'vgk', name: 'Vegas Golden Knights', short: 'Knights',     abbr: 'VGK', leagueId: 'nhl', country: 'USA', p: '#B4975A', s: '#333F42', a: '#C8102E', atk: 84, def: 83, mid: 83, pac: 83, fin: 84, kee: 83 }),
+  mk({ id: 'sea', name: 'Seattle Kraken',       short: 'Kraken',      abbr: 'SEA', leagueId: 'nhl', country: 'USA', p: '#001628', s: '#99D9D9', a: '#355464', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'ana', name: 'Anaheim Ducks',        short: 'Ducks',       abbr: 'ANA', leagueId: 'nhl', country: 'USA', p: '#F47A38', s: '#B9975B', a: '#000000', atk: 72, def: 72, mid: 72, pac: 73, fin: 72, kee: 72 }),
+  mk({ id: 'sjs', name: 'San Jose Sharks',      short: 'Sharks',      abbr: 'SJS', leagueId: 'nhl', country: 'USA', p: '#006D75', s: '#000000', a: '#EA7200', atk: 70, def: 71, mid: 70, pac: 71, fin: 70, kee: 71, form: -2 }),
+  mk({ id: 'lak', name: 'Los Angeles Kings',    short: 'Kings',       abbr: 'LAK', leagueId: 'nhl', country: 'USA', p: '#111111', s: '#A2AAAD', a: '#FFFFFF', atk: 80, def: 80, mid: 80, pac: 80, fin: 79, kee: 80 }),
+  mk({ id: 'uth', name: 'Utah Hockey Club',     short: 'Utah HC',     abbr: 'UTH', leagueId: 'nhl', country: 'USA', p: '#71AFE5', s: '#000000', a: '#FFFFFF', atk: 76, def: 75, mid: 75, pac: 76, fin: 76, kee: 75 }),
 ];
 
 export const TEAMS_BY_ID = TEAMS.reduce<Record<string, Team>>((acc, t) => {

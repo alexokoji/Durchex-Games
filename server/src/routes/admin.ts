@@ -9,6 +9,8 @@ import { PromoCode, type PromoKind, type PromoTier } from '../models/PromoCode';
 import { User } from '../models/User';
 import { JobState } from '../models/JobState';
 import { runCashbackOnce } from '../services/cashbackJob';
+import { AuditLog } from '../models/AuditLog';
+import { auditFromReq } from '../services/audit';
 
 const router = Router();
 
@@ -55,6 +57,7 @@ router.patch(
       update,
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
+    await auditFromReq(req, 'risk.update', 'risk_config', 'singleton', { update: req.body });
     res.json({ config: cfg });
   },
 );
@@ -152,6 +155,7 @@ router.post(
     const promoter = await Promoter.findOneAndUpdate({ userId }, update, { new: true });
     if (!promoter) { res.status(404).json({ error: 'promoter_not_found' }); return; }
     await User.findByIdAndUpdate(userId, { promoterStatus: 'approved' });
+    await auditFromReq(req, 'promoter.approve', 'user', userId, { commissionRate: update.commissionRate });
     res.json({ promoter });
   },
 );
@@ -173,6 +177,7 @@ router.post(
     await User.findByIdAndUpdate(userId, { promoterStatus: 'banned' });
     // Deactivate the promoter's codes too.
     await PromoCode.updateMany({ promoterId: userId }, { active: false });
+    await auditFromReq(req, 'promoter.ban', 'user', userId, { reason: req.body.reason });
     res.json({ promoter });
   },
 );
@@ -189,6 +194,7 @@ router.patch(
     if (Object.keys(update).length === 0) { res.status(400).json({ error: 'nothing_to_update' }); return; }
     const promoter = await Promoter.findOneAndUpdate({ userId: req.params.userId }, update, { new: true });
     if (!promoter) { res.status(404).json({ error: 'promoter_not_found' }); return; }
+    await auditFromReq(req, 'promoter.commission_update', 'user', req.params.userId, { update: req.body });
     res.json({ promoter });
   },
 );
@@ -239,6 +245,7 @@ router.post(
         expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : undefined,
         totalRedemptions: 0,
       });
+      await auditFromReq(req, 'promocode.create', 'promo_code', doc.code, { kind: doc.kind, tier: doc.tier });
       res.status(201).json({ code: doc });
     } catch (err: any) {
       if (err?.code === 11000) { res.status(409).json({ error: 'code_already_exists' }); return; }
@@ -272,6 +279,7 @@ router.patch(
       { new: true },
     );
     if (!doc) { res.status(404).json({ error: 'code_not_found' }); return; }
+    await auditFromReq(req, 'promocode.update', 'promo_code', doc.code, { update: req.body });
     res.json({ code: doc });
   },
 );
@@ -282,7 +290,9 @@ router.delete(
   param('code').isString().isLength({ min: 3, max: 32 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
-    await PromoCode.deleteOne({ code: req.params.code.toUpperCase() });
+    const code = req.params.code.toUpperCase();
+    await PromoCode.deleteOne({ code });
+    await auditFromReq(req, 'promocode.delete', 'promo_code', code);
     res.json({ ok: true });
   },
 );
@@ -304,7 +314,77 @@ router.post(
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const result = await runCashbackOnce({ force: !!req.body.force });
+    await auditFromReq(req, 'cashback.run', 'system', undefined, { force: !!req.body.force, result });
     res.json(result);
+  },
+);
+
+// ─── Audit log ───────────────────────────────────────────────────────────
+
+router.get('/audit-log', requireAdmin, async (req: Request, res: Response) => {
+  const limit  = Math.min(Number(req.query.limit) || 100, 500);
+  const action = typeof req.query.action === 'string' ? req.query.action : undefined;
+  const filter: Record<string, unknown> = {};
+  if (action) filter.action = action;
+  if (req.query.before) filter.createdAt = { $lt: new Date(String(req.query.before)) };
+  const rows = await AuditLog.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+  res.json({ entries: rows });
+});
+
+// ─── Flagged referrals (anti-abuse review) ───────────────────────────────
+
+router.get('/flagged-referrals', requireAdmin, async (_req: Request, res: Response) => {
+  const rows = await User.find({ referralAbuseFlag: { $ne: null } })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .select('email username createdAt countryCode referredBy referralAbuseFlag signupIp signupDeviceSignature totalWagered')
+    .populate('referredBy', 'email username referralCode')
+    .lean();
+  res.json({ flagged: rows });
+});
+
+router.post(
+  '/flagged-referrals/:userId/clear',
+  requireAdmin,
+  param('userId').isString().isLength({ min: 12 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    await User.findByIdAndUpdate(req.params.userId, { referralAbuseFlag: null });
+    await auditFromReq(req, 'user.view', 'user', req.params.userId, { cleared_flag: true });
+    res.json({ ok: true });
+  },
+);
+
+// ─── User search + detail ───────────────────────────────────────────────
+
+router.get('/users', requireAdmin, async (req: Request, res: Response) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q || q.length < 2) { res.json({ users: [] }); return; }
+  // Case-insensitive substring search; bounded to 50 results to keep this
+  // affordable. Email exact match takes priority via $or.
+  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const users = await User.find({
+    $or: [{ email: rx }, { username: rx }, { referralCode: q.toUpperCase() }],
+  })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .select('email username createdAt currency countryCode totalWagered totalWon balance bonusBalance promoterStatus referralAbuseFlag')
+    .lean();
+  res.json({ users });
+});
+
+router.get(
+  '/users/:userId',
+  requireAdmin,
+  param('userId').isString().isLength({ min: 12 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const user = await User.findById(req.params.userId)
+      .populate('referredBy', 'email username referralCode')
+      .lean();
+    if (!user) { res.status(404).json({ error: 'user_not_found' }); return; }
+    await auditFromReq(req, 'user.view', 'user', req.params.userId);
+    res.json({ user });
   },
 );
 

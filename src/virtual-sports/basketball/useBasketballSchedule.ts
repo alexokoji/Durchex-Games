@@ -10,6 +10,8 @@ import {
   forbiddenPairsForRound,
   recordRoundPairings,
 } from '../core/scheduleHelpers';
+import { pushRecentResult } from '../core/recentResults';
+import { getLeague } from '../core/leagueDatabase';
 
 export type BasketballPhase = 'betting' | 'live' | 'finished';
 
@@ -133,6 +135,21 @@ export function useBasketballSchedule({ leagueId, matchesPerRound }: Args): UseB
       outcomes.push({ selectionId: sel.id, result: resolveBasketballSelection(sel, m.simulation) });
     }
     if (outcomes.length > 0) slip.settleOutcomes(outcomes);
+
+    const league = getLeague(leagueId);
+    const leagueName = league?.shortName ?? leagueId.toUpperCase();
+    for (const m of matches) {
+      const { home: hs, away: as } = m.simulation.finalScore;
+      pushRecentResult({
+        sport: 'basketball',
+        leagueId,
+        leagueName,
+        home: { id: m.home.id, name: m.home.shortName, abbr: m.home.abbr, score: hs },
+        away: { id: m.away.id, name: m.away.shortName, abbr: m.away.abbr, score: as },
+        finishedAt: Date.now(),
+        source: 'live',
+      });
+    }
   }, [phaseClock, round, matches, slip, leagueId]);
 
   const cap = phaseClock.phase === 'betting' ? BETTING_SECONDS : phaseClock.phase === 'live' ? LIVE_SECONDS : FINISHED_SECONDS;

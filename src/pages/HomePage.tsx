@@ -13,6 +13,7 @@ import StarIcon from '@mui/icons-material/Star';
 import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
+import { useAuth } from '../contexts/AuthContext';
 
 const GAMES: GameCardData[] = [
   {
@@ -91,13 +92,27 @@ const GAMES: GameCardData[] = [
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'];
 
-const LIVE_WINS = [
-  { user: 'Satoshi99', game: 'Crash', mult: '24.5x', amount: '0.012 BTC', color: '#ff4757' },
-  { user: 'NeonWolf', game: 'Dice', mult: '99x', amount: '0.005 BTC', color: neonBlue },
-  { user: 'CryptoKing', game: 'Plinko', mult: '16x', amount: '0.008 BTC', color: '#a855f7' },
-  { user: 'DiamondHands', game: 'Slots', mult: '150x', amount: '0.002 BTC', color: neonGold },
-  { user: 'LuckyDragon', game: 'Roulette', mult: '35x', amount: '0.020 BTC', color: neonGreen },
+interface TickerWin {
+  user: string;
+  game: string;
+  mult: string;
+  amount: string;
+  color: string;
+}
+
+// Fallback roster used when the activity feed is empty (cold start / offline).
+const FALLBACK_WINS: TickerWin[] = [
+  { user: 'sa****9', game: 'Crash', mult: '24.5×', amount: '+$120', color: '#ff4757' },
+  { user: 'ne****f', game: 'Dice', mult: '99×',  amount: '+$50',  color: neonBlue },
+  { user: 'cr****g', game: 'Plinko', mult: '16×', amount: '+$80', color: '#a855f7' },
+  { user: 'di****s', game: 'Slots', mult: '150×', amount: '+$220', color: neonGold },
+  { user: 'lu****n', game: 'Roulette', mult: '35×', amount: '+$60', color: neonGreen },
 ];
+
+const GAME_COLOR: Record<string, string> = {
+  Crash: '#ff4757', Dice: neonBlue, Plinko: '#a855f7', Slots: neonGold, Roulette: neonGreen,
+  Blackjack: neonBlue, Baccarat: '#ec4899', Mines: '#22c55e',
+};
 
 function HeroBanner() {
   const navigate = useNavigate();
@@ -235,22 +250,70 @@ function HeroBanner() {
 }
 
 function LiveWinsTicker() {
+  const { isAuthenticated, openAuthPrompt } = useAuth();
   const [idx, setIdx] = useState(0);
+  const [feed, setFeed] = useState<TickerWin[]>(FALLBACK_WINS);
+  const [hovering, setHovering] = useState(false);
 
+  // Fetch the real feed and merge with generated padding so the ticker
+  // always has at least a dozen entries to cycle through.
   useEffect(() => {
-    const t = setInterval(() => setIdx(p => (p + 1) % LIVE_WINS.length), 2000);
-    return () => clearInterval(t);
+    let cancelled = false;
+    async function load() {
+      try {
+        // Lazy import to avoid pulling activityApi into all HomePage callers.
+        const { activityApi } = await import('../api/activity');
+        const r = await activityApi.recent(15);
+        if (cancelled) return;
+        const real: TickerWin[] = r.entries.map(e => {
+          const profit = e.payout - e.stake;
+          const color = GAME_COLOR[e.gameName] ?? neonGreen;
+          const amountStr = profit >= 0
+            ? `+${profit.toFixed(2)} ${e.currency}`
+            : `${profit.toFixed(2)} ${e.currency}`;
+          return {
+            user: e.maskedUser,
+            game: e.gameName,
+            mult: e.multiplier ? `${e.multiplier.toFixed(2)}×` : '—',
+            amount: amountStr,
+            color,
+          };
+        });
+        // Mix real + fallback so it never feels empty.
+        setFeed([...real, ...FALLBACK_WINS]);
+      } catch { /* keep fallback */ }
+    }
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
   }, []);
 
-  const win = LIVE_WINS[idx];
+  useEffect(() => {
+    const t = setInterval(() => setIdx(p => (p + 1) % feed.length), 2500);
+    return () => clearInterval(t);
+  }, [feed.length]);
 
+  const win = feed[idx % feed.length];
+
+  const showCta = !isAuthenticated && hovering;
   return (
     <Box
+      onMouseEnter={() => !isAuthenticated && setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      onClick={() => { if (!isAuthenticated) openAuthPrompt(); }}
+      role={!isAuthenticated ? 'button' : undefined}
+      tabIndex={!isAuthenticated ? 0 : undefined}
+      onKeyDown={(e) => { if (!isAuthenticated && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAuthPrompt(); } }}
       sx={{
         display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1,
-        background: alpha(darkCard, 0.8), borderRadius: 2,
-        border: `1px solid ${darkBorder}`, overflow: 'hidden',
-        mb: 3,
+        background: showCta
+          ? `linear-gradient(90deg, ${alpha(neonGold, 0.1)}, ${alpha(neonGreen, 0.18)})`
+          : alpha(darkCard, 0.8),
+        borderRadius: 2,
+        border: `1px solid ${showCta ? alpha(neonGreen, 0.4) : darkBorder}`,
+        overflow: 'hidden', mb: 3,
+        cursor: !isAuthenticated ? 'pointer' : 'default',
+        transition: 'background 0.18s, border-color 0.18s',
       }}
     >
       <EmojiEventsIcon sx={{ fontSize: 18, color: neonGold, flexShrink: 0 }} />
@@ -258,6 +321,22 @@ function LiveWinsTicker() {
         LIVE WINS
       </Typography>
       <Box sx={{ width: 1, height: 16, background: darkBorder, flexShrink: 0 }} />
+      {showCta ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'space-between' }}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>
+            Sign in to claim a win like this
+          </Typography>
+          <Chip
+            label="Start playing →"
+            size="small"
+            sx={{
+              height: 22, fontSize: '0.7rem', fontWeight: 900,
+              background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
+              color: '#000',
+            }}
+          />
+        </Box>
+      ) : (
       <AnimatePresence mode="wait">
         <motion.div
           key={idx}
@@ -287,6 +366,7 @@ function LiveWinsTicker() {
           />
         </motion.div>
       </AnimatePresence>
+      )}
     </Box>
   );
 }

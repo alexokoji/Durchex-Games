@@ -19,6 +19,7 @@ import usersRouter    from './routes/users';
 import bookingCodesRouter from './routes/bookingCodes';
 import adminRouter        from './routes/admin';
 import promoRouter        from './routes/promo';
+import activityRouter     from './routes/activity';
 
 import { attachChat } from './sockets/chat';
 import { setIoInstance } from './sockets/notifier';
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
   app.use('/api/booking-codes', bookingCodesRouter);
   app.use('/api/admin',    adminRouter);
   app.use('/api/promo',    promoRouter);
+  app.use('/api/activity', activityRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

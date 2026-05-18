@@ -7,6 +7,7 @@ import BasketballFeaturedMatch from './BasketballFeaturedMatch';
 import { useBasketballSchedule } from './useBasketballSchedule';
 import { getLeague, leaguesBySport } from '../core/leagueDatabase';
 import { neonGreen, neonGold, darkBorder, darkCard } from '../../theme';
+import RecentResultsPanel from '../shell/RecentResultsPanel';
 
 interface Props {
   leagueId: string;
@@ -16,7 +17,7 @@ interface Props {
 export default function BasketballSection({ leagueId, onSelectLeague }: Props) {
   const leagues = leaguesBySport('basketball');
   const [featuredId, setFeaturedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'fixtures'>('fixtures');
+  const [tab, setTab] = useState<'fixtures' | 'results'>('fixtures');
 
   const league = getLeague(leagueId) ?? leagues[0];
   const schedule = useBasketballSchedule({ leagueId, matchesPerRound: 10 });
@@ -71,12 +72,19 @@ export default function BasketballSection({ leagueId, onSelectLeague }: Props) {
           '& .Mui-selected': { color: `${neonGreen} !important` },
         }}>
           <Tab label={`Games (${schedule.matches.length})`} value="fixtures" />
+          <Tab label="Results" value="results" />
         </Tabs>
-        <Box sx={{ p: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.75 }}>
-          {schedule.matches.map(m => (
-            <BasketballMatchCard key={m.id} match={m} leagueId={leagueId} onFeature={setFeaturedId} featured={m.id === featured?.id} />
-          ))}
-        </Box>
+        {tab === 'fixtures' ? (
+          <Box sx={{ p: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.75 }}>
+            {schedule.matches.map(m => (
+              <BasketballMatchCard key={m.id} match={m} leagueId={leagueId} onFeature={setFeaturedId} featured={m.id === featured?.id} />
+            ))}
+          </Box>
+        ) : (
+          <Box sx={{ p: 1 }}>
+            <RecentResultsPanel sport="basketball" fixedLeagueId={leagueId} limit={40} />
+          </Box>
+        )}
       </Box>
     </>
   );

@@ -4,8 +4,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { neonGreen, darkBorder } from '../../theme';
 import AdminPromotersPanel  from './AdminPromotersPanel';
 import AdminPromoCodesPanel from './AdminPromoCodesPanel';
+import AdminFlaggedPanel    from './AdminFlaggedPanel';
+import AdminAuditPanel      from './AdminAuditPanel';
+import AdminJobsPanel       from './AdminJobsPanel';
+import AdminRiskPanel       from './AdminRiskPanel';
+import AdminUsersPanel      from './AdminUsersPanel';
 
-type TabId = 'promoters' | 'codes';
+type TabId = 'promoters' | 'codes' | 'flagged' | 'audit' | 'jobs' | 'risk' | 'users';
 
 export default function AdminPage() {
   const { user, isAuthenticated, openAuthPrompt } = useAuth();
@@ -41,6 +46,8 @@ export default function AdminPage() {
       <Tabs
         value={tab}
         onChange={(_, v: TabId) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
         sx={{
           borderBottom: `1px solid ${darkBorder}`,
           mb: 2,
@@ -48,12 +55,22 @@ export default function AdminPage() {
           '& .MuiTabs-indicator': { backgroundColor: neonGreen },
         }}
       >
-        <Tab label="Promoters" value="promoters" />
+        <Tab label="Promoters"   value="promoters" />
         <Tab label="Promo codes" value="codes" />
+        <Tab label="Flagged"     value="flagged" />
+        <Tab label="Users"       value="users" />
+        <Tab label="Risk"        value="risk" />
+        <Tab label="Jobs"        value="jobs" />
+        <Tab label="Audit log"   value="audit" />
       </Tabs>
 
       {tab === 'promoters' && <AdminPromotersPanel  />}
       {tab === 'codes'     && <AdminPromoCodesPanel />}
+      {tab === 'flagged'   && <AdminFlaggedPanel    />}
+      {tab === 'users'     && <AdminUsersPanel      />}
+      {tab === 'risk'      && <AdminRiskPanel       />}
+      {tab === 'jobs'      && <AdminJobsPanel       />}
+      {tab === 'audit'     && <AdminAuditPanel      />}
     </Box>
   );
 }
