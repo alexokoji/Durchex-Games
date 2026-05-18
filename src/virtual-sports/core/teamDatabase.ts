@@ -456,6 +456,54 @@ export const TEAMS: Team[] = [
   mk({ id: 'sjs', name: 'San Jose Sharks',      short: 'Sharks',      abbr: 'SJS', leagueId: 'nhl', country: 'USA', p: '#006D75', s: '#000000', a: '#EA7200', atk: 70, def: 71, mid: 70, pac: 71, fin: 70, kee: 71, form: -2 }),
   mk({ id: 'lak', name: 'Los Angeles Kings',    short: 'Kings',       abbr: 'LAK', leagueId: 'nhl', country: 'USA', p: '#111111', s: '#A2AAAD', a: '#FFFFFF', atk: 80, def: 80, mid: 80, pac: 80, fin: 79, kee: 80 }),
   mk({ id: 'uth', name: 'Utah Hockey Club',     short: 'Utah HC',     abbr: 'UTH', leagueId: 'nhl', country: 'USA', p: '#71AFE5', s: '#000000', a: '#FFFFFF', atk: 76, def: 75, mid: 75, pac: 76, fin: 76, kee: 75 }),
+
+  // ──────────────────────────────────────────────────────────────────────
+  // UEFA Champions Cup (UCC) — 32 European powerhouses. These are dedicated
+  // tournament entries (separate ids from their domestic league copies) so
+  // standings + fixtures resolve cleanly without a cross-league join.
+  // ──────────────────────────────────────────────────────────────────────
+  // English (5)
+  mk({ id: 'c_mci', name: 'Manchester City',   short: 'Man City',  abbr: 'MCI', leagueId: 'champ', country: 'England', p: '#6CABDD', s: '#1C2C5B', a: '#FFC659', atk: 92, def: 87, mid: 92, pac: 86, fin: 90, kee: 86, form: 5 }),
+  mk({ id: 'c_liv', name: 'Liverpool',         short: 'Liverpool', abbr: 'LIV', leagueId: 'champ', country: 'England', p: '#C8102E', s: '#F6EB61', a: '#00B2A9', atk: 89, def: 84, mid: 85, pac: 89, fin: 88, kee: 84, form: 4 }),
+  mk({ id: 'c_ars', name: 'Arsenal',           short: 'Arsenal',   abbr: 'ARS', leagueId: 'champ', country: 'England', p: '#EF0107', s: '#FFFFFF', a: '#063672', atk: 86, def: 84, mid: 87, pac: 85, fin: 83, kee: 82, form: 3 }),
+  mk({ id: 'c_avl', name: 'Aston Villa',       short: 'Villa',     abbr: 'AVL', leagueId: 'champ', country: 'England', p: '#670E36', s: '#95BFE5', a: '#FFFFFF', atk: 80, def: 78, mid: 80, pac: 80, fin: 79, kee: 78, form: 3 }),
+  mk({ id: 'c_tot', name: 'Tottenham Hotspur', short: 'Tottenham', abbr: 'TOT', leagueId: 'champ', country: 'England', p: '#132257', s: '#FFFFFF', a: '#C8102E', atk: 82, def: 76, mid: 80, pac: 88, fin: 83, kee: 78, form: 2 }),
+  // Spanish (4)
+  mk({ id: 'c_rma', name: 'Real Madrid',       short: 'Real Madrid', abbr: 'RMA', leagueId: 'champ', country: 'Spain', p: '#FEBE10', s: '#FFFFFF', a: '#00529F', atk: 93, def: 88, mid: 90, pac: 88, fin: 92, kee: 88, form: 6 }),
+  mk({ id: 'c_bar', name: 'FC Barcelona',      short: 'Barcelona',   abbr: 'BAR', leagueId: 'champ', country: 'Spain', p: '#A50044', s: '#004D98', a: '#FFED02', atk: 90, def: 84, mid: 91, pac: 85, fin: 88, kee: 84, form: 4 }),
+  mk({ id: 'c_atm', name: 'Atlético Madrid',   short: 'Atlético',    abbr: 'ATM', leagueId: 'champ', country: 'Spain', p: '#CE3524', s: '#FFFFFF', a: '#272E61', atk: 83, def: 86, mid: 82, pac: 80, fin: 81, kee: 85, form: 2 }),
+  mk({ id: 'c_ath', name: 'Athletic Club',     short: 'Athletic',    abbr: 'ATH', leagueId: 'champ', country: 'Spain', p: '#EE2523', s: '#FFFFFF', a: '#000000', atk: 79, def: 79, mid: 79, pac: 78, fin: 78, kee: 79, form: 2 }),
+  // Italian (5)
+  mk({ id: 'c_int', name: 'Internazionale',    short: 'Inter',       abbr: 'INT', leagueId: 'champ', country: 'Italy', p: '#010E80', s: '#000000', a: '#FFFFFF', atk: 87, def: 86, mid: 85, pac: 82, fin: 86, kee: 86, form: 4 }),
+  mk({ id: 'c_mil', name: 'AC Milan',          short: 'Milan',       abbr: 'MIL', leagueId: 'champ', country: 'Italy', p: '#FB090B', s: '#000000', a: '#FFFFFF', atk: 84, def: 81, mid: 82, pac: 83, fin: 83, kee: 82, form: 3 }),
+  mk({ id: 'c_juv', name: 'Juventus',          short: 'Juventus',    abbr: 'JUV', leagueId: 'champ', country: 'Italy', p: '#000000', s: '#FFFFFF', a: '#FFD700', atk: 83, def: 84, mid: 82, pac: 79, fin: 82, kee: 85, form: 1 }),
+  mk({ id: 'c_ata', name: 'Atalanta',          short: 'Atalanta',    abbr: 'ATA', leagueId: 'champ', country: 'Italy', p: '#1E71B8', s: '#000000', a: '#FFFFFF', atk: 82, def: 78, mid: 80, pac: 81, fin: 82, kee: 78, form: 3 }),
+  mk({ id: 'c_bol', name: 'Bologna FC',        short: 'Bologna',     abbr: 'BOL', leagueId: 'champ', country: 'Italy', p: '#7A1E2C', s: '#001A4B', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 75, kee: 75, form: 2 }),
+  // German (4)
+  mk({ id: 'c_bay', name: 'Bayern Munich',     short: 'Bayern',      abbr: 'BAY', leagueId: 'champ', country: 'Germany', p: '#DC052D', s: '#FFFFFF', a: '#0066B2', atk: 91, def: 87, mid: 89, pac: 86, fin: 90, kee: 88, form: 5 }),
+  mk({ id: 'c_bvb', name: 'Borussia Dortmund', short: 'Dortmund',    abbr: 'BVB', leagueId: 'champ', country: 'Germany', p: '#FDE100', s: '#000000', a: '#FFFFFF', atk: 85, def: 78, mid: 82, pac: 87, fin: 84, kee: 80, form: 2 }),
+  mk({ id: 'c_lev', name: 'Bayer Leverkusen',  short: 'Leverkusen',  abbr: 'LEV', leagueId: 'champ', country: 'Germany', p: '#E32221', s: '#000000', a: '#FFFFFF', atk: 86, def: 83, mid: 85, pac: 85, fin: 84, kee: 82, form: 4 }),
+  mk({ id: 'c_stu', name: 'VfB Stuttgart',     short: 'Stuttgart',   abbr: 'STU', leagueId: 'champ', country: 'Germany', p: '#E32219', s: '#FFFFFF', a: '#000000', atk: 78, def: 76, mid: 77, pac: 78, fin: 77, kee: 76, form: 2 }),
+  // French (3)
+  mk({ id: 'c_psg', name: 'Paris Saint-Germain', short: 'PSG',     abbr: 'PSG', leagueId: 'champ', country: 'France', p: '#004170', s: '#DA291C', a: '#FFFFFF', atk: 89, def: 82, mid: 86, pac: 88, fin: 88, kee: 83, form: 4 }),
+  mk({ id: 'c_mar', name: 'Olympique Marseille', short: 'Marseille', abbr: 'OM', leagueId: 'champ', country: 'France', p: '#2FAEE0', s: '#FFFFFF', a: '#003F87', atk: 79, def: 76, mid: 78, pac: 80, fin: 78, kee: 77, form: 1 }),
+  mk({ id: 'c_brt', name: 'Stade Brestois 29',  short: 'Brest',     abbr: 'BRT', leagueId: 'champ', country: 'France', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 73, def: 73, mid: 73, pac: 73, fin: 72, kee: 73, form: 2 }),
+  // Portuguese (2)
+  mk({ id: 'c_ben', name: 'SL Benfica',        short: 'Benfica',     abbr: 'BEN', leagueId: 'champ', country: 'Portugal', p: '#E50019', s: '#FFFFFF', a: '#000000', atk: 85, def: 81, mid: 83, pac: 84, fin: 84, kee: 82, form: 4 }),
+  mk({ id: 'c_por', name: 'FC Porto',          short: 'Porto',       abbr: 'POR', leagueId: 'champ', country: 'Portugal', p: '#003DA5', s: '#FFFFFF', a: '#000000', atk: 84, def: 82, mid: 82, pac: 83, fin: 83, kee: 83, form: 3 }),
+  // Dutch (2)
+  mk({ id: 'c_psv', name: 'PSV Eindhoven',     short: 'PSV',         abbr: 'PSV', leagueId: 'champ', country: 'Netherlands', p: '#ED1C24', s: '#FFFFFF', a: '#000000', atk: 83, def: 78, mid: 81, pac: 83, fin: 82, kee: 79, form: 4 }),
+  mk({ id: 'c_fey', name: 'Feyenoord',         short: 'Feyenoord',   abbr: 'FEY', leagueId: 'champ', country: 'Netherlands', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 80, def: 78, mid: 79, pac: 80, fin: 79, kee: 78, form: 2 }),
+  // Belgian / Austrian / Czech / Scottish / Croatian / Serbian / Slovak (7)
+  mk({ id: 'c_brg', name: 'Club Brugge',       short: 'Brugge',      abbr: 'CLB', leagueId: 'champ', country: 'Belgium',   p: '#0066CC', s: '#000000', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 75, kee: 76, form: 2 }),
+  mk({ id: 'c_rbs', name: 'RB Salzburg',       short: 'Salzburg',    abbr: 'SAL', leagueId: 'champ', country: 'Austria',   p: '#FFFFFF', s: '#E20613', a: '#000000', atk: 78, def: 76, mid: 77, pac: 78, fin: 77, kee: 76, form: 2 }),
+  mk({ id: 'c_spa', name: 'Sparta Praha',      short: 'Sparta',      abbr: 'SPR', leagueId: 'champ', country: 'Czechia',   p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 74, def: 74, mid: 74, pac: 74, fin: 73, kee: 74 }),
+  mk({ id: 'c_cel', name: 'Celtic FC',         short: 'Celtic',      abbr: 'CEL', leagueId: 'champ', country: 'Scotland',  p: '#16973A', s: '#FFFFFF', a: '#000000', atk: 80, def: 77, mid: 79, pac: 79, fin: 79, kee: 77, form: 3 }),
+  mk({ id: 'c_din', name: 'Dinamo Zagreb',     short: 'Dinamo',      abbr: 'DZG', leagueId: 'champ', country: 'Croatia',   p: '#0033A0', s: '#FFFFFF', a: '#000000', atk: 75, def: 74, mid: 75, pac: 74, fin: 74, kee: 74 }),
+  mk({ id: 'c_rds', name: 'Red Star Belgrade', short: 'Red Star',    abbr: 'RDS', leagueId: 'champ', country: 'Serbia',    p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 76, def: 75, mid: 75, pac: 76, fin: 76, kee: 75 }),
+  mk({ id: 'c_slo', name: 'Slovan Bratislava', short: 'Slovan',      abbr: 'SLO', leagueId: 'champ', country: 'Slovakia',  p: '#0033A0', s: '#FFFFFF', a: '#FFFFFF', atk: 72, def: 73, mid: 73, pac: 73, fin: 72, kee: 73 }),
+  // Ukrainian (1)
+  mk({ id: 'c_shk', name: 'Shakhtar Donetsk',  short: 'Shakhtar',    abbr: 'SHK', leagueId: 'champ', country: 'Ukraine',   p: '#F58220', s: '#000000', a: '#FFFFFF', atk: 77, def: 75, mid: 76, pac: 77, fin: 76, kee: 75, form: 1 }),
 ];
 
 export const TEAMS_BY_ID = TEAMS.reduce<Record<string, Team>>((acc, t) => {

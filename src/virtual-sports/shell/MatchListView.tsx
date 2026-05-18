@@ -1,0 +1,233 @@
+import { useMemo, useState } from 'react';
+import { Box, Typography, Chip, Tabs, Tab } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import type { BetSelection, Market, MarketCategory, MarketOption, SportKey, Team } from '../core/types';
+import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
+import { useBetSlip } from '../core/BetSlipContext';
+
+export interface ListMatch {
+  id: string;
+  home: Team;
+  away: Team;
+  markets: Market[];
+  week: number;
+  kickoffAt: number;
+  /** Once true (week in progress / settled), odds are no longer placeable. */
+  closed?: boolean;
+}
+
+interface Props {
+  sport: SportKey;
+  matches: ListMatch[];
+  leagueName: string;
+  /** Optional header chip (e.g. "Week 12 · Live") shown above the list. */
+  weekLabel?: string;
+  /** Override the visible market tabs. Defaults to 1X2 + DC + OU2.5 (soccer).
+   *  For basketball/hockey we drop Double Chance and the line shifts. */
+  marketTabs?: MarketTab[];
+}
+
+export type MarketTab = '1X2' | 'DOUBLE_CHANCE' | 'OVER_UNDER' | 'WINNER' | 'TOTAL_POINTS' | 'SPREAD';
+
+interface TabConfig {
+  id: MarketTab;
+  label: string;
+  category: MarketCategory;
+  marketIdHint?: string;
+  columns: { id: string; label: string }[];
+}
+
+const TAB_CONFIG: Record<MarketTab, TabConfig> = {
+  '1X2':           { id: '1X2',           label: '1X2',              category: '1X2',           marketIdHint: '1x2',     columns: [{ id: '1', label: '1' }, { id: 'X', label: 'X' }, { id: '2', label: '2' }] },
+  'DOUBLE_CHANCE': { id: 'DOUBLE_CHANCE', label: 'Double Chance',    category: 'DOUBLE_CHANCE', marketIdHint: 'dc',      columns: [{ id: '1X', label: '1X' }, { id: '12', label: '12' }, { id: 'X2', label: 'X2' }] },
+  'OVER_UNDER':    { id: 'OVER_UNDER',    label: 'Over/Under (2.5)', category: 'OVER_UNDER',    marketIdHint: 'ou-2.5',  columns: [{ id: 'over-2.5', label: 'Over' }, { id: 'under-2.5', label: 'Under' }] },
+  'WINNER':        { id: 'WINNER',        label: 'Winner',           category: 'WINNER',        marketIdHint: 'winner',  columns: [{ id: 'home', label: '1' }, { id: 'away', label: '2' }] },
+  // For basketball/hockey total markets we pick whichever market the engine
+  // generated and surface "over" / "under" by id — list view just shows the
+  // first total market it finds (typically the central line).
+  'TOTAL_POINTS':  { id: 'TOTAL_POINTS',  label: 'Total Points',     category: 'TOTAL_POINTS',  columns: [{ id: 'over', label: 'Over' }, { id: 'under', label: 'Under' }] },
+  'SPREAD':        { id: 'SPREAD',        label: 'Spread',           category: 'SPREAD',        columns: [{ id: 'home', label: 'Home' }, { id: 'away', label: 'Away' }] },
+};
+
+const DEFAULT_TABS: MarketTab[] = ['1X2', 'DOUBLE_CHANCE', 'OVER_UNDER'];
+
+function findMarket(markets: Market[], category: MarketCategory, idHint?: string): Market | undefined {
+  if (idHint) {
+    const exact = markets.find(m => m.id.endsWith(idHint) || m.id === idHint || m.id.includes(`:${idHint}`));
+    if (exact) return exact;
+  }
+  return markets.find(m => m.category === category);
+}
+
+function findOption(market: Market | undefined, optionId: string): MarketOption | undefined {
+  if (!market) return undefined;
+  return market.options.find(o => o.id === optionId);
+}
+
+function fmtTime(ms: number): string {
+  const d = new Date(ms);
+  const day = d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} · ${time}`;
+}
+
+export default function MatchListView({ sport, matches, leagueName, weekLabel, marketTabs = DEFAULT_TABS }: Props) {
+  const slip = useBetSlip();
+  const visibleTabs = useMemo(() => marketTabs.map(t => TAB_CONFIG[t]), [marketTabs]);
+  const [tab, setTab] = useState<MarketTab>(marketTabs[0]);
+  const config = useMemo(() => TAB_CONFIG[tab] ?? visibleTabs[0], [tab, visibleTabs]);
+
+  function pick(match: ListMatch, market: Market | undefined, option: MarketOption | undefined) {
+    if (!market || !option || match.closed) return;
+    const sel: BetSelection = {
+      id: `${match.id}:${market.id}:${option.id}`,
+      matchId: match.id,
+      marketId: market.id,
+      marketCategory: market.category,
+      marketLabel: market.label,
+      optionId: option.id,
+      optionLabel: option.label,
+      odds: option.odds,
+      sport,
+      leagueId: match.home.leagueId,
+      homeTeam: match.home.shortName,
+      awayTeam: match.away.shortName,
+      startsAt: match.kickoffAt,
+      addedAt: Date.now(),
+    };
+    slip.addSelection(sel);
+  }
+
+  return (
+    <Box>
+      {weekLabel && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+          <Chip
+            size="small"
+            label={weekLabel}
+            sx={{ background: alpha(neonGreen, 0.15), color: neonGreen, fontWeight: 800 }}
+          />
+          <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+            {matches.length} matches
+          </Typography>
+        </Box>
+      )}
+
+      {/* Market tabs */}
+      <Tabs
+        value={tab}
+        onChange={(_, v: MarketTab) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{
+          minHeight: 36, mb: 1,
+          borderBottom: `1px solid ${darkBorder}`,
+          '& .MuiTab-root': { minHeight: 36, fontSize: '0.75rem', fontWeight: 800, textTransform: 'none' },
+          '& .Mui-selected': { color: `${neonGreen} !important` },
+          '& .MuiTabs-indicator': { backgroundColor: neonGreen },
+        }}
+      >
+        {visibleTabs.map(t => <Tab key={t.id} value={t.id} label={t.label} />)}
+      </Tabs>
+
+      {/* Column header */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: `1fr repeat(${config.columns.length}, 64px)`,
+        gap: 0.75, px: 1.25, mb: 0.5,
+        fontSize: '0.72rem', color: 'text.disabled', fontWeight: 700,
+      }}>
+        <Box />
+        {config.columns.map(c => (
+          <Typography key={c.id} sx={{ fontSize: '0.72rem', textAlign: 'center', color: 'text.disabled' }}>
+            {c.label}
+          </Typography>
+        ))}
+      </Box>
+
+      {/* League group header */}
+      <Box sx={{
+        px: 1.25, py: 0.75, borderRadius: 1,
+        background: alpha(neonGold, 0.06),
+        border: `1px solid ${alpha(neonGold, 0.15)}`,
+        mb: 0.5,
+      }}>
+        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: neonGold, letterSpacing: '0.06em' }}>
+          {leagueName}
+        </Typography>
+      </Box>
+
+      {/* Match rows */}
+      <Box sx={{
+        display: 'flex', flexDirection: 'column',
+        borderRadius: 1, overflow: 'hidden',
+        border: `1px solid ${darkBorder}`,
+        background: darkCard,
+      }}>
+        {matches.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+              No matches scheduled for this week.
+            </Typography>
+          </Box>
+        ) : matches.map((m, i) => {
+          const market = findMarket(m.markets, config.category, config.marketIdHint);
+          return (
+            <Box key={m.id} sx={{
+              display: 'grid',
+              gridTemplateColumns: `1fr repeat(${config.columns.length}, 64px)`,
+              gap: 0.75, alignItems: 'center',
+              px: 1.25, py: 1,
+              borderBottom: i < matches.length - 1 ? `1px solid ${darkBorder}` : 'none',
+              background: m.closed ? alpha('#fff', 0.015) : 'transparent',
+              opacity: m.closed ? 0.65 : 1,
+            }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', mb: 0.25 }}>
+                  {fmtTime(m.kickoffAt)} · W{m.week}
+                </Typography>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.home.shortName}
+                </Typography>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.away.shortName}
+                </Typography>
+              </Box>
+              {config.columns.map(col => {
+                const option = findOption(market, col.id);
+                const sel = market && option ? slip.isSelected(m.id, market.id, option.id) : false;
+                return (
+                  <Box
+                    key={col.id}
+                    onClick={() => pick(m, market, option)}
+                    sx={{
+                      cursor: option && !m.closed ? 'pointer' : 'default',
+                      px: 0.5, py: 0.75, borderRadius: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: sel
+                        ? alpha(neonGreen, 0.2)
+                        : option ? alpha(neonBlue, 0.06) : 'transparent',
+                      border: `1px solid ${sel ? alpha(neonGreen, 0.5) : alpha(neonBlue, 0.18)}`,
+                      transition: 'background 0.15s, border-color 0.15s',
+                      '&:hover': option && !m.closed ? {
+                        background: alpha(neonGreen, 0.12),
+                        borderColor: alpha(neonGreen, 0.4),
+                      } : undefined,
+                    }}>
+                    <Typography sx={{
+                      fontSize: '0.85rem', fontWeight: 800,
+                      color: sel ? neonGreen : option ? '#fff' : 'text.disabled',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {option ? option.odds.toFixed(2) : '—'}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+}
