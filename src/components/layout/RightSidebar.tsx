@@ -9,7 +9,9 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import SendIcon from '@mui/icons-material/Send';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkSurface } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWallet } from '../../contexts/WalletContext';
 import { chatApi, getChatSocket, type ApiChatMessage } from '../../api/chat';
+import { formatMoney, minVirtualBetFor } from '../../utils/currency';
 
 const COLORS = [neonGreen, neonBlue, neonGold, '#ff4757', '#a855f7', '#ff9f43'];
 const USERS = [
@@ -47,7 +49,10 @@ const SIM_MESSAGES = [
 
 function randItem<T>(arr: T[]) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randMult() { return (Math.random() * 19 + 1.1).toFixed(2) + 'x'; }
-function randAmount() { return (Math.random() * 0.05).toFixed(5); }
+/** Generate a plausible win amount scaled to the user's currency floor. */
+function randAmountFor(min: number): number {
+  return min * (1 + Math.random() * 50);
+}
 
 interface ChatMsg { id: string; user: string; text: string; color: string; time: string; isReal: boolean }
 interface WinMsg  { id: number; user: string; game: string; mult: string; amount: string; color: string }
@@ -82,6 +87,8 @@ function toChatMsg(m: ApiChatMessage): ChatMsg {
 
 export default function RightSidebar() {
   const auth = useAuth();
+  const wallet = useWallet();
+  const winFloor = minVirtualBetFor(wallet.currency);
   const [tab, setTab] = useState<'chat' | 'wins'>('chat');
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [wins, setWins] = useState<WinMsg[]>([]);
@@ -152,11 +159,12 @@ export default function RightSidebar() {
           isReal: false,
         });
       }
-      // Big-wins stream is still simulated until we add the real feed.
+      // Big-wins stream is still simulated until we add the real feed. The
+      // amount is denominated in whatever currency the viewing user uses.
       const newWin: WinMsg = {
         id: idRef.current++,
         user: randItem(USERS), game: randItem(GAMES),
-        mult: randMult(), amount: randAmount(),
+        mult: randMult(), amount: formatMoney(randAmountFor(winFloor), wallet.currency),
         color: randItem(COLORS),
       };
       setWins(prev => [newWin, ...prev.slice(0, 19)]);
@@ -338,7 +346,7 @@ export default function RightSidebar() {
                       {win.mult}
                     </Typography>
                     <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>
-                      {win.amount} BTC
+                      {win.amount}
                     </Typography>
                   </Box>
                 </Box>

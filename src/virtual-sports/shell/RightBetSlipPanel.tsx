@@ -17,12 +17,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useToasts } from '../../contexts/ToastContext';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard, darkSurface } from '../../theme';
-import { useBetSlip, QUICK_STAKE_PRESETS } from '../core/BetSlipContext';
+import { useBetSlip } from '../core/BetSlipContext';
 import { formatOdds } from '../core/oddsEngine';
 import type { BetMode, OddsFormat, BetSelection } from '../core/types';
 import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
-import { formatMoney, usdApprox } from '../../utils/currency';
+import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes } from '../../utils/currency';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
@@ -108,6 +108,12 @@ function BetSlipBody() {
   const spendable = isAuthenticated ? wallet.balance + wallet.bonusBalance : 0;
   const insufficient = isAuthenticated && totalStake > spendable + 1e-9;
   const shortBy = Math.max(0, totalStake - spendable);
+
+  // Virtual-sports minimum bet, expressed in the user's currency. Anchored to
+  // 100 NGN — see utils/currency.ts.
+  const minBet = minVirtualBetFor(wallet.currency);
+  const belowMin = totalStake > 0 && totalStake < minBet - 1e-9;
+  const quickStakes = virtualQuickStakes(wallet.currency);
   const [codeInput, setCodeInput] = useState('');
   const [mintedCode, setMintedCode] = useState<string | null>(null);
   const [codeStatus, setCodeStatus] = useState<{ kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }>({ kind: 'idle' });
@@ -324,20 +330,20 @@ function BetSlipBody() {
           >
             <InputBase
               type="number"
-              inputProps={{ min: 0, step: 0.001 }}
+              inputProps={{ min: minBet, step: Math.max(0.01, minBet / 10) }}
               value={stake}
               onChange={e => slip.setStake(Math.max(0, parseFloat(e.target.value) || 0))}
               sx={{
-                fontSize: '0.85rem', fontWeight: 800, color: '#fff', width: 80,
+                fontSize: '0.85rem', fontWeight: 800, color: '#fff', width: 90,
                 '& input': { textAlign: 'right', p: 0 },
               }}
             />
-            <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>BTC</Typography>
+            <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>{wallet.currency}</Typography>
           </Box>
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.5, mb: 0.75 }}>
-          {QUICK_STAKE_PRESETS.map(s => (
+          {quickStakes.map(s => (
             <Box
               key={s}
               onClick={() => slip.setStake(s)}
@@ -350,17 +356,23 @@ function BetSlipBody() {
                 '&:hover': { background: alpha(neonBlue, 0.16) },
               }}
             >
-              {s.toFixed(s < 0.01 ? 3 : 2)}
+              {formatMoney(s, wallet.currency)}
             </Box>
           ))}
         </Box>
+
+        {belowMin && (
+          <Typography sx={{ fontSize: '0.65rem', color: '#ff6b7a', mb: 0.5, textAlign: 'right' }}>
+            Min stake {formatMoney(minBet, wallet.currency)}
+          </Typography>
+        )}
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
           <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
             {mode === 'system' ? `${systemLines} combinations` : 'Total stake'}
           </Typography>
           <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-            {totalStake.toFixed(4)}
+            {formatMoney(totalStake, wallet.currency)}
           </Typography>
         </Box>
 
@@ -380,7 +392,7 @@ function BetSlipBody() {
             Potential payout
           </Typography>
           <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: neonGreen, fontVariantNumeric: 'tabular-nums' }}>
-            {potentialPayout.toFixed(4)}
+            {formatMoney(potentialPayout, wallet.currency)}
           </Typography>
         </Box>
       </Box>
@@ -407,9 +419,13 @@ function BetSlipBody() {
 
       <Button
         fullWidth
-        disabled={selections.length === 0 || stake <= 0 || insufficient}
+        disabled={selections.length === 0 || stake <= 0 || insufficient || belowMin}
         onClick={() => {
           if (!isAuthenticated) { requireAuth(); return; }
+          if (belowMin) {
+            toasts.warning('Stake too small', `Minimum bet is ${formatMoney(minBet, wallet.currency)}.`);
+            return;
+          }
           if (insufficient) {
             toasts.error('Insufficient balance', `Top up ${formatMoney(shortBy, wallet.currency)} to place this slip.`);
             return;
@@ -418,11 +434,11 @@ function BetSlipBody() {
         }}
         sx={{
           py: 1, fontWeight: 900, fontSize: '0.85rem',
-          background: insufficient
+          background: (insufficient || belowMin)
             ? `linear-gradient(135deg, #6b3a3a, #4a2424)`
             : `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
-          color: insufficient ? '#fff' : '#000',
-          '&:hover': insufficient
+          color: (insufficient || belowMin) ? '#fff' : '#000',
+          '&:hover': (insufficient || belowMin)
             ? undefined
             : { boxShadow: `0 0 30px ${alpha(neonGreen, 0.5)}` },
           '&.Mui-disabled': { background: alpha('#fff', 0.08), color: 'text.disabled' },
@@ -430,9 +446,11 @@ function BetSlipBody() {
       >
         {!isAuthenticated
           ? 'Sign in to bet'
-          : insufficient
-            ? 'Insufficient balance'
-            : 'Place Bet'}
+          : belowMin
+            ? `Min ${formatMoney(minBet, wallet.currency)}`
+            : insufficient
+              ? 'Insufficient balance'
+              : 'Place Bet'}
       </Button>
     </Box>
   );
@@ -556,6 +574,7 @@ function BookingCodeRow(props: BookingCodeRowProps) {
 
 function OpenBetsBody() {
   const { openTickets, cashout, oddsFormat } = useBetSlip();
+  const wallet = useWallet();
 
   if (openTickets.length === 0) {
     return (
@@ -603,12 +622,12 @@ function OpenBetsBody() {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
             <Box>
               <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>Stake</Typography>
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 800 }}>{t.totalStake.toFixed(4)}</Typography>
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 800 }}>{formatMoney(t.totalStake, wallet.currency)}</Typography>
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>To win</Typography>
               <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, color: neonGreen }}>
-                {t.potentialPayout.toFixed(4)}
+                {formatMoney(t.potentialPayout, wallet.currency)}
               </Typography>
             </Box>
           </Box>
@@ -623,7 +642,7 @@ function OpenBetsBody() {
               '&:hover': { background: alpha(neonGold, 0.25) },
             }}
           >
-            Cash out ≈ {(Math.max(t.totalStake * 0.5, t.potentialPayout * 0.8)).toFixed(4)}
+            Cash out ≈ {formatMoney(Math.max(t.totalStake * 0.5, t.potentialPayout * 0.8), wallet.currency)}
           </Button>
         </Box>
       ))}
@@ -638,6 +657,7 @@ function OpenBetsBody() {
 
 function HistoryBody() {
   const { history } = useBetSlip();
+  const wallet = useWallet();
 
   if (history.length === 0) {
     return (
@@ -674,11 +694,11 @@ function HistoryBody() {
                 }}
               />
               <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
-                {won ? '+' : ''}{((t.settledPayout ?? 0) - t.totalStake).toFixed(4)}
+                {won ? '+' : ''}{formatMoney((t.settledPayout ?? 0) - t.totalStake, wallet.currency)}
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>
-              {t.selections.length} pick · {t.totalStake.toFixed(4)} stake
+              {t.selections.length} pick · {formatMoney(t.totalStake, wallet.currency)} stake
             </Typography>
           </Box>
         );

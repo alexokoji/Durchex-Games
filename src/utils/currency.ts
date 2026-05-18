@@ -98,7 +98,7 @@ export function defaultStakeFor(code: AnyCurrency): number {
 
 /**
  * Global minimum bet: $0.01 USD equivalent, expressed in the user's currency.
- * Applies to every game and every market — the platform's hard floor.
+ * Applies to every casino game — the platform's hard floor.
  */
 export const MIN_BET_USD = 0.01;
 export function minBetFor(code: AnyCurrency): number {
@@ -113,6 +113,46 @@ export function minBetFor(code: AnyCurrency): number {
   if (code === 'BTC')  return MIN_BET_USD / CRYPTO.BTC.usdPerUnit;
   if (code === 'USDT' || code === 'USDC') return MIN_BET_USD;
   return MIN_BET_USD;
+}
+
+/**
+ * Virtual sports minimum bet: 100 NGN equivalent. Higher than the casino
+ * floor because sportsbook slips often combine many legs and a 1-cent stake
+ * yields literal-dust payouts the user can't withdraw. Anchored to NGN
+ * (not USD) per product spec — the USD equivalent is derived from NGN's
+ * usdPerUnit so all fiats stay in sync.
+ */
+export const MIN_VIRTUAL_BET_NGN = 100;
+export const MIN_VIRTUAL_BET_USD = MIN_VIRTUAL_BET_NGN * FIAT.NGN.usdPerUnit; // ≈ $0.067
+export function minVirtualBetFor(code: AnyCurrency): number {
+  if (code === 'NGN') return MIN_VIRTUAL_BET_NGN;
+  if (isFiat(code)) {
+    const raw = MIN_VIRTUAL_BET_USD / FIAT[code].usdPerUnit;
+    const decimals = FIAT[code].decimals;
+    const factor = Math.pow(10, decimals);
+    // Round up so we always meet the floor in the user's currency.
+    return Math.ceil(raw * factor) / factor;
+  }
+  if (code === 'BTC')  return MIN_VIRTUAL_BET_USD / CRYPTO.BTC.usdPerUnit;
+  if (code === 'USDT' || code === 'USDC') return MIN_VIRTUAL_BET_USD;
+  return MIN_VIRTUAL_BET_USD;
+}
+
+/**
+ * Quick-stake presets for the virtual sportsbook slip, sized for the user's
+ * currency. The first preset is always the minimum; the rest scale up
+ * (2×, 5×, 25×) so a NGN player sees [100, 200, 500, 2500] and a USD
+ * player sees [0.07, 0.20, 0.50, 2.50].
+ */
+export function virtualQuickStakes(code: AnyCurrency): number[] {
+  const min = minVirtualBetFor(code);
+  const decimals = isFiat(code) ? FIAT[code].decimals : 6;
+  const round = (n: number) => {
+    // Round to currency decimals, keeping a clean step.
+    const factor = Math.pow(10, decimals);
+    return Math.ceil(n * factor) / factor;
+  };
+  return [min, round(min * 2), round(min * 5), round(min * 25)];
 }
 
 const formatterCache = new Map<string, Intl.NumberFormat>();

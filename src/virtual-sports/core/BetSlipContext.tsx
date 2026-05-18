@@ -1,5 +1,5 @@
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react';
 import type {
@@ -8,6 +8,8 @@ import type {
 import {
   calculateMultiOdds, calculatePayout, calculateSystemBet,
 } from './oddsEngine';
+import { useWallet } from '../../contexts/WalletContext';
+import { minVirtualBetFor } from '../../utils/currency';
 
 const STORAGE_KEY_TICKETS = 'vsb.openTickets.v1';
 const STORAGE_KEY_FORMAT = 'vsb.oddsFormat.v1';
@@ -50,15 +52,35 @@ export interface BetSlipContextValue {
 
 const BetSlipContext = createContext<BetSlipContextValue | null>(null);
 
+// Quick-stake presets are now generated per-currency at render time via
+// `virtualQuickStakes(currency)`. The legacy BTC tuple stays exported as a
+// dev-mode fallback for any caller that didn't migrate yet.
 const QUICK_STAKES = [0.001, 0.005, 0.01, 0.05] as const;
 export const QUICK_STAKE_PRESETS = QUICK_STAKES;
 
 export function BetSlipProvider({ children }: { children: ReactNode }) {
+  // Pull the user's fiat currency so the stake seed and minimum gate
+  // automatically respect their localization. The wallet provider sits one
+  // level up in the tree (see App.tsx), so this is always defined.
+  const wallet = useWallet();
+  const initialStake = useMemo(() => minVirtualBetFor(wallet.currency), [wallet.currency]);
+
   const [selections, setSelections] = useState<BetSelection[]>([]);
   // Every slip is one ticket — all selections must win. Default to 'multi'; 'system' opt-in.
   const [mode, setMode] = useState<BetMode>('multi');
   const [systemK, setSystemK] = useState<number>(2);
-  const [stake, setStake] = useState<number>(0.01);
+  const [stake, setStake] = useState<number>(initialStake);
+
+  // If the user changes currency (rare), bump the stake to that currency's
+  // minimum so the slip stays valid. Only do this when the user hasn't typed
+  // a stake yet OR the current value is below the new minimum.
+  const lastSeenCurrency = useRef(wallet.currency);
+  useEffect(() => {
+    if (lastSeenCurrency.current === wallet.currency) return;
+    lastSeenCurrency.current = wallet.currency;
+    const min = minVirtualBetFor(wallet.currency);
+    setStake(prev => (prev < min ? min : prev));
+  }, [wallet.currency]);
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>(() => loadFormat());
   const [openTickets, setOpenTickets] = useState<BetTicket[]>(() => loadTickets(STORAGE_KEY_TICKETS));
   const [history, setHistory] = useState<BetTicket[]>(() => loadTickets(STORAGE_KEY_HISTORY));
