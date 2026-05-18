@@ -125,14 +125,22 @@ export default function InstallAppPrompt() {
   // "Cannot read properties of null (reading 'scrollTop')". Hand-rolling
   // the positioning sidesteps the conflict entirely.
 
+  // Tawk.to widget sits bottom-right at z-index ~2_000_000_000 (literally 2B).
+  // We anchor the install banner ABOVE the chat — bottom-positioned but with
+  // a right offset that keeps the chat bubble untouched, and a z-index high
+  // enough that it always sits over the chat blob if they ever overlap.
   return (
     <Box
       sx={{
         position: 'fixed',
-        zIndex: (theme) => theme.zIndex.snackbar,
+        // Sit above Tawk.to's z-index so we're never visually buried by it.
+        zIndex: 2_000_000_001,
         bottom: { xs: 12, sm: 24 },
+        // Leave ~88px clear on the right for the chat bubble (its default
+        // launcher is 60×60 + margin). On wider screens we float at top-left
+        // instead so the prompt and chat never compete for the same corner.
         left:   { xs: 12, sm: 24 },
-        right:  { xs: 12, sm: 'auto' },
+        right:  { xs: 88, sm: 'auto' },
         maxWidth: 380,
         pointerEvents: 'none',
       }}

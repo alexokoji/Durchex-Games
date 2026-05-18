@@ -801,6 +801,82 @@ export const TEAMS: Team[] = [
   mk({ id: 'li_spo', name: 'Sport',                short: 'Sport',     abbr: 'SPT', leagueId: 'liiga', country: 'Finland', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 74, def: 75, mid: 74, pac: 75, fin: 74, kee: 75 }),
   mk({ id: 'li_assat', name: 'Ässät',              short: 'Ässät',     abbr: 'ASS', leagueId: 'liiga', country: 'Finland', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
   mk({ id: 'li_kärp', name: 'Kärpät Oulu',         short: 'Kärpät',    abbr: 'KAR', leagueId: 'liiga', country: 'Finland', p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 82, def: 81, mid: 81, pac: 81, fin: 81, kee: 81, form: 2 }),
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Basketball EuroCup (second-tier European). 20 clubs.
+  // ──────────────────────────────────────────────────────────────────────
+  mk({ id: 'ec_jvg', name: 'Joventut Badalona',  short: 'Joventut',   abbr: 'JVG', leagueId: 'eurocup_bb', country: 'Spain',       p: '#1B5E20', s: '#000000', a: '#FFFFFF', atk: 80, def: 79, mid: 79, pac: 79, fin: 80, kee: 79 }),
+  mk({ id: 'ec_grg', name: 'Gran Canaria',       short: 'Gran Canaria', abbr: 'GCN', leagueId: 'eurocup_bb', country: 'Spain',     p: '#FFD500', s: '#003DA5', a: '#FFFFFF', atk: 79, def: 78, mid: 78, pac: 78, fin: 79, kee: 78 }),
+  mk({ id: 'ec_bil', name: 'Bilbao Basket',      short: 'Bilbao',     abbr: 'BIL', leagueId: 'eurocup_bb', country: 'Spain',       p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 78, def: 78, mid: 78, pac: 78, fin: 78, kee: 78 }),
+  mk({ id: 'ec_val', name: 'Valencia Basket',    short: 'Valencia',   abbr: 'VAL', leagueId: 'eurocup_bb', country: 'Spain',       p: '#F58220', s: '#000000', a: '#FFFFFF', atk: 80, def: 79, mid: 79, pac: 79, fin: 80, kee: 78 }),
+  mk({ id: 'ec_uni', name: 'Cedevita Olimpija',  short: 'Olimpija',   abbr: 'OLM', leagueId: 'eurocup_bb', country: 'Slovenia',    p: '#1B5E20', s: '#FFD500', a: '#FFFFFF', atk: 78, def: 78, mid: 78, pac: 77, fin: 78, kee: 77 }),
+  mk({ id: 'ec_bui', name: 'Buducnost VOLI',     short: 'Buducnost',  abbr: 'BUD', leagueId: 'eurocup_bb', country: 'Montenegro',  p: '#003DA5', s: '#FFFFFF', a: '#CC0000', atk: 77, def: 77, mid: 77, pac: 77, fin: 77, kee: 77 }),
+  mk({ id: 'ec_uli', name: 'Ulm',                short: 'Ulm',        abbr: 'ULM', leagueId: 'eurocup_bb', country: 'Germany',     p: '#000000', s: '#FF8200', a: '#FFFFFF', atk: 78, def: 77, mid: 77, pac: 77, fin: 78, kee: 77 }),
+  mk({ id: 'ec_hbg', name: 'Hamburg Towers',     short: 'Hamburg',    abbr: 'HMB', leagueId: 'eurocup_bb', country: 'Germany',     p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'ec_lif', name: 'Frutti Extra Bursa', short: 'Bursa',      abbr: 'BRS', leagueId: 'eurocup_bb', country: 'Turkey',      p: '#1B5E20', s: '#FFFFFF', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'ec_trn', name: 'Türk Telekom',       short: 'TT',         abbr: 'TKT', leagueId: 'eurocup_bb', country: 'Turkey',      p: '#1565C0', s: '#FFFFFF', a: '#FFFFFF', atk: 78, def: 78, mid: 78, pac: 78, fin: 78, kee: 78 }),
+  mk({ id: 'ec_pry', name: 'Prometey',           short: 'Prometey',   abbr: 'PRM', leagueId: 'eurocup_bb', country: 'Ukraine',     p: '#FFD500', s: '#0057B7', a: '#000000', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'ec_rey', name: 'Reyer Venezia',      short: 'Reyer',      abbr: 'REY', leagueId: 'eurocup_bb', country: 'Italy',       p: '#FF8200', s: '#000000', a: '#FFFFFF', atk: 78, def: 78, mid: 78, pac: 77, fin: 78, kee: 77 }),
+  mk({ id: 'ec_ten', name: 'Lenovo Tenerife',    short: 'Tenerife',   abbr: 'LCT', leagueId: 'eurocup_bb', country: 'Spain',       p: '#1565C0', s: '#FFFFFF', a: '#000000', atk: 80, def: 80, mid: 80, pac: 79, fin: 80, kee: 80, form: 2 }),
+  mk({ id: 'ec_par', name: 'Paris Basketball',   short: 'Paris',      abbr: 'PAR', leagueId: 'eurocup_bb', country: 'France',      p: '#000000', s: '#CC0000', a: '#FFFFFF', atk: 82, def: 79, mid: 81, pac: 81, fin: 82, kee: 79 }),
+  mk({ id: 'ec_lio', name: 'Cholet Basket',      short: 'Cholet',     abbr: 'CHO', leagueId: 'eurocup_bb', country: 'France',      p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'ec_jaz', name: 'JL Bourg',           short: 'JL Bourg',   abbr: 'JLB', leagueId: 'eurocup_bb', country: 'France',      p: '#003DA5', s: '#FFD500', a: '#FFFFFF', atk: 77, def: 77, mid: 77, pac: 77, fin: 77, kee: 77 }),
+  mk({ id: 'ec_csk', name: 'CSM Oradea',         short: 'CSM Oradea', abbr: 'ORA', leagueId: 'eurocup_bb', country: 'Romania',     p: '#CC0000', s: '#FFD500', a: '#000000', atk: 74, def: 74, mid: 74, pac: 74, fin: 74, kee: 74 }),
+  mk({ id: 'ec_ud',  name: 'U-BT Cluj-Napoca',   short: 'U-BT',       abbr: 'CLJ', leagueId: 'eurocup_bb', country: 'Romania',     p: '#1B5E20', s: '#FFFFFF', a: '#000000', atk: 73, def: 73, mid: 73, pac: 73, fin: 73, kee: 73 }),
+  mk({ id: 'ec_lpa', name: 'London Lions',       short: 'London',     abbr: 'LDN', leagueId: 'eurocup_bb', country: 'England',     p: '#CC0000', s: '#FFFFFF', a: '#1565C0', atk: 76, def: 76, mid: 76, pac: 77, fin: 76, kee: 76 }),
+  mk({ id: 'ec_mtn', name: 'Mincidelice JL Bourg', short: 'Bourg',    abbr: 'BOG', leagueId: 'eurocup_bb', country: 'France',      p: '#003DA5', s: '#FFD500', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Basketball Champions League (FIBA's club competition). 20 clubs.
+  // ──────────────────────────────────────────────────────────────────────
+  mk({ id: 'bc_unc', name: 'Unicaja',            short: 'Unicaja',    abbr: 'UCJ', leagueId: 'bcl', country: 'Spain',     p: '#1B5E20', s: '#FFFFFF', a: '#FFD700', atk: 84, def: 83, mid: 83, pac: 82, fin: 83, kee: 82, form: 3 }),
+  mk({ id: 'bc_tem', name: 'Tenerife',           short: 'Tenerife',   abbr: 'LCT', leagueId: 'bcl', country: 'Spain',     p: '#1565C0', s: '#FFFFFF', a: '#000000', atk: 82, def: 82, mid: 82, pac: 81, fin: 82, kee: 82, form: 2 }),
+  mk({ id: 'bc_mur', name: 'UCAM Murcia',        short: 'Murcia',     abbr: 'MUR', leagueId: 'bcl', country: 'Spain',     p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 79, def: 79, mid: 79, pac: 79, fin: 79, kee: 79 }),
+  mk({ id: 'bc_man', name: 'Manresa',            short: 'Manresa',    abbr: 'MAN', leagueId: 'bcl', country: 'Spain',     p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 78, def: 77, mid: 77, pac: 77, fin: 78, kee: 77 }),
+  mk({ id: 'bc_bbg', name: 'BG Göttingen',       short: 'Göttingen',  abbr: 'GOT', leagueId: 'bcl', country: 'Germany',   p: '#003DA5', s: '#FFD500', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'bc_oln', name: 'Oldenburg',          short: 'Oldenburg',  abbr: 'OLB', leagueId: 'bcl', country: 'Germany',   p: '#1B5E20', s: '#FFFFFF', a: '#FFFFFF', atk: 77, def: 77, mid: 77, pac: 77, fin: 77, kee: 77 }),
+  mk({ id: 'bc_riy', name: 'Le Mans',            short: 'Le Mans',    abbr: 'LMS', leagueId: 'bcl', country: 'France',    p: '#FFD500', s: '#CC0000', a: '#000000', atk: 76, def: 76, mid: 76, pac: 77, fin: 76, kee: 76 }),
+  mk({ id: 'bc_nan', name: 'Nanterre 92',        short: 'Nanterre',   abbr: 'NTR', leagueId: 'bcl', country: 'France',    p: '#1B5E20', s: '#FFD500', a: '#FFFFFF', atk: 75, def: 76, mid: 75, pac: 76, fin: 75, kee: 76 }),
+  mk({ id: 'bc_pin', name: 'Pinar Karşıyaka',    short: 'Karşıyaka',  abbr: 'KRS', leagueId: 'bcl', country: 'Turkey',    p: '#1565C0', s: '#FFD500', a: '#FFFFFF', atk: 78, def: 77, mid: 77, pac: 77, fin: 78, kee: 77 }),
+  mk({ id: 'bc_ban', name: 'Bahçeşehir',         short: 'Bahçeşehir', abbr: 'BAH', leagueId: 'bcl', country: 'Turkey',    p: '#FFFFFF', s: '#CC0000', a: '#000000', atk: 80, def: 79, mid: 79, pac: 80, fin: 80, kee: 79 }),
+  mk({ id: 'bc_aek', name: 'AEK Athens',         short: 'AEK',        abbr: 'AEK', leagueId: 'bcl', country: 'Greece',    p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 79, def: 79, mid: 79, pac: 78, fin: 79, kee: 79 }),
+  mk({ id: 'bc_pao', name: 'Promitheas Patras',  short: 'Promitheas', abbr: 'PRT', leagueId: 'bcl', country: 'Greece',    p: '#1565C0', s: '#FFFFFF', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'bc_dij', name: 'JDA Dijon',          short: 'Dijon',      abbr: 'DIJ', leagueId: 'bcl', country: 'France',    p: '#FFD500', s: '#CC0000', a: '#000000', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'bc_var', name: 'Openjobmetis Varese', short: 'Varese',    abbr: 'VAR', leagueId: 'bcl', country: 'Italy',     p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 77, def: 76, mid: 76, pac: 77, fin: 77, kee: 76 }),
+  mk({ id: 'bc_tba', name: 'Tofaş',              short: 'Tofaş',      abbr: 'TOF', leagueId: 'bcl', country: 'Turkey',    p: '#003DA5', s: '#FFFFFF', a: '#FFFFFF', atk: 77, def: 77, mid: 77, pac: 77, fin: 77, kee: 77 }),
+  mk({ id: 'bc_klu', name: 'Galatasaray Basket', short: 'Galatasaray BB', abbr: 'GLB', leagueId: 'bcl', country: 'Turkey', p: '#A90015', s: '#FFB400', a: '#000000', atk: 80, def: 79, mid: 79, pac: 79, fin: 80, kee: 79 }),
+  mk({ id: 'bc_pou', name: 'PAOK Mateco',        short: 'PAOK BB',    abbr: 'POK', leagueId: 'bcl', country: 'Greece',    p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 78, def: 78, mid: 78, pac: 78, fin: 78, kee: 78 }),
+  mk({ id: 'bc_can', name: 'Cantù',              short: 'Cantù',      abbr: 'CAN', leagueId: 'bcl', country: 'Italy',     p: '#FFFFFF', s: '#003DA5', a: '#FFFFFF', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
+  mk({ id: 'bc_haf', name: 'Hapoel Holon',       short: 'Holon',      abbr: 'HOL', leagueId: 'bcl', country: 'Israel',    p: '#CC0000', s: '#FFD500', a: '#000000', atk: 79, def: 78, mid: 78, pac: 78, fin: 79, kee: 78 }),
+  mk({ id: 'bc_jer', name: 'Hapoel Jerusalem',   short: 'Jerusalem',  abbr: 'HJM', leagueId: 'bcl', country: 'Israel',    p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 80, def: 79, mid: 79, pac: 80, fin: 80, kee: 79, form: 1 }),
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Champions Hockey League (CHL). 24 European clubs in group stage.
+  // ──────────────────────────────────────────────────────────────────────
+  mk({ id: 'chl_zsc', name: 'ZSC Lions',         short: 'ZSC',        abbr: 'ZSC', leagueId: 'chl', country: 'Switzerland', p: '#003DA5', s: '#FFFFFF', a: '#FFFFFF', atk: 84, def: 84, mid: 84, pac: 83, fin: 84, kee: 84, form: 3 }),
+  mk({ id: 'chl_bie', name: 'EHC Biel-Bienne',   short: 'Biel',       abbr: 'BIE', leagueId: 'chl', country: 'Switzerland', p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 80, def: 80, mid: 80, pac: 80, fin: 80, kee: 80 }),
+  mk({ id: 'chl_fro', name: 'Frölunda HC',       short: 'Frölunda',   abbr: 'FRO', leagueId: 'chl', country: 'Sweden',     p: '#CE1126', s: '#FFFFFF', a: '#000000', atk: 84, def: 83, mid: 83, pac: 82, fin: 83, kee: 83, form: 3 }),
+  mk({ id: 'chl_skf', name: 'Skellefteå AIK',    short: 'Skellefteå', abbr: 'SKE', leagueId: 'chl', country: 'Sweden',     p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 84, def: 83, mid: 83, pac: 83, fin: 83, kee: 83 }),
+  mk({ id: 'chl_lul', name: 'Luleå HF',          short: 'Luleå',      abbr: 'LUL', leagueId: 'chl', country: 'Sweden',     p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 82, def: 81, mid: 81, pac: 81, fin: 81, kee: 81 }),
+  mk({ id: 'chl_tap', name: 'Tappara',           short: 'Tappara',    abbr: 'TAP', leagueId: 'chl', country: 'Finland',    p: '#FF8C00', s: '#000000', a: '#FFFFFF', atk: 84, def: 83, mid: 83, pac: 82, fin: 83, kee: 83, form: 3 }),
+  mk({ id: 'chl_ilv', name: 'Ilves',             short: 'Ilves',      abbr: 'ILV', leagueId: 'chl', country: 'Finland',    p: '#1B5E20', s: '#FFFFFF', a: '#FFFFFF', atk: 80, def: 80, mid: 80, pac: 80, fin: 80, kee: 80 }),
+  mk({ id: 'chl_jyv', name: 'JYP Jyväskylä',     short: 'JYP',        abbr: 'JYP', leagueId: 'chl', country: 'Finland',    p: '#FFD500', s: '#000000', a: '#FFFFFF', atk: 78, def: 79, mid: 78, pac: 79, fin: 78, kee: 79 }),
+  mk({ id: 'chl_kar', name: 'Kärpät Oulu',       short: 'Kärpät',     abbr: 'KAR', leagueId: 'chl', country: 'Finland',    p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 82, def: 81, mid: 81, pac: 81, fin: 81, kee: 81 }),
+  mk({ id: 'chl_red', name: 'Red Bull Munich',   short: 'RB München', abbr: 'RBM', leagueId: 'chl', country: 'Germany',    p: '#CE1126', s: '#FFD500', a: '#000000', atk: 81, def: 80, mid: 80, pac: 80, fin: 81, kee: 80 }),
+  mk({ id: 'chl_eis', name: 'Eisbären Berlin',   short: 'Eisbären',   abbr: 'EIB', leagueId: 'chl', country: 'Germany',    p: '#003DA5', s: '#FFFFFF', a: '#CC0000', atk: 82, def: 81, mid: 81, pac: 80, fin: 81, kee: 81, form: 2 }),
+  mk({ id: 'chl_man', name: 'Mannheim',          short: 'Adler',      abbr: 'MNH', leagueId: 'chl', country: 'Germany',    p: '#FFD500', s: '#CC0000', a: '#000000', atk: 82, def: 81, mid: 81, pac: 81, fin: 82, kee: 81 }),
+  mk({ id: 'chl_ing', name: 'ERC Ingolstadt',    short: 'Ingolstadt', abbr: 'ING', leagueId: 'chl', country: 'Germany',    p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 78, def: 79, mid: 78, pac: 78, fin: 78, kee: 79 }),
+  mk({ id: 'chl_vit', name: 'HC Vítkovice',      short: 'Vítkovice',  abbr: 'VIT', leagueId: 'chl', country: 'Czechia',    p: '#1B5E20', s: '#FFD500', a: '#FFFFFF', atk: 79, def: 80, mid: 79, pac: 79, fin: 79, kee: 80 }),
+  mk({ id: 'chl_sph', name: 'Sparta Praha',      short: 'Sparta',     abbr: 'SPR', leagueId: 'chl', country: 'Czechia',    p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 81, def: 81, mid: 81, pac: 80, fin: 81, kee: 81 }),
+  mk({ id: 'chl_pls', name: 'HC Plzeň',          short: 'Plzeň',      abbr: 'PLZ', leagueId: 'chl', country: 'Czechia',    p: '#003DA5', s: '#FFD500', a: '#FFFFFF', atk: 78, def: 79, mid: 78, pac: 78, fin: 78, kee: 79 }),
+  mk({ id: 'chl_lah', name: 'Pelicans Lahti',    short: 'Pelicans',   abbr: 'PEL', leagueId: 'chl', country: 'Finland',    p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 76, def: 77, mid: 76, pac: 77, fin: 76, kee: 77 }),
+  mk({ id: 'chl_sze', name: 'Frýdek-Místek',     short: 'Frýdek',     abbr: 'FRD', leagueId: 'chl', country: 'Czechia',    p: '#CC0000', s: '#FFD500', a: '#000000', atk: 74, def: 75, mid: 74, pac: 75, fin: 74, kee: 75 }),
+  mk({ id: 'chl_grn', name: 'Grenoble',          short: 'Grenoble',   abbr: 'GRN', leagueId: 'chl', country: 'France',     p: '#FFD500', s: '#1B5E20', a: '#000000', atk: 74, def: 75, mid: 74, pac: 75, fin: 74, kee: 75 }),
+  mk({ id: 'chl_ang', name: 'Angers Ducs',       short: 'Angers',     abbr: 'ANG', leagueId: 'chl', country: 'France',     p: '#000000', s: '#FFD500', a: '#FFFFFF', atk: 74, def: 75, mid: 74, pac: 75, fin: 74, kee: 75 }),
+  mk({ id: 'chl_ser', name: 'Servette Geneva',   short: 'Servette',   abbr: 'SRV', leagueId: 'chl', country: 'Switzerland', p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 82, def: 82, mid: 82, pac: 81, fin: 81, kee: 82 }),
+  mk({ id: 'chl_lug', name: 'HC Lugano',         short: 'Lugano',     abbr: 'LUG', leagueId: 'chl', country: 'Switzerland', p: '#000000', s: '#FFFFFF', a: '#FFFFFF', atk: 81, def: 81, mid: 81, pac: 80, fin: 81, kee: 81 }),
+  mk({ id: 'chl_dom', name: 'Stavanger Oilers',  short: 'Stavanger',  abbr: 'STV', leagueId: 'chl', country: 'Norway',     p: '#000000', s: '#FF8200', a: '#FFFFFF', atk: 76, def: 77, mid: 76, pac: 77, fin: 76, kee: 77 }),
+  mk({ id: 'chl_via', name: 'Vienna Capitals',   short: 'Vienna',     abbr: 'VIE', leagueId: 'chl', country: 'Austria',    p: '#CC0000', s: '#FFFFFF', a: '#000000', atk: 76, def: 76, mid: 76, pac: 76, fin: 76, kee: 76 }),
 ];
 
 export const TEAMS_BY_ID = TEAMS.reduce<Record<string, Team>>((acc, t) => {

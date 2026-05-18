@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box, Typography, Grid, Chip, Button,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 type Suit = '♠' | '♥' | '♦' | '♣';
 type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
@@ -86,72 +89,83 @@ export default function BlackjackGame() {
   const [history, setHistory] = useState<RoundResult[]>([]);
   const [stats, setStats] = useState({ rounds: 0, won: 0, lost: 0, tied: 0 });
 
-  async function deal() {
-    const stake = Math.max(0, parseFloat(betAmount) || 0);
-    const placed = await wallet.placeBet({
-      gameId: 'blackjack',
-      gameName: 'Blackjack',
-      stake,
-      details: `On ${betChoice.toUpperCase()}`,
-    });
-    if (!placed) return;  // auth/balance gate
-
-    const deck = makeDeck();
-    const p: Card[] = [deck.pop()!, deck.pop()!];
-    const b: Card[] = [deck.pop()!, deck.pop()!];
-
-    setPhase('dealing');
-    setPlayerHand([]);
-    setBankerHand([]);
-
-    // Animate card dealing
-    setTimeout(() => setPlayerHand([p[0]]), 200);
-    setTimeout(() => setBankerHand([b[0]]), 500);
-    setTimeout(() => setPlayerHand(p), 800);
-    setTimeout(() => setBankerHand(b), 1100);
-
-    setTimeout(() => {
-      const pTotal = handTotal(p);
-      const bTotal = handTotal(b);
-      let winner: 'player' | 'banker' | 'tie';
-
-      if (pTotal === bTotal) winner = 'tie';
-      else if (pTotal > bTotal) winner = 'player';
-      else winner = 'banker';
-
-      const bet = stake;
-      let payout = -bet;
-      if (winner === betChoice) {
-        if (betChoice === 'tie') payout = bet * 8;
-        else if (betChoice === 'banker') payout = bet * 0.95;
-        else payout = bet;
-      } else if (winner === 'tie' && betChoice !== 'tie') {
-        payout = 0; // tie is a push for player/banker bets
-      }
-
-      const result: RoundResult = { bet: betChoice, playerTotal: pTotal, bankerTotal: bTotal, winner, payout };
-      setLastResult(result);
-      setPhase('result');
-      setHistory(prev => [result, ...prev.slice(0, 19)]);
-      setStats(prev => ({
-        rounds: prev.rounds + 1,
-        won: prev.won + (winner === betChoice ? 1 : 0),
-        lost: prev.lost + (winner !== betChoice && !(winner === 'tie' && betChoice !== 'tie') ? 1 : 0),
-        tied: prev.tied + (winner === 'tie' ? 1 : 0),
-      }));
-
-      const totalReturned = winner === betChoice
-        ? bet + payout
-        : (winner === 'tie' && betChoice !== 'tie')
-          ? bet
-          : 0;
-      void wallet.settleBet(placed.id, {
-        won: winner === betChoice,
-        payout: totalReturned,
-        details: `Player ${pTotal} · Banker ${bTotal} · Winner: ${winner}`,
+  /** Promisified deal — resolves once the round is fully revealed. */
+  const dealOnce = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      if (phase === 'dealing') return resolve(null);
+      const stake = overrideStake != null ? overrideStake : Math.max(0, parseFloat(betAmount) || 0);
+      const placed = await wallet.placeBet({
+        gameId: 'blackjack',
+        gameName: 'Blackjack',
+        stake,
+        details: `On ${betChoice.toUpperCase()}`,
       });
-    }, 1600);
-  }
+      if (!placed) return resolve(null);
+
+      const deck = makeDeck();
+      const p: Card[] = [deck.pop()!, deck.pop()!];
+      const b: Card[] = [deck.pop()!, deck.pop()!];
+
+      setPhase('dealing');
+      setPlayerHand([]);
+      setBankerHand([]);
+
+      setTimeout(() => setPlayerHand([p[0]]), 200);
+      setTimeout(() => setBankerHand([b[0]]), 500);
+      setTimeout(() => setPlayerHand(p), 800);
+      setTimeout(() => setBankerHand(b), 1100);
+
+      setTimeout(() => {
+        const pTotal = handTotal(p);
+        const bTotal = handTotal(b);
+        let winner: 'player' | 'banker' | 'tie';
+        if (pTotal === bTotal) winner = 'tie';
+        else if (pTotal > bTotal) winner = 'player';
+        else winner = 'banker';
+
+        const bet = stake;
+        let profit = -bet;
+        if (winner === betChoice) {
+          if (betChoice === 'tie') profit = bet * 8;
+          else if (betChoice === 'banker') profit = bet * 0.95;
+          else profit = bet;
+        } else if (winner === 'tie' && betChoice !== 'tie') {
+          profit = 0; // push
+        }
+
+        const result: RoundResult = { bet: betChoice, playerTotal: pTotal, bankerTotal: bTotal, winner, payout: profit };
+        setLastResult(result);
+        setPhase('result');
+        setHistory(prev => [result, ...prev.slice(0, 19)]);
+        setStats(prev => ({
+          rounds: prev.rounds + 1,
+          won: prev.won + (winner === betChoice ? 1 : 0),
+          lost: prev.lost + (winner !== betChoice && !(winner === 'tie' && betChoice !== 'tie') ? 1 : 0),
+          tied: prev.tied + (winner === 'tie' ? 1 : 0),
+        }));
+
+        const totalReturned = winner === betChoice
+          ? bet + profit
+          : (winner === 'tie' && betChoice !== 'tie')
+            ? bet
+            : 0;
+        void wallet.settleBet(placed.id, {
+          won: winner === betChoice,
+          payout: totalReturned,
+          details: `Player ${pTotal} · Banker ${bTotal} · Winner: ${winner}`,
+        });
+        resolve({ won: winner === betChoice, profit });
+      }, 1600);
+    });
+  }, [phase, betAmount, betChoice, wallet]);
+
+  function deal() { void dealOnce(); }
+
+  const auto = useAutoBet({
+    runOneBet: (stake) => dealOnce(stake),
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
 
   const BET_OPTIONS: { label: string; type: BetChoice; payout: string; color: string }[] = [
     { label: 'Player', type: 'player', payout: '1:1', color: neonBlue },
@@ -354,10 +368,11 @@ export default function BlackjackGame() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onBet={() => { setPhase('betting'); deal(); }}
-          isRunning={phase === 'dealing'}
+          isRunning={phase === 'dealing' || auto.isRunning}
           betLabel={`Bet ${betChoice.charAt(0).toUpperCase() + betChoice.slice(1)}`}
           stopLabel="Dealing..."
         />
+        <AutoBetPanel auto={auto} formatMoney={(n) => formatMoney(n, wallet.currency)} disabled={phase === 'dealing'} />
 
         {/* Rules */}
         <Box sx={{ p: 1.5, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>

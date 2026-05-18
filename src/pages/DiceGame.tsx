@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, Slider, Chip, Grid,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 type DiceResult = 'win' | 'lose' | null;
 
@@ -55,50 +58,66 @@ export default function DiceGame() {
   const multiplier = winChance > 0 ? parseFloat(((99 / winChance)).toFixed(4)) : 0;
   const profit = parseFloat(betAmount) * (multiplier - 1);
 
-  async function handleRoll() {
-    if (rolling) return;
-    const stake = Math.max(0, parseFloat(betAmount) || 0);
-    const bet = await wallet.placeBet({
-      gameId: 'dice',
-      gameName: 'Dice',
-      stake,
-      details: `${isOver ? 'Over' : 'Under'} ${target.toFixed(2)} · ${multiplier.toFixed(2)}×`,
+  /**
+   * Promisified single dice roll — returns once the animation has finished
+   * and the bet is settled. Returns null if the bet couldn't be placed
+   * (auth or balance). Used by both the manual Roll button and the auto-bet
+   * loop so behaviour stays identical regardless of who's pulling the trigger.
+   */
+  const rollOnce = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      if (rolling) return resolve(null);
+      const stake = overrideStake != null ? overrideStake : Math.max(0, parseFloat(betAmount) || 0);
+      const bet = await wallet.placeBet({
+        gameId: 'dice',
+        gameName: 'Dice',
+        stake,
+        details: `${isOver ? 'Over' : 'Under'} ${target.toFixed(2)} · ${multiplier.toFixed(2)}×`,
+      });
+      if (!bet) return resolve(null);
+
+      setRolling(true);
+      setLastResult(null);
+      let flips = 0;
+      intervalRef.current = setInterval(() => {
+        setDiceFace(Math.floor(Math.random() * 6));
+        flips++;
+        if (flips > 12) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          const r = parseFloat((Math.random() * 100).toFixed(2));
+          const win = isOver ? r > target : r < target;
+          setRoll(r);
+          setLastResult(win ? 'win' : 'lose');
+          setHistory(prev => [{ roll: r, target, over: isOver, result: win ? 'win' : 'lose' }, ...prev.slice(0, 19)]);
+          setStats(prev => {
+            const streak = win ? prev.streak + 1 : 0;
+            return {
+              wins: prev.wins + (win ? 1 : 0),
+              losses: prev.losses + (win ? 0 : 1),
+              streak,
+              bestStreak: Math.max(prev.bestStreak, streak),
+            };
+          });
+          void wallet.settleBet(bet.id, {
+            won: win,
+            multiplier: win ? multiplier : undefined,
+            payout: win ? stake * multiplier : 0,
+            details: `Rolled ${r.toFixed(2)} · target ${isOver ? '>' : '<'} ${target.toFixed(2)}`,
+          });
+          setRolling(false);
+          resolve({ won: win, profit: win ? stake * (multiplier - 1) : -stake });
+        }
+      }, 60);
     });
-    if (!bet) return;  // not authenticated or insufficient balance — placeBet handles the auth modal
+  }, [rolling, betAmount, isOver, target, multiplier, wallet]);
 
-    setRolling(true);
-    setLastResult(null);
+  function handleRoll() { void rollOnce(); }
 
-    let flips = 0;
-    intervalRef.current = setInterval(() => {
-      setDiceFace(Math.floor(Math.random() * 6));
-      flips++;
-      if (flips > 12) {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        const r = parseFloat((Math.random() * 100).toFixed(2));
-        const win = isOver ? r > target : r < target;
-        setRoll(r);
-        setLastResult(win ? 'win' : 'lose');
-        setHistory(prev => [{ roll: r, target, over: isOver, result: win ? 'win' : 'lose' }, ...prev.slice(0, 19)]);
-        setStats(prev => {
-          const streak = win ? prev.streak + 1 : 0;
-          return {
-            wins: prev.wins + (win ? 1 : 0),
-            losses: prev.losses + (win ? 0 : 1),
-            streak,
-            bestStreak: Math.max(prev.bestStreak, streak),
-          };
-        });
-        void wallet.settleBet(bet.id, {
-          won: win,
-          multiplier: win ? multiplier : undefined,
-          payout: win ? stake * multiplier : 0,
-          details: `Rolled ${r.toFixed(2)} · target ${isOver ? '>' : '<'} ${target.toFixed(2)}`,
-        });
-        setRolling(false);
-      }
-    }, 60);
-  }
+  const auto = useAutoBet({
+    runOneBet: (stake) => rollOnce(stake),
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
@@ -303,10 +322,17 @@ export default function DiceGame() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onBet={handleRoll}
-          isRunning={rolling}
+          isRunning={rolling || auto.isRunning}
           betLabel="Roll Dice"
           stopLabel="Rolling..."
         />
+        <Box sx={{ mt: 2 }}>
+          <AutoBetPanel
+            auto={auto}
+            formatMoney={(n) => formatMoney(n, wallet.currency)}
+            disabled={rolling}
+          />
+        </Box>
         <Box sx={{ mt: 2, p: 2, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>
           <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 700, mb: 1.5, letterSpacing: '0.08em' }}>
             SESSION STATS

@@ -1,13 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Grid, Chip, Button,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 const SYMBOLS = ['7️⃣', '🍒', '🍋', '🍊', '🍇', '💎', '⭐', '🔔'];
 const SYMBOL_MULTIPLIERS: Record<string, number> = {
@@ -85,58 +88,67 @@ export default function SlotsGame() {
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
-  async function spin() {
-    if (spinning) return;
-    const bet = parseFloat(betAmount) || 0.01;
-    const placed = await wallet.placeBet({
-      gameId: 'slots',
-      gameName: 'Fortune Spin',
-      stake: bet,
-      details: `${PAYLINES} paylines`,
+  /** Promisified spin. Resolves with the round outcome (or null on failure). */
+  const spinOnce = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      if (spinning) return resolve(null);
+      const bet = overrideStake != null ? overrideStake : (parseFloat(betAmount) || 0.01);
+      const placed = await wallet.placeBet({
+        gameId: 'slots',
+        gameName: 'Fortune Spin',
+        stake: bet,
+        details: `${PAYLINES} paylines`,
+      });
+      if (!placed) return resolve(null);
+
+      setSpinning(true);
+      setWins([]);
+      setTotalWin(null);
+
+      const tempGrids: string[][][] = Array.from({ length: 20 }, generateGrid);
+      let frame = 0;
+      intervalRef.current = setInterval(() => {
+        frame++;
+        setReelOffsets([frame % 3, frame % 3, frame % 3, frame % 3, frame % 3]);
+        setGrid(tempGrids[frame % tempGrids.length]);
+        if (frame >= 16) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          const finalGrid = generateGrid();
+          setGrid(finalGrid);
+          setReelOffsets([0, 0, 0, 0, 0]);
+          const winLines = evaluateWins(finalGrid);
+          const totalMult = winLines.reduce((sum, w) => sum + w.mult, 0);
+          const winAmt = bet * totalMult;
+          setWins(winLines);
+          setTotalWin(winLines.length > 0 ? winAmt : 0);
+          setHistory(prev => [{ mult: totalMult, win: winLines.length > 0 }, ...prev.slice(0, 19)]);
+          setStats(prev => ({
+            spins: prev.spins + 1,
+            totalWagered: prev.totalWagered + bet,
+            totalWon: prev.totalWon + winAmt,
+          }));
+          void wallet.settleBet(placed.id, {
+            won: winLines.length > 0,
+            multiplier: winLines.length > 0 ? totalMult : undefined,
+            payout: winAmt,
+            details: winLines.length > 0
+              ? `${winLines.length} payline${winLines.length > 1 ? 's' : ''} · ${totalMult}×`
+              : 'No paylines hit',
+          });
+          setSpinning(false);
+          resolve({ won: winLines.length > 0, profit: winAmt - bet });
+        }
+      }, 60);
     });
-    if (!placed) return;  // auth/balance gate
+  }, [spinning, betAmount, wallet]);
 
-    setSpinning(true);
-    setWins([]);
-    setTotalWin(null);
+  function spin() { void spinOnce(); }
 
-    // Animate reels sequentially
-    const tempGrids: string[][][] = Array.from({ length: 20 }, generateGrid);
-    let frame = 0;
-    intervalRef.current = setInterval(() => {
-      frame++;
-      setReelOffsets([
-        frame % 3, frame % 3, frame % 3, frame % 3, frame % 3,
-      ]);
-      setGrid(tempGrids[frame % tempGrids.length]);
-      if (frame >= 16) {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        const finalGrid = generateGrid();
-        setGrid(finalGrid);
-        setReelOffsets([0, 0, 0, 0, 0]);
-        const winLines = evaluateWins(finalGrid);
-        const totalMult = winLines.reduce((sum, w) => sum + w.mult, 0);
-        const winAmt = bet * totalMult;
-        setWins(winLines);
-        setTotalWin(winLines.length > 0 ? winAmt : 0);
-        setHistory(prev => [{ mult: totalMult, win: winLines.length > 0 }, ...prev.slice(0, 19)]);
-        setStats(prev => ({
-          spins: prev.spins + 1,
-          totalWagered: prev.totalWagered + bet,
-          totalWon: prev.totalWon + winAmt,
-        }));
-        void wallet.settleBet(placed.id, {
-          won: winLines.length > 0,
-          multiplier: winLines.length > 0 ? totalMult : undefined,
-          payout: winAmt,
-          details: winLines.length > 0
-            ? `${winLines.length} payline${winLines.length > 1 ? 's' : ''} · ${totalMult}×`
-            : 'No paylines hit',
-        });
-        setSpinning(false);
-      }
-    }, 60);
-  }
+  const auto = useAutoBet({
+    runOneBet: (stake) => spinOnce(stake),
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
 
   const winRowSet = new Set(wins.map(w => w.row));
 
@@ -310,10 +322,11 @@ export default function SlotsGame() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onBet={spin}
-          isRunning={spinning}
+          isRunning={spinning || auto.isRunning}
           betLabel="Spin"
           stopLabel="Spinning..."
         />
+        <AutoBetPanel auto={auto} formatMoney={(n) => formatMoney(n, wallet.currency)} disabled={spinning} />
 
         {/* Quick bet amounts */}
         <Box sx={{ p: 1.5, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>

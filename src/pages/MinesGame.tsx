@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
-  Box, Typography, Grid, Button, Chip,
+  Box, Typography, Grid, Button, Chip, TextField,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet, type BetRecord } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 function generateMines(totalCells: number, mineCount: number): boolean[] {
   const mines = new Array(totalCells).fill(false);
@@ -43,6 +46,8 @@ export default function MinesGame() {
   const [currentPayout, setCurrentPayout] = useState<number | null>(null);
   const [stats, setStats] = useState({ rounds: 0, won: 0, lost: 0, profit: 0 });
   const activeBetRef = useRef<BetRecord | null>(null);
+  /** Tiles to reveal before auto-cashout (used only during auto-bet runs). */
+  const [autoTiles, setAutoTiles] = useState('5');
 
   async function startGame() {
     const stake = Math.max(0, parseFloat(betAmount) || 0);
@@ -106,6 +111,87 @@ export default function MinesGame() {
       setSafeRevealed(prev => prev + 1);
     }
   }
+
+  /**
+   * Auto-mode runs one full mines round end-to-end: place, reveal N random
+   * tiles, cash out. If a mine is hit before reaching the target, the round
+   * ends as a loss. Returns the round outcome to the auto-bet loop.
+   */
+  const runAutoRound = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      if (gameActive) return resolve(null);
+      const targetTiles = Math.max(1, Math.min(gridSize - mineCount, parseInt(autoTiles, 10) || 1));
+      const stake = overrideStake != null ? overrideStake : Math.max(0, parseFloat(betAmount) || 0);
+      const placed = await wallet.placeBet({
+        gameId: 'mines',
+        gameName: 'Mines',
+        stake,
+        details: `${mineCount} mines · auto-reveal ${targetTiles}`,
+      });
+      if (!placed) return resolve(null);
+      const placedBet = placed;
+      activeBetRef.current = placedBet;
+      const mineMap = generateMines(gridSize, mineCount);
+      setMines(mineMap);
+      const reveal = new Array(gridSize).fill(false);
+      setRevealed(reveal);
+      setSafeRevealed(0);
+      setGameActive(true);
+      setCurrentPayout(null);
+
+      // Pick a random un-revealed cell each step. Animate by spacing reveals
+      // ~120 ms apart so the user can see what's happening.
+      const cellOrder = Array.from({ length: gridSize }, (_, i) => i).sort(() => Math.random() - 0.5);
+      let revealsDone = 0;
+      let safeCount = 0;
+      function step() {
+        if (revealsDone >= cellOrder.length || safeCount >= targetTiles) {
+          // Auto-cashout.
+          const mult = Math.pow(1.1, safeCount);
+          const payout = stake * mult;
+          setCurrentPayout(payout);
+          setGameActive(false);
+          setHistory(prev => [{ mines: mineCount, revealed: safeCount, payout, hit: false }, ...prev.slice(0, 19)]);
+          setStats(prev => ({ rounds: prev.rounds + 1, won: prev.won + 1, lost: prev.lost, profit: prev.profit + (payout - stake) }));
+          void wallet.settleBet(placedBet.id, {
+            won: true,
+            multiplier: mult,
+            payout,
+            details: `Auto-cashed at ${safeCount} safe (${mult.toFixed(2)}×)`,
+          });
+          activeBetRef.current = null;
+          resolve({ won: true, profit: payout - stake });
+          return;
+        }
+        const idx = cellOrder[revealsDone++];
+        reveal[idx] = true;
+        setRevealed([...reveal]);
+        if (mineMap[idx]) {
+          setGameActive(false);
+          setCurrentPayout(-stake);
+          setHistory(prev => [{ mines: mineCount, revealed: safeCount, payout: -stake, hit: true }, ...prev.slice(0, 19)]);
+          setStats(prev => ({ rounds: prev.rounds + 1, won: prev.won, lost: prev.lost + 1, profit: prev.profit - stake }));
+          void wallet.settleBet(placedBet.id, {
+            won: false, payout: 0,
+            details: `Auto: hit mine after ${safeCount} safe`,
+          });
+          activeBetRef.current = null;
+          resolve({ won: false, profit: -stake });
+          return;
+        }
+        safeCount++;
+        setSafeRevealed(safeCount);
+        setTimeout(step, 120);
+      }
+      setTimeout(step, 80);
+    });
+  }, [gameActive, gridSize, mineCount, autoTiles, betAmount, wallet]);
+
+  const auto = useAutoBet({
+    runOneBet: (stake) => runAutoRound(stake),
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
 
   const cells = Array.from({ length: gridSize }, (_, i) => {
     const isMine = mines[i];
@@ -260,10 +346,23 @@ export default function MinesGame() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onBet={startGame}
-          isRunning={gameActive}
+          isRunning={gameActive || auto.isRunning}
           betLabel={gameActive ? 'Reveal' : 'Start Game'}
           stopLabel="Playing..."
         />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <TextField
+            label="Auto: reveal tiles before cashout"
+            size="small" type="number"
+            value={autoTiles}
+            onChange={e => setAutoTiles(e.target.value)}
+            inputProps={{ min: 1, max: 24 }}
+            disabled={auto.isRunning}
+            helperText="Auto stops at this many safe tiles, or on a mine."
+            FormHelperTextProps={{ sx: { fontSize: '0.62rem', mx: 0 } }}
+          />
+          <AutoBetPanel auto={auto} formatMoney={(n) => formatMoney(n, wallet.currency)} disabled={gameActive} />
+        </Box>
 
         {/* Mine selector */}
         <Box sx={{ p: 1.5, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>

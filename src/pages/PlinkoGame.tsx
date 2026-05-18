@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, Chip,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 const ROWS = 12;
 const RISK_LEVELS = ['Low', 'Medium', 'High'];
@@ -41,7 +44,14 @@ export default function PlinkoGame() {
   const idRef = useRef(0);
   const ballsRef = useRef<Ball[]>([]);
   const pegsRef = useRef<PegState[]>([]);
-  const ballBetsRef = useRef<Map<number, { betId: string; stake: number }>>(new Map());
+  // The auto-bet loop needs to await each ball — when a bet lands we both
+  // settle it AND resolve the per-ball Promise so the loop advances. Store
+  // the resolver alongside the betId in the same Map.
+  const ballBetsRef = useRef<Map<number, {
+    betId: string;
+    stake: number;
+    resolve?: (r: { won: boolean; profit: number } | null) => void;
+  }>>(new Map());
 
   const mults = MULTIPLIERS[risk];
   const BOARD_W = 500;
@@ -70,28 +80,43 @@ export default function PlinkoGame() {
     pegsRef.current = ps;
   }, []);
 
-  async function dropBall() {
-    const stake = Math.max(0, parseFloat(betAmount) || 0);
-    const bet = await wallet.placeBet({
-      gameId: 'plinko',
-      gameName: 'Plinko',
-      stake,
-      details: `Risk: ${risk}`,
+  /**
+   * Drop a ball and resolve once it lands. `dropBall` is fire-and-forget for
+   * the manual button (drops can overlap); the Promise return is used by
+   * auto-bet so the loop awaits each round.
+   */
+  const dropBall = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      const stake = overrideStake != null ? overrideStake : Math.max(0, parseFloat(betAmount) || 0);
+      const bet = await wallet.placeBet({
+        gameId: 'plinko',
+        gameName: 'Plinko',
+        stake,
+        details: `Risk: ${risk}`,
+      });
+      if (!bet) return resolve(null);
+      const ball: Ball = {
+        id: idRef.current++,
+        x: BOARD_W / 2 + (Math.random() - 0.5) * 4,
+        y: 10,
+        vx: 0, vy: 1,
+        row: 0, col: 0,
+        done: false, bucket: null,
+      };
+      ballBetsRef.current.set(ball.id, { betId: bet.id, stake, resolve });
+      ballsRef.current = [...ballsRef.current, ball];
+      setBalls([...ballsRef.current]);
+      animateBall(ball.id);
     });
-    if (!bet) return;  // auth/balance gate
-    const ball: Ball = {
-      id: idRef.current++,
-      x: BOARD_W / 2 + (Math.random() - 0.5) * 4,
-      y: 10,
-      vx: 0, vy: 1,
-      row: 0, col: 0,
-      done: false, bucket: null,
-    };
-    ballBetsRef.current.set(ball.id, { betId: bet.id, stake });
-    ballsRef.current = [...ballsRef.current, ball];
-    setBalls([...ballsRef.current]);
-    animateBall(ball.id);
-  }
+  }, [betAmount, risk, wallet]);
+
+  function handleDrop() { void dropBall(); }
+
+  const auto = useAutoBet({
+    runOneBet: (stake) => dropBall(stake),
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
 
   function animateBall(id: number) {
     function step() {
@@ -161,6 +186,8 @@ export default function PlinkoGame() {
             payout: bet.stake * mult,
             details: `Landed bucket ${bucket + 1}/${bucketCount} · ${mult}×`,
           });
+          // Resolve the auto-bet Promise (if this ball was started from auto).
+          bet.resolve?.({ won: mult > 1, profit: bet.stake * (mult - 1) });
           ballBetsRef.current.delete(id);
         }
 
@@ -351,9 +378,13 @@ export default function PlinkoGame() {
         <BettingControls
           betAmount={betAmount}
           onBetChange={setBetAmount}
-          onBet={dropBall}
+          onBet={handleDrop}
+          isRunning={auto.isRunning}
           betLabel="Drop Ball"
         />
+        <Box sx={{ mt: 1.5 }}>
+          <AutoBetPanel auto={auto} formatMoney={(n) => formatMoney(n, wallet.currency)} />
+        </Box>
 
         {/* Multipliers preview */}
         <Box sx={{ mt: 1.5, p: 1.5, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>

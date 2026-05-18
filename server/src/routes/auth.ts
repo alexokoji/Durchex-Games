@@ -100,11 +100,13 @@ router.post(
       else referralResult.error = r.error;
     }
 
-    // ─── Promo code (welcome) ────────────────────────────────────────────
-    // If the user supplied a promo code, redeem it through the proper service
-    // so it respects all the gates. Otherwise apply the default per-currency
-    // welcome bonus into the bonus pot with a 5× rollover.
+    // ─── Promo code (welcome OR pending-on-first-deposit) ─────────────────
+    // Some campaign codes are kind='deposit' (e.g. WELCOME50 → "50% of your
+    // first deposit"). Those can't be redeemed at signup time because there's
+    // no deposit amount yet — instead we stash the code on the user and the
+    // deposit webhook drains it once a real top-up lands.
     let promoApplied: { code: string; bonus: number; rollover: number } | null = null;
+    let pendingDepositPromo: string | null = null;
     if (promoCode) {
       const r = await redeemPromo({ user, code: promoCode, trigger: 'signup' });
       if ('ok' in r) {
@@ -113,6 +115,11 @@ router.post(
           bonus: r.data.bonusCredited,
           rollover: r.data.rollover,
         };
+      } else if (r.error === 'wrong_kind_for_context') {
+        // Probably a deposit-match code — keep it for the first deposit.
+        pendingDepositPromo = promoCode;
+        user.pendingDepositPromo = promoCode;
+        await user.save();
       }
     }
     if (!promoApplied) {
@@ -148,6 +155,7 @@ router.post(
       ...tokens,
       referral: referralResult.applied ? { applied: true } : referralResult.error ? { applied: false, error: referralResult.error } : null,
       promo: promoApplied,
+      pendingDepositPromo,
     });
   },
 );

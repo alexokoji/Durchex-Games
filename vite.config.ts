@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
         // breaks HMR. Toggle to true if you specifically want to test the
         // install flow locally.
         devOptions: { enabled: false },
-        includeAssets: ['favicon.svg', 'pwa-icon.svg'],
+        includeAssets: ['assets/logo.png'],
         manifest: {
           id: '/',
           name: 'DUCHEXiGAMES',
@@ -31,9 +31,11 @@ export default defineConfig(({ mode }) => {
           scope: '/',
           start_url: '/',
           categories: ['games', 'entertainment', 'finance'],
+          // PNG only — `sizes: 'any'` tells the OS to scale to whatever it needs
+          // for the home-screen icon, splash screen and task switcher.
           icons: [
-            { src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-            { src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+            { src: '/assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'any' },
+            { src: '/assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'maskable' },
           ],
           shortcuts: [
             { name: 'Crash',         short_name: 'Crash',  url: '/crash' },

@@ -1,13 +1,16 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   Box, Typography, Button,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 
@@ -73,44 +76,66 @@ export default function RouletteGame() {
 
   function clearBets() { setBets([]); }
 
-  async function spin() {
-    if (spinning || bets.length === 0) return;
-    const totalStake = bets.reduce((s, b) => s + b.amount, 0);
-    const placed = await wallet.placeBet({
-      gameId: 'roulette',
-      gameName: 'Roulette',
-      stake: totalStake,
-      details: `${bets.length} bet${bets.length > 1 ? 's' : ''} on the table`,
-    });
-    if (!placed) return;  // auth/balance gate
-
-    setSpinning(true);
-    setResult(null);
-    setWinAmount(null);
-
-    const resultNum = Math.floor(Math.random() * 37);
-    const wheelIdx = WHEEL_NUMBERS.indexOf(resultNum);
-    const degreesPerSlot = 360 / 37;
-    const targetAngle = spinRef.current + 1440 + (wheelIdx * degreesPerSlot);
-    spinRef.current = targetAngle;
-    setWheelAngle(targetAngle);
-
-    setTimeout(() => {
-      // resolveBet returns +profit on a winning leg and -stake on a losing leg.
-      // Translate that into the wallet's stake/payout model.
-      const net = bets.reduce((sum, b) => sum + resolveBet(b, resultNum), 0);
-      const payout = Math.max(0, totalStake + net);   // amount returned to the user
-      setResult(resultNum);
-      setWinAmount(net);
-      setHistory(prev => [{ number: resultNum, color: getColor(resultNum) }, ...prev.slice(0, 19)]);
-      void wallet.settleBet(placed.id, {
-        won: net > 0,
-        payout,
-        details: `Number ${resultNum} · ${net >= 0 ? '+' : ''}${net.toFixed(5)} net`,
+  /**
+   * Promisified spin. Auto-bet calls it with a stake scaler — every chip on
+   * the table is multiplied uniformly so the bet pattern stays the same
+   * shape between rounds (just bigger or smaller).
+   */
+  const spinOnce = useCallback((scaler: number = 1): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      if (spinning || bets.length === 0) return resolve(null);
+      const scaledBets = bets.map(b => ({ ...b, amount: b.amount * scaler }));
+      const totalStake = scaledBets.reduce((s, b) => s + b.amount, 0);
+      const placed = await wallet.placeBet({
+        gameId: 'roulette',
+        gameName: 'Roulette',
+        stake: totalStake,
+        details: `${bets.length} bet${bets.length > 1 ? 's' : ''} on the table`,
       });
-      setSpinning(false);
-    }, 3000);
-  }
+      if (!placed) return resolve(null);
+
+      setSpinning(true);
+      setResult(null);
+      setWinAmount(null);
+
+      const resultNum = Math.floor(Math.random() * 37);
+      const wheelIdx = WHEEL_NUMBERS.indexOf(resultNum);
+      const degreesPerSlot = 360 / 37;
+      const targetAngle = spinRef.current + 1440 + (wheelIdx * degreesPerSlot);
+      spinRef.current = targetAngle;
+      setWheelAngle(targetAngle);
+
+      setTimeout(() => {
+        const net = scaledBets.reduce((sum, b) => sum + resolveBet(b, resultNum), 0);
+        const payout = Math.max(0, totalStake + net);
+        setResult(resultNum);
+        setWinAmount(net);
+        setHistory(prev => [{ number: resultNum, color: getColor(resultNum) }, ...prev.slice(0, 19)]);
+        void wallet.settleBet(placed.id, {
+          won: net > 0,
+          payout,
+          details: `Number ${resultNum} · ${net >= 0 ? '+' : ''}${net.toFixed(5)} net`,
+        });
+        setSpinning(false);
+        resolve({ won: net > 0, profit: net });
+      }, 3000);
+    });
+  }, [spinning, bets, wallet]);
+
+  function spin() { void spinOnce(1); }
+
+  // Roulette auto-mode: the panel's `stake` value represents the total chips
+  // on the table (sum of bet amounts). Progression scales every chip
+  // uniformly, so a martingale on red still doubles after a loss.
+  const totalBetAmount = bets.reduce((s, b) => s + b.amount, 0);
+  const auto = useAutoBet({
+    runOneBet: (nextTotal) => {
+      const scaler = totalBetAmount > 0 ? nextTotal / totalBetAmount : 1;
+      return spinOnce(scaler);
+    },
+    baseStake: totalBetAmount,
+    setStake: () => { /* roulette stake is implicit via the chips — no UI mirror */ },
+  });
 
   const totalBetAmt = bets.reduce((s, b) => s + b.amount, 0);
 
@@ -336,10 +361,11 @@ export default function RouletteGame() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onBet={spin}
-          isRunning={spinning}
-          betLabel={bets.length === 0 ? 'Place Bets First' : `Spin (${totalBetAmt.toFixed(3)} BTC)`}
+          isRunning={spinning || auto.isRunning}
+          betLabel={bets.length === 0 ? 'Place Bets First' : `Spin (${totalBetAmt.toFixed(3)} ${wallet.currency})`}
           stopLabel="Spinning..."
         />
+        <AutoBetPanel auto={auto} formatMoney={(n) => formatMoney(n, wallet.currency)} disabled={spinning || bets.length === 0} />
 
         {/* Current bets */}
         {bets.length > 0 && (

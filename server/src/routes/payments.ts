@@ -12,6 +12,7 @@ import {
 import {
   creditFiatDeposit, debitFiatWithdrawal, debitCryptoWithdrawal, newReference,
 } from '../services/wallet';
+import { redeemPromo } from '../services/promo';
 import { isCrypto, isFiat, FIAT, type CryptoCurrency } from '../config/currencies';
 import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
 
@@ -151,6 +152,32 @@ router.post('/flutterwave/webhook', raw({ type: '*/*' }), async (req: Request, r
       tx.flwTxId = String(flwTxId ?? '');
       tx.completedAt = new Date();
       await tx.save();
+
+      // ─── First-deposit promo (deposit-match campaigns) ─────────────────
+      // If signup stashed a `pendingDepositPromo`, drain it now that we have
+      // a real deposit amount. Best-effort: any failure (expired / capped /
+      // wrong currency) just clears the field — the user got their deposit
+      // either way.
+      if (user.pendingDepositPromo) {
+        const promoCode = user.pendingDepositPromo;
+        try {
+          const r = await redeemPromo({
+            user,
+            code: promoCode,
+            trigger: 'deposit',
+            depositAmount: tx.amount,
+            depositReference: tx.reference,
+          });
+          if ('ok' in r) {
+            console.log(`[promo] first-deposit code ${promoCode} credited ${r.data.bonusCredited} to ${user.email}`);
+          } else {
+            console.warn(`[promo] first-deposit ${promoCode} skipped: ${r.error}`);
+          }
+        } catch (err) {
+          console.error('[promo] first-deposit redemption failed', err);
+        }
+        await User.updateOne({ _id: user._id }, { pendingDepositPromo: null });
+      }
 
       const uid = user._id.toString();
       notifyWalletUpdate(uid, 'deposit_completed');

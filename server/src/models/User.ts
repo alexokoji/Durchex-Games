@@ -51,6 +51,11 @@ export interface IUser extends Document {
   /** When attribution was blocked or flagged for review. Null = clean. */
   referralAbuseFlag?: 'self_device' | 'self_ip' | 'duplicate_device' | 'duplicate_ip' | null;
 
+  /** Promo code captured at signup that needs the user's first deposit to
+   *  activate (e.g. a `kind: 'deposit'` campaign giving X% of the first
+   *  top-up). Cleared by the deposit webhook once the bonus is awarded. */
+  pendingDepositPromo?: string | null;
+
   // Lifetime stats — in the user's primary currency.
   totalWagered: number;
   totalWon: number;
@@ -116,6 +121,7 @@ const userSchema = new Schema<IUser>({
   signupDeviceSignature: { type: String, index: true, sparse: true },
   signupIp:              { type: String, index: true, sparse: true },
   referralAbuseFlag:     { type: String, enum: ['self_device', 'self_ip', 'duplicate_device', 'duplicate_ip', null], default: null, sparse: true },
+  pendingDepositPromo:   { type: String, default: null, sparse: true },
 
   totalWagered: { type: Number, default: 0, min: 0 },
   totalWon:     { type: Number, default: 0, min: 0 },
