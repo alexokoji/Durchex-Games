@@ -1,0 +1,9 @@
+# Netlify SPA fallback — every path that doesn't match a real asset falls
+# through to index.html so React Router can resolve it. Without this rule,
+# Netlify returns 404 for any direct hit on /admin, /crash, /wallet/return,
+# /verify-email, etc., AND for hard refreshes inside the app.
+#
+# The 200 (not 301/302) is important: the URL bar must stay at the original
+# path so React Router reads the right route. A redirect would rewrite the
+# bar to "/" and lose query params like ?status=completed&tx_ref=…
+/*  /index.html  200
