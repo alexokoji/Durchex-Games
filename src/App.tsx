@@ -106,6 +106,10 @@ function App() {
                   <Route path="/security"    element={<SecurityPage />} />
                   <Route path="/settings"    element={<SettingsPage />} />
                   <Route path="/promoter"    element={<PromoterDashboardPage />} />
+                  {/* Flutterwave redirects here after a deposit. The path
+                      matches FLUTTERWAVE_REDIRECT_URL on the server. Both
+                      aliases are routed so historic links still resolve. */}
+                  <Route path="/wallet/return"   element={<PaymentReturnPage />} />
                   <Route path="/payment/return"  element={<PaymentReturnPage />} />
                   <Route path="/auth/callback"   element={<OAuthCallbackPage />} />
                   <Route path="/verify-email"    element={<VerifyEmailPage />} />

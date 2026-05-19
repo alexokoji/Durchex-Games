@@ -25,9 +25,19 @@ export default function PaymentReturnPage() {
   const navigate = useNavigate();
   const wallet = useWallet();
 
-  const status   = (params.get('status') ?? '').toLowerCase();
-  const txRef    = params.get('tx_ref') ?? params.get('txref') ?? '';
-  const flwTxId  = params.get('transaction_id') ?? params.get('flwTxId') ?? '';
+  // Flutterwave uses a few different status strings depending on the flow:
+  //   • 'completed' / 'successful' / 'success' — charge captured
+  //   • 'cancelled' — user backed out of the checkout
+  //   • 'failed' — card declined / 3DS failed
+  // Normalise to one of three buckets so the UI stays simple.
+  const rawStatus = (params.get('status') ?? '').toLowerCase();
+  const status: 'success' | 'failed' | 'cancelled' | '' =
+    ['completed', 'successful', 'success'].includes(rawStatus) ? 'success'
+    : rawStatus === 'cancelled' ? 'cancelled'
+    : rawStatus === 'failed'    ? 'failed'
+    : '';
+  const txRef   = params.get('tx_ref') ?? params.get('txref') ?? '';
+  const flwTxId = params.get('transaction_id') ?? params.get('flwTxId') ?? '';
 
   const initialBalanceRef = useRef<number | null>(null);
   const [confirmed, setConfirmed] = useState<{ delta: number } | null>(null);
@@ -67,7 +77,14 @@ export default function PaymentReturnPage() {
   }, [confirmed, status, wallet]);
 
   // Pick the right state to render.
-  const display = useMemo(() => {
+  const display = useMemo<{
+    tone: string;
+    icon: React.ReactNode;
+    title: string;
+    sub: string;
+    primaryLabel: string;
+    primaryAction: () => void;
+  }>(() => {
     if (status === 'failed' || status === 'cancelled') {
       return {
         tone: '#ff6b7a',
