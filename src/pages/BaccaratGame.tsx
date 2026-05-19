@@ -290,7 +290,7 @@ export default function BaccaratGame() {
                   fontSize: '1.2rem', fontWeight: 800, mt: 0.5,
                   color: lastResult.payout > 0 ? neonGold : lastResult.payout === 0 ? neonBlue : '#ff4757',
                 }}>
-                  {lastResult.payout > 0 ? '+' : ''}{lastResult.payout.toFixed(5)} BTC
+                  {lastResult.payout > 0 ? '+' : ''}{formatMoney(lastResult.payout, wallet.currency)}
                 </Typography>
               </motion.div>
             )}

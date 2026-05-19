@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
+import { formatMoney } from '../utils/currency';
 
 type Filter = 'all' | 'win' | 'loss';
 
@@ -47,9 +48,9 @@ export default function BetHistoryPage() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 2 }}>
         {[
           { label: 'Bets',         value: wallet.history.length, color: neonBlue },
-          { label: 'Wagered',      value: `${wallet.totalWagered.toFixed(5)}`, color: neonGold },
-          { label: 'Won',          value: `${wallet.totalWon.toFixed(5)}`, color: neonGreen },
-          { label: 'Net',          value: `${wallet.netProfit >= 0 ? '+' : ''}${wallet.netProfit.toFixed(5)}`, color: wallet.netProfit >= 0 ? neonGreen : '#ff6b7a' },
+          { label: 'Wagered',      value: formatMoney(wallet.totalWagered, wallet.currency), color: neonGold },
+          { label: 'Won',          value: formatMoney(wallet.totalWon, wallet.currency), color: neonGreen },
+          { label: 'Net',          value: `${wallet.netProfit >= 0 ? '+' : ''}${formatMoney(wallet.netProfit, wallet.currency)}`, color: wallet.netProfit >= 0 ? neonGreen : '#ff6b7a' },
         ].map(s => (
           <Box key={s.label} sx={{ p: 1.5, borderRadius: 2, background: darkCard, border: `1px solid ${darkBorder}` }}>
             <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</Typography>
@@ -132,7 +133,7 @@ export default function BetHistoryPage() {
                   )}
                 </Box>
                 <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                  Stake {b.stake.toFixed(5)}
+                  Stake {formatMoney(b.stake, wallet.currency)}
                 </Typography>
                 <Chip
                   label={b.result.toUpperCase()}
@@ -148,7 +149,7 @@ export default function BetHistoryPage() {
                   color: b.result === 'win' ? neonGreen : '#ff6b7a',
                   fontVariantNumeric: 'tabular-nums', textAlign: 'right', minWidth: 90,
                 }}>
-                  {b.result === 'win' ? '+' : '-'}{Math.abs(b.payout - b.stake).toFixed(5)}
+                  {b.result === 'win' ? '+' : '-'}{formatMoney(Math.abs(b.payout - b.stake), wallet.currency)}
                 </Typography>
               </Box>
             ))}

@@ -212,7 +212,7 @@ export default function MinesGame() {
             { label: 'Rounds', value: stats.rounds, color: neonBlue },
             { label: 'Won', value: stats.won, color: neonGreen },
             { label: 'Lost', value: stats.lost, color: '#ff4757' },
-            { label: 'Profit', value: `${stats.profit > 0 ? '+' : ''}${stats.profit.toFixed(4)} BTC`, color: stats.profit > 0 ? neonGreen : '#ff4757' },
+            { label: 'Profit', value: `${stats.profit > 0 ? '+' : ''}${formatMoney(stats.profit, wallet.currency)}`, color: stats.profit > 0 ? neonGreen : '#ff4757' },
           ].map((s) => (
             <Grid key={s.label} size={{ xs: 6, sm: 3 }}>
               <Box sx={{ p: 1.5, borderRadius: 2, textAlign: 'center', background: darkCard, border: `1px solid ${darkBorder}` }}>
@@ -298,7 +298,7 @@ export default function MinesGame() {
           </Box>
           <Box sx={{ flex: 1, p: 1.5, background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2 }}>
             <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 700, mb: 0.5 }}>POTENTIAL WIN</Typography>
-            <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, color: neonBlue }}>{potentialWin.toFixed(5)} BTC</Typography>
+            <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, color: neonBlue }}>{formatMoney(potentialWin, wallet.currency)}</Typography>
           </Box>
         </Box>
 
@@ -308,7 +308,7 @@ export default function MinesGame() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <Box sx={{ p: 2, background: alpha(currentPayout > 0 ? neonGreen : '#ff4757', 0.1), border: `1px solid ${currentPayout > 0 ? neonGreen : '#ff4757'}`, borderRadius: 2, textAlign: 'center' }}>
                 <Typography sx={{ fontSize: '1.2rem', fontWeight: 900, color: currentPayout > 0 ? neonGreen : '#ff4757' }}>
-                  {currentPayout > 0 ? '+' : ''}{currentPayout.toFixed(5)} BTC
+                  {currentPayout > 0 ? '+' : ''}{formatMoney(currentPayout, wallet.currency)}
                 </Typography>
               </Box>
             </motion.div>

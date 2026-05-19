@@ -129,8 +129,8 @@ export default function DiceGame() {
         <Grid container spacing={1.5}>
           {[
             { label: 'Win Chance', value: `${winChance.toFixed(2)}%`, color: neonGreen },
-            { label: 'Multiplier', value: `${multiplier.toFixed(4)}x`, color: neonBlue },
-            { label: 'Profit on Win', value: `+${profit.toFixed(5)}`, color: neonGold },
+            { label: 'Multiplier', value: `${multiplier.toFixed(2)}x`, color: neonBlue },
+            { label: 'Profit on Win', value: `+${formatMoney(profit, wallet.currency)}`, color: neonGold },
             { label: 'Streak', value: `${stats.streak}`, color: '#a855f7' },
           ].map((s) => (
             <Grid key={s.label} size={{ xs: 6, sm: 3 }}>

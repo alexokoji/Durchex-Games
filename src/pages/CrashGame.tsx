@@ -54,6 +54,14 @@ export default function CrashGame() {
   // (manual cashout effect, crash settle, cancel).
   const roundResolveRef = useRef<((r: { won: boolean; profit: number } | null) => void) | null>(null);
 
+  // Refs that mirror the bet state. `tick()` is bound once via requestAnimationFrame
+  // and lives across many React renders — reading state via closure would
+  // freeze it to the first render's values (which is why auto-cashout used
+  // to never fire). Mirroring into refs keeps tick reading the latest.
+  const betPlacedRef = useRef(false);
+  const cashedOutRef = useRef<number | null>(null);
+  const autoCashoutRef = useRef('2.00');
+
   function generateCrash(): number {
     const r = Math.random();
     if (r < 0.05) return 1.0 + Math.random() * 0.1;
@@ -180,12 +188,19 @@ export default function CrashGame() {
 
   useEffect(() => { drawCurve(); }, [points, gameState]);
 
+  // Mirror state into refs so the long-lived tick() always sees fresh values.
+  useEffect(() => { betPlacedRef.current = betPlaced; }, [betPlaced]);
+  useEffect(() => { cashedOutRef.current = cashedOut; }, [cashedOut]);
+  useEffect(() => { autoCashoutRef.current = autoCashout; }, [autoCashout]);
+
   // Start countdown
   function startCountdown() {
     stateRef.current = 'waiting';
     setGameState('waiting');
     setMultiplier(1.0);
     multRef.current = 1.0;
+    cashedOutRef.current = null;
+    betPlacedRef.current = false;
     setCashedOut(null);
     setBetPlaced(false);
     setPoints([]);
@@ -230,10 +245,11 @@ export default function CrashGame() {
         return p;
       }));
 
-      // Auto cashout for user
-      if (betPlaced && !cashedOut) {
-        const ac = parseFloat(autoCashout);
+      // Auto cashout for user — read from refs so we see post-render values.
+      if (betPlacedRef.current && cashedOutRef.current === null) {
+        const ac = parseFloat(autoCashoutRef.current);
         if (!isNaN(ac) && m >= ac) {
+          cashedOutRef.current = ac;     // close the gate immediately for next frame
           setCashedOut(ac);
         }
       }
@@ -244,7 +260,7 @@ export default function CrashGame() {
         setHistory(prev => [parseFloat(m.toFixed(2)), ...prev.slice(0, 9)]);
         // Settle the user's bet on crash if they never cashed out.
         const bet = activeBetRef.current;
-        if (bet && cashedOut === null) {
+        if (bet && cashedOutRef.current === null) {
           const lostStake = bet.stake;
           void wallet.settleBet(bet.id, {
             won: false,
@@ -280,9 +296,11 @@ export default function CrashGame() {
       });
       if (!bet) return;  // auth modal opens automatically when not signed in
       activeBetRef.current = bet;
+      betPlacedRef.current = true;
       setBetPlaced(true);
     } else if (gameState === 'running' && betPlaced && cashedOut === null) {
       // Manual cashout — useEffect on `cashedOut` settles the bet via wallet.
+      cashedOutRef.current = multiplier;
       setCashedOut(multiplier);
     }
   }
@@ -312,6 +330,7 @@ export default function CrashGame() {
       });
       if (!bet) return resolve(null);
       activeBetRef.current = bet;
+      betPlacedRef.current = true;
       setBetPlaced(true);
       // The existing cashout / crash useEffect paths call roundResolveRef.
       roundResolveRef.current = resolve;

@@ -6,7 +6,6 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import BoltIcon from '@mui/icons-material/Bolt';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
@@ -91,31 +90,7 @@ const GAMES: GameCardData[] = [
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'];
 
-interface TickerWin {
-  user: string;
-  game: string;
-  mult: string;
-  amount: string;
-  color: string;
-}
-
-// Fallback roster used when the activity feed is empty (cold start / offline).
-const FALLBACK_WINS: TickerWin[] = [
-  { user: 'sa****9', game: 'Crash', mult: '24.5×', amount: '+$120', color: '#ff4757' },
-  { user: 'ne****f', game: 'Dice', mult: '99×',  amount: '+$50',  color: neonBlue },
-  { user: 'cr****g', game: 'Plinko', mult: '16×', amount: '+$80', color: '#a855f7' },
-  { user: 'di****s', game: 'Slots', mult: '150×', amount: '+$220', color: neonGold },
-  { user: 'lu****n', game: 'Roulette', mult: '35×', amount: '+$60', color: neonGreen },
-];
-
-const GAME_COLOR: Record<string, string> = {
-  Crash: '#ff4757', Dice: neonBlue, Plinko: '#a855f7', Slots: neonGold, Roulette: neonGreen,
-  Blackjack: neonBlue, Baccarat: '#ec4899', Mines: '#22c55e',
-};
-
 function HeroBanner() {
-  const navigate = useNavigate();
-
   return (
     <Box
       sx={{
@@ -183,15 +158,21 @@ function HeroBanner() {
             The Future of<br />Crypto Casino
           </Typography>
           <Typography sx={{ color: 'text.secondary', mb: 3, fontSize: '0.9rem', maxWidth: 380 }}>
-            Experience provably fair games with instant payouts.
-            Play with BTC, ETH, SOL & 50+ cryptocurrencies.
+            Provably fair games with instant payouts. Deposits and withdrawals in your local currency
+            — and every win settles in the same currency, no conversion fees.
           </Typography>
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/crash')}
+                onClick={() => {
+                  // Scroll to the featured-games grid below the hero. The
+                  // grid has id="games-grid" so we can target it directly
+                  // without coupling the button to a route.
+                  const el = document.getElementById('games-grid');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
                 startIcon={<BoltIcon />}
                 sx={{
                   background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
@@ -203,13 +184,6 @@ function HeroBanner() {
                 Play Now
               </Button>
             </motion.div>
-            <Button
-              variant="outlined"
-              size="large"
-              sx={{ borderColor: alpha(neonBlue, 0.5), color: neonBlue, px: 3, py: 1.2, fontWeight: 700 }}
-            >
-              Free Demo
-            </Button>
           </Box>
         </motion.div>
       </Box>
@@ -248,128 +222,6 @@ function HeroBanner() {
   );
 }
 
-function LiveWinsTicker() {
-  const { isAuthenticated, openAuthPrompt } = useAuth();
-  const [idx, setIdx] = useState(0);
-  const [feed, setFeed] = useState<TickerWin[]>(FALLBACK_WINS);
-  const [hovering, setHovering] = useState(false);
-
-  // Fetch the real feed and merge with generated padding so the ticker
-  // always has at least a dozen entries to cycle through.
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        // Lazy import to avoid pulling activityApi into all HomePage callers.
-        const { activityApi } = await import('../api/activity');
-        const r = await activityApi.recent(15);
-        if (cancelled) return;
-        const real: TickerWin[] = r.entries.map(e => {
-          const profit = e.payout - e.stake;
-          const color = GAME_COLOR[e.gameName] ?? neonGreen;
-          const amountStr = profit >= 0
-            ? `+${profit.toFixed(2)} ${e.currency}`
-            : `${profit.toFixed(2)} ${e.currency}`;
-          return {
-            user: e.maskedUser,
-            game: e.gameName,
-            mult: e.multiplier ? `${e.multiplier.toFixed(2)}×` : '—',
-            amount: amountStr,
-            color,
-          };
-        });
-        // Mix real + fallback so it never feels empty.
-        setFeed([...real, ...FALLBACK_WINS]);
-      } catch { /* keep fallback */ }
-    }
-    void load();
-    const t = setInterval(load, 60_000);
-    return () => { cancelled = true; clearInterval(t); };
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setIdx(p => (p + 1) % feed.length), 2500);
-    return () => clearInterval(t);
-  }, [feed.length]);
-
-  const win = feed[idx % feed.length];
-
-  const showCta = !isAuthenticated && hovering;
-  return (
-    <Box
-      onMouseEnter={() => !isAuthenticated && setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
-      onClick={() => { if (!isAuthenticated) openAuthPrompt(); }}
-      role={!isAuthenticated ? 'button' : undefined}
-      tabIndex={!isAuthenticated ? 0 : undefined}
-      onKeyDown={(e) => { if (!isAuthenticated && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAuthPrompt(); } }}
-      sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1,
-        background: showCta
-          ? `linear-gradient(90deg, ${alpha(neonGold, 0.1)}, ${alpha(neonGreen, 0.18)})`
-          : alpha(darkCard, 0.8),
-        borderRadius: 2,
-        border: `1px solid ${showCta ? alpha(neonGreen, 0.4) : darkBorder}`,
-        overflow: 'hidden', mb: 3,
-        cursor: !isAuthenticated ? 'pointer' : 'default',
-        transition: 'background 0.18s, border-color 0.18s',
-      }}
-    >
-      <EmojiEventsIcon sx={{ fontSize: 18, color: neonGold, flexShrink: 0 }} />
-      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', flexShrink: 0 }}>
-        LIVE WINS
-      </Typography>
-      <Box sx={{ width: 1, height: 16, background: darkBorder, flexShrink: 0 }} />
-      {showCta ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'space-between' }}>
-          <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, color: '#fff' }}>
-            Sign in to claim a win like this
-          </Typography>
-          <Chip
-            label="Start playing →"
-            size="small"
-            sx={{
-              height: 22, fontSize: '0.7rem', fontWeight: 900,
-              background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
-              color: '#000',
-            }}
-          />
-        </Box>
-      ) : (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={idx}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.3 }}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}
-        >
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: win.color }}>
-            {win.user}
-          </Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-            won {win.mult} on
-          </Typography>
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#fff' }}>
-            {win.game}
-          </Typography>
-          <Chip
-            label={win.amount}
-            size="small"
-            sx={{
-              height: 20, fontSize: '0.65rem', fontWeight: 800,
-              background: alpha(win.color, 0.15), color: win.color,
-              border: `1px solid ${alpha(win.color, 0.3)}`,
-            }}
-          />
-        </motion.div>
-      </AnimatePresence>
-      )}
-    </Box>
-  );
-}
-
 /**
  * Auto-scrolling slider that surfaces "look — people are winning here!"
  * social proof. Reads recent activity (real + generated padding from the
@@ -380,12 +232,20 @@ function LiveWinsTicker() {
  */
 function WinningsSlider() {
   const wallet = useWallet();
-  // Lazy import — saves the activity API from being pulled into every
-  // HomePage caller during dev hot-reload.
+  const { user, detectedCurrency } = useAuth();
+  // For signed-in users use their account currency; for guests fall back to
+  // whatever the geolocation detection settled on so a US visitor sees USD
+  // and a Lagos visitor sees NGN even before they sign up.
+  const displayCurrency = user ? wallet.currency : (detectedCurrency ?? 'USD');
   const [items, setItems] = useState<{
     user: string; game: string; mult: string; amount: string; color: string;
-  }[]>(() => seedSliderItems(wallet.currency));
+  }[]>(() => seedSliderItems(displayCurrency));
   const [offset, setOffset] = useState(0);
+
+  // Re-seed when the display currency changes (e.g. detection completed).
+  useEffect(() => {
+    setItems(seedSliderItems(displayCurrency));
+  }, [displayCurrency]);
 
   // Try to pull real wins; fall back to the seeded roster.
   useEffect(() => {
@@ -393,30 +253,34 @@ function WinningsSlider() {
     async function load() {
       try {
         const { activityApi } = await import('../api/activity');
+        const { toUsd } = await import('../utils/currency');
+        const { FIAT } = await import('../utils/currency');
         const r = await activityApi.recent(20);
         if (cancelled) return;
-        const { formatMoney } = await import('../utils/currency');
+        // Convert every real-bet amount into the viewer's display currency
+        // (best-effort via the static FX table) so a Lagos visitor sees NGN
+        // amounts even when the winner played in USD.
+        const fxRate = FIAT[displayCurrency as keyof typeof FIAT]?.usdPerUnit ?? 1;
         const real = r.entries.map(e => {
-          const profit = e.payout - e.stake;
-          const color = profit > 100 ? neonGold : profit > 10 ? neonGreen : neonBlue;
-          let amount: string;
-          try { amount = formatMoney(profit, e.currency as never); }
-          catch { amount = `${profit.toFixed(2)} ${e.currency}`; }
+          const profitNative = e.payout - e.stake;
+          const profitUsd = toUsd(profitNative, e.currency as never);
+          const profit = profitUsd / fxRate;
+          const color = profitUsd > 100 ? neonGold : profitUsd > 10 ? neonGreen : neonBlue;
           return {
             user: e.maskedUser,
             game: e.gameName,
             mult: e.multiplier ? `${e.multiplier.toFixed(2)}×` : '—',
-            amount: `+${amount}`,
+            amount: `+${profit.toFixed(2)} ${displayCurrency}`,
             color,
           };
         });
-        setItems(real.length > 0 ? [...real, ...seedSliderItems(wallet.currency)] : seedSliderItems(wallet.currency));
+        setItems(real.length > 0 ? [...real, ...seedSliderItems(displayCurrency)] : seedSliderItems(displayCurrency));
       } catch { /* keep seed */ }
     }
     void load();
     const t = window.setInterval(load, 60_000);
     return () => { cancelled = true; window.clearInterval(t); };
-  }, [wallet.currency]);
+  }, [displayCurrency]);
 
   // Auto-advance every 3.5s.
   useEffect(() => {
@@ -424,10 +288,13 @@ function WinningsSlider() {
     return () => window.clearInterval(t);
   }, [items.length]);
 
-  // Take 6 items starting from `offset`, wrapping for a continuous loop.
+  // Take however many cards fit horizontally — the strip wraps around so the
+  // viewer just sees a continuous sliding rail. We cap at 8 even on wide
+  // screens so the cards stay readable and the rail never tries to render
+  // dozens of nodes.
   const visible = useMemo(() => {
     const out: typeof items = [];
-    for (let i = 0; i < 6; i++) out.push(items[(offset + i) % items.length]);
+    for (let i = 0; i < 8; i++) out.push(items[(offset + i) % items.length]);
     return out;
   }, [items, offset]);
 
@@ -436,6 +303,11 @@ function WinningsSlider() {
       p: 2, mb: 3, borderRadius: 3,
       background: `linear-gradient(135deg, ${alpha(neonGold, 0.06)}, ${alpha(neonGreen, 0.04)})`,
       border: `1px solid ${alpha(neonGold, 0.18)}`,
+      // Critical: cap the slider to its parent's width AND clip overflow at
+      // multiple levels so the inner flex strip can't inflate the page.
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
       overflow: 'hidden',
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
@@ -450,11 +322,13 @@ function WinningsSlider() {
         <Typography sx={{ fontSize: '0.7rem', color: neonGreen }}>Live</Typography>
       </Box>
 
-      {/* Horizontal scrollable strip — three cards visible on desktop, scrolls smoothly. */}
+      {/* Horizontal scrollable strip — clip overflow so cards beyond the
+          right edge stay hidden instead of widening the page. */}
       <Box
         sx={{
-          display: 'flex', gap: 1.25, overflow: 'hidden',
-          // Hide the scrollbar; we drive movement via state, not user input.
+          display: 'flex', gap: 1.25,
+          width: '100%', maxWidth: '100%', minWidth: 0,
+          overflowX: 'hidden', overflowY: 'visible',
           maskImage: 'linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent)',
         }}
       >
@@ -542,7 +416,7 @@ function seedSliderItems(currency: string): { user: string; game: string; mult: 
       user: u,
       game: games[i % games.length],
       mult: `${mult.toFixed(2)}×`,
-      amount: `+${amount.toFixed(currency === 'NGN' || currency === 'KES' ? 0 : 2)} ${currency}`,
+      amount: `+${amount.toFixed(2)} ${currency}`,
       color: colors[i % colors.length],
     };
   });
@@ -554,11 +428,10 @@ export default function HomePage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 }, pb: { xs: 10, md: 2.5 } }}>
       <HeroBanner />
-      <LiveWinsTicker />
       <WinningsSlider />
 
       {/* Category tabs */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
+      <Box id="games-grid" sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, scrollMarginTop: 80 }}>
         <LocalFireDepartmentIcon sx={{ color: '#ff4757', fontSize: 22 }} />
         <Typography sx={{ fontWeight: 800, fontSize: '1.1rem' }}>Featured Games</Typography>
       </Box>

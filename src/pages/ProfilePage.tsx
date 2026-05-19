@@ -134,7 +134,7 @@ export default function ProfilePage() {
                   )}
                 </Box>
                 <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                  {b.stake.toFixed(5)}
+                  {formatMoney(b.stake, wallet.currency)}
                 </Typography>
                 <Chip
                   label={b.result.toUpperCase()}
@@ -150,7 +150,7 @@ export default function ProfilePage() {
                   color: b.result === 'win' ? neonGreen : '#ff6b7a',
                   fontVariantNumeric: 'tabular-nums', textAlign: 'right', minWidth: 80,
                 }}>
-                  {b.result === 'win' ? '+' : '-'}{Math.abs(b.payout - b.stake).toFixed(5)}
+                  {b.result === 'win' ? '+' : '-'}{formatMoney(Math.abs(b.payout - b.stake), wallet.currency)}
                 </Typography>
               </Box>
             ))}

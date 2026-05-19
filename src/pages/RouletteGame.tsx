@@ -270,7 +270,7 @@ export default function RouletteGame() {
                     textShadow: `0 0 20px ${winAmount > 0 ? alpha(neonGreen, 0.6) : alpha('#ff4757', 0.6)}`,
                   }}
                 >
-                  {winAmount > 0 ? `+${winAmount.toFixed(5)} BTC` : `${winAmount.toFixed(5)} BTC`}
+                  {winAmount > 0 ? `+${formatMoney(winAmount, wallet.currency)}` : formatMoney(winAmount, wallet.currency)}
                 </Typography>
               </motion.div>
             )}

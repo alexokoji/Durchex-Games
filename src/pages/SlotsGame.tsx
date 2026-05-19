@@ -252,7 +252,7 @@ export default function SlotsGame() {
                   {wins.length > 0 ? (
                     <>
                       <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, color: neonGold, textShadow: `0 0 20px ${alpha(neonGold, 0.6)}` }}>
-                        WIN! +{totalWin.toFixed(5)} BTC
+                        WIN! +{formatMoney(totalWin ?? 0, wallet.currency)}
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', mt: 0.5, flexWrap: 'wrap' }}>
                         {wins.map((w, i) => (
@@ -354,9 +354,9 @@ export default function SlotsGame() {
           <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 700, mb: 1.5, letterSpacing: '0.08em' }}>SESSION</Typography>
           {[
             { label: 'Spins', value: stats.spins, color: neonBlue },
-            { label: 'Wagered', value: `${stats.totalWagered.toFixed(4)} BTC`, color: 'text.secondary' },
-            { label: 'Won', value: `${stats.totalWon.toFixed(4)} BTC`, color: neonGreen },
-            { label: 'Net', value: `${(stats.totalWon - stats.totalWagered).toFixed(4)} BTC`, color: stats.totalWon >= stats.totalWagered ? neonGreen : '#ff4757' },
+            { label: 'Wagered', value: formatMoney(stats.totalWagered, wallet.currency), color: 'text.secondary' },
+            { label: 'Won', value: formatMoney(stats.totalWon, wallet.currency), color: neonGreen },
+            { label: 'Net', value: formatMoney(stats.totalWon - stats.totalWagered, wallet.currency), color: stats.totalWon >= stats.totalWagered ? neonGreen : '#ff4757' },
           ].map((s) => (
             <Box key={s.label} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
               <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{s.label}</Typography>
