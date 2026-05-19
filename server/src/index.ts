@@ -25,6 +25,7 @@ import { attachChat } from './sockets/chat';
 import { setIoInstance } from './sockets/notifier';
 import { notFoundHandler, errorHandler } from './middleware/error';
 import { startCashbackScheduler } from './services/cashbackJob';
+import { startDailySummaryScheduler } from './services/dailySummaryJob';
 
 async function main(): Promise<void> {
   await connectDb();
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
   // don't need to add a cron dependency. JobState persists last-run so a
   // restart can't double-credit users.
   startCashbackScheduler();
+  startDailySummaryScheduler();
 }
 
 main().catch(err => {

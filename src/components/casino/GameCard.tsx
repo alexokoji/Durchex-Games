@@ -49,14 +49,26 @@ export default function GameCard({ game }: GameCardProps) {
       onHoverEnd={() => setHovered(false)}
     >
       <Box
+        onClick={handlePlay}
+        role={game.path ? 'button' : undefined}
+        tabIndex={game.path ? 0 : undefined}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && game.path) {
+            e.preventDefault();
+            handlePlay();
+          }
+        }}
         sx={{
           position: 'relative',
           borderRadius: 3,
           overflow: 'hidden',
-          cursor: 'pointer',
+          cursor: game.path ? 'pointer' : 'default',
           background: darkCard,
           border: `1px solid ${darkBorder}`,
           transition: 'all 0.3s ease',
+          // Keyboard focus outline matches the hover state so accessibility
+          // navigation stays visible.
+          '&:focus-visible': { outline: `2px solid ${alpha(neonGreen, 0.7)}`, outlineOffset: 2 },
           ...(hovered && {
             border: `1px solid ${alpha(neonGreen, 0.5)}`,
             boxShadow: `0 0 20px ${alpha(neonGreen, 0.2)}, 0 8px 30px rgba(0,0,0,0.4)`,

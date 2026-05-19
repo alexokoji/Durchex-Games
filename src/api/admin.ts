@@ -180,4 +180,67 @@ export const adminApi = {
     apiGet<CashbackJobInfo>('/admin/jobs/cashback'),
   runCashback: (force?: boolean) =>
     apiPost<{ ran: boolean; credited: number; skipped: number; reason?: string }>('/admin/jobs/cashback/run', { force: !!force }),
+
+  // Ledger + summary
+  ledgerSummary: () =>
+    apiGet<LedgerSummary>('/admin/ledger/summary'),
+  ledger: (limit = 60) =>
+    apiGet<{ rows: LedgerRow[] }>(`/admin/ledger?limit=${limit}`),
+  runDailySummary: (force?: boolean) =>
+    apiPost<{ sent: boolean; reason?: string }>('/admin/jobs/daily-summary/run', { force: !!force }),
+
+  // House payouts
+  payouts: (status?: HousePayout['status']) =>
+    apiGet<{ payouts: HousePayout[] }>(`/admin/payouts${status ? `?status=${status}` : ''}`),
+  createPayout: (body: CreatePayoutBody) =>
+    apiPost<{ payout: HousePayout }>('/admin/payouts', body),
+  updatePayout: (id: string, body: Partial<Pick<HousePayout, 'status' | 'flutterwaveReference' | 'notes'>>) =>
+    apiPatch<{ payout: HousePayout }>(`/admin/payouts/${id}`, body),
 };
+
+export interface LedgerRow {
+  _id: string;             // YYYY-MM-DD
+  betsCount: number;
+  totalStakeUsd: number;
+  totalPayoutUsd: number;
+  houseProfitUsd: number;
+  depositVolumeUsd: number;
+  withdrawVolumeUsd: number;
+  bonusCreditedUsd: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LedgerSummary {
+  today: LedgerRow | null;
+  yesterday: LedgerRow | null;
+  last7:  { betsCount: number; totalStakeUsd: number; totalPayoutUsd: number; houseProfitUsd: number; depositVolumeUsd: number; withdrawVolumeUsd: number; bonusCreditedUsd: number; days: number };
+  last30: { betsCount: number; totalStakeUsd: number; totalPayoutUsd: number; houseProfitUsd: number; depositVolumeUsd: number; withdrawVolumeUsd: number; bonusCreditedUsd: number; days: number };
+  pendingPayouts: number;
+  recentPayouts: HousePayout[];
+  series: LedgerRow[];
+}
+
+export interface HousePayout {
+  _id: string;
+  amountUsd: number;
+  currency: string;
+  notes?: string;
+  destination: Record<string, string>;
+  status: 'requested' | 'in_progress' | 'completed' | 'cancelled' | 'failed';
+  requestedById: string;
+  requestedByEmail: string;
+  actionedById?: string;
+  actionedByEmail?: string;
+  actionedAt?: string;
+  flutterwaveReference?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePayoutBody {
+  amountUsd: number;
+  currency?: string;
+  notes?: string;
+  destination?: Record<string, string>;
+}

@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Button, Grid, Chip, Tabs, Tab,
-  LinearProgress,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,11 +8,11 @@ import { useNavigate } from 'react-router-dom';
 import BoltIcon from '@mui/icons-material/Bolt';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import StarIcon from '@mui/icons-material/Star';
 import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
 
 const GAMES: GameCardData[] = [
   {
@@ -371,48 +370,182 @@ function LiveWinsTicker() {
   );
 }
 
-function VIPProgress() {
+/**
+ * Auto-scrolling slider that surfaces "look — people are winning here!"
+ * social proof. Reads recent activity (real + generated padding from the
+ * server's /api/activity/recent feed; falls back to a local roster) and
+ * cycles through 3 cards at a time on desktop, 1.5 on mobile.
+ *
+ * Replaces the old VIP-level progress block on the homepage.
+ */
+function WinningsSlider() {
+  const wallet = useWallet();
+  // Lazy import — saves the activity API from being pulled into every
+  // HomePage caller during dev hot-reload.
+  const [items, setItems] = useState<{
+    user: string; game: string; mult: string; amount: string; color: string;
+  }[]>(() => seedSliderItems(wallet.currency));
+  const [offset, setOffset] = useState(0);
+
+  // Try to pull real wins; fall back to the seeded roster.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const { activityApi } = await import('../api/activity');
+        const r = await activityApi.recent(20);
+        if (cancelled) return;
+        const { formatMoney } = await import('../utils/currency');
+        const real = r.entries.map(e => {
+          const profit = e.payout - e.stake;
+          const color = profit > 100 ? neonGold : profit > 10 ? neonGreen : neonBlue;
+          let amount: string;
+          try { amount = formatMoney(profit, e.currency as never); }
+          catch { amount = `${profit.toFixed(2)} ${e.currency}`; }
+          return {
+            user: e.maskedUser,
+            game: e.gameName,
+            mult: e.multiplier ? `${e.multiplier.toFixed(2)}×` : '—',
+            amount: `+${amount}`,
+            color,
+          };
+        });
+        setItems(real.length > 0 ? [...real, ...seedSliderItems(wallet.currency)] : seedSliderItems(wallet.currency));
+      } catch { /* keep seed */ }
+    }
+    void load();
+    const t = window.setInterval(load, 60_000);
+    return () => { cancelled = true; window.clearInterval(t); };
+  }, [wallet.currency]);
+
+  // Auto-advance every 3.5s.
+  useEffect(() => {
+    const t = window.setInterval(() => setOffset(o => (o + 1) % items.length), 3500);
+    return () => window.clearInterval(t);
+  }, [items.length]);
+
+  // Take 6 items starting from `offset`, wrapping for a continuous loop.
+  const visible = useMemo(() => {
+    const out: typeof items = [];
+    for (let i = 0; i < 6; i++) out.push(items[(offset + i) % items.length]);
+    return out;
+  }, [items, offset]);
+
   return (
-    <Box
-      sx={{
-        p: 2.5, borderRadius: 3, mb: 3,
-        background: `linear-gradient(135deg, ${alpha('#8b00ff', 0.15)}, ${alpha(neonGold, 0.08)})`,
-        border: `1px solid ${alpha(neonGold, 0.2)}`,
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <StarIcon sx={{ color: neonGold, fontSize: 20 }} />
-          <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>VIP Level 5</Typography>
-        </Box>
-        <Chip
-          label="PLATINUM"
-          size="small"
-          sx={{
-            background: `linear-gradient(135deg, #8b00ff, #5500cc)`,
-            color: '#fff', fontWeight: 800, fontSize: '0.62rem', height: 20,
-          }}
-        />
+    <Box sx={{
+      p: 2, mb: 3, borderRadius: 3,
+      background: `linear-gradient(135deg, ${alpha(neonGold, 0.06)}, ${alpha(neonGreen, 0.04)})`,
+      border: `1px solid ${alpha(neonGold, 0.18)}`,
+      overflow: 'hidden',
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+        <LocalFireDepartmentIcon sx={{ fontSize: 18, color: '#ff4757' }} />
+        <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.08em' }}>LATEST WINNERS</Typography>
+        <Box sx={{ flex: 1 }} />
+        <Box sx={{
+          width: 7, height: 7, borderRadius: '50%', background: neonGreen,
+          animation: 'pulse 1.5s ease-in-out infinite',
+          '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } },
+        }} />
+        <Typography sx={{ fontSize: '0.7rem', color: neonGreen }}>Live</Typography>
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-        <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>Progress to Level 6</Typography>
-        <Typography sx={{ fontSize: '0.72rem', color: neonGold, fontWeight: 700 }}>68,420 / 100,000 XP</Typography>
-      </Box>
-      <LinearProgress variant="determinate" value={68.42} sx={{ height: 8, borderRadius: 4 }} />
-      <Box sx={{ display: 'flex', gap: 2, mt: 1.5 }}>
-        {[
-          { label: 'Cashback', value: '15%', color: neonGreen },
-          { label: 'Reload', value: '10%', color: neonBlue },
-          { label: 'Weekly', value: '0.05 BTC', color: neonGold },
-        ].map(b => (
-          <Box key={b.label}>
-            <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, color: b.color }}>{b.value}</Typography>
-            <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{b.label}</Typography>
-          </Box>
-        ))}
+
+      {/* Horizontal scrollable strip — three cards visible on desktop, scrolls smoothly. */}
+      <Box
+        sx={{
+          display: 'flex', gap: 1.25, overflow: 'hidden',
+          // Hide the scrollbar; we drive movement via state, not user input.
+          maskImage: 'linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent)',
+        }}
+      >
+        <AnimatePresence mode="popLayout">
+          {visible.map((w, i) => (
+            <motion.div
+              key={`${offset}-${i}`}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              style={{ flexShrink: 0 }}
+            >
+              <Box sx={{
+                width: { xs: 200, sm: 230 },
+                p: 1.25, borderRadius: 2,
+                background: alpha('#fff', 0.04),
+                border: `1px solid ${alpha(w.color, 0.3)}`,
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Box sx={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${w.color}, ${alpha(w.color, 0.5)})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.7rem', fontWeight: 900, color: '#000',
+                    flexShrink: 0,
+                  }}>
+                    {w.user.slice(0, 2).toUpperCase()}
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {w.user}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {w.game}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <Chip
+                    size="small"
+                    label={w.mult}
+                    sx={{
+                      height: 18, fontSize: '0.65rem', fontWeight: 800,
+                      background: alpha(neonBlue, 0.15), color: neonBlue,
+                      '& .MuiChip-label': { px: 0.6 },
+                    }}
+                  />
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: w.color, fontVariantNumeric: 'tabular-nums' }}>
+                    {w.amount}
+                  </Typography>
+                </Box>
+              </Box>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </Box>
     </Box>
   );
+}
+
+/**
+ * Generates a roster of plausible-looking winners scaled to the user's
+ * currency. Mirrors the style of the live-wins ticker so the homepage
+ * doesn't look empty in regions with low real-traffic.
+ */
+function seedSliderItems(currency: string): { user: string; game: string; mult: string; amount: string; color: string }[] {
+  const games = ['Crash', 'Dice', 'Plinko', 'Slots', 'Mines', 'Roulette', 'Virtual Soccer', 'Virtual Basketball'];
+  const users = ['sa****a', 'kw****e', 'le****k', 'mi****l', 'ad****o', 'th****o', 'ni****a', 'ay****a',
+                 'ke****a', 'fr****e', 'pa****o', 'el****a', 'ra****l', 'no****n', 'jo****a', 'fa****a'];
+  const colors = [neonGreen, neonGold, neonBlue, '#ff4757', '#a855f7', '#ff9f43'];
+  // Scaled base amount per currency so the figures look right (NGN reads
+  // ~₦12,000, USD reads ~$8 — both feel plausible without doing real FX).
+  const base = currency === 'NGN' ? 6000
+             : currency === 'KES' ? 400
+             : currency === 'ZAR' ? 80
+             : currency === 'GHS' ? 30
+             : currency === 'GBP' ? 4
+             : currency === 'EUR' ? 5
+             : 6;
+  return users.map((u, i) => {
+    const mult = 1.5 + ((i * 7) % 50) * 0.4;
+    const amount = base * (1 + ((i * 11) % 35));
+    return {
+      user: u,
+      game: games[i % games.length],
+      mult: `${mult.toFixed(2)}×`,
+      amount: `+${amount.toFixed(currency === 'NGN' || currency === 'KES' ? 0 : 2)} ${currency}`,
+      color: colors[i % colors.length],
+    };
+  });
 }
 
 export default function HomePage() {
@@ -422,7 +555,7 @@ export default function HomePage() {
     <Box sx={{ p: { xs: 1.5, md: 2.5 }, pb: { xs: 10, md: 2.5 } }}>
       <HeroBanner />
       <LiveWinsTicker />
-      <VIPProgress />
+      <WinningsSlider />
 
       {/* Category tabs */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
@@ -462,64 +595,134 @@ export default function HomePage() {
       </Grid>
 
       {/* Promotions section */}
-      <Box sx={{ mb: 1 }}>
-        <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', mb: 2 }}>
-          🎁 Active Promotions
-        </Typography>
-        <Grid container spacing={1.5}>
-          {[
-            {
-              title: 'Welcome Bonus', desc: 'Get 300% up to 1 BTC on your first deposit',
-              badge: '300%', color: neonGreen, bg: alpha(neonGreen, 0.08),
-            },
-            {
-              title: 'Daily Cashback', desc: 'Up to 15% cashback on all losses, every day',
-              badge: '15%', color: neonBlue, bg: alpha(neonBlue, 0.08),
-            },
-            {
-              title: 'Weekly Reload', desc: '50% reload bonus every Monday, max 0.5 BTC',
-              badge: '50%', color: neonGold, bg: alpha(neonGold, 0.08),
-            },
-          ].map((promo) => (
-            <Grid key={promo.title} size={{ xs: 12, sm: 4 }}>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Box
-                  sx={{
-                    p: 2.5, borderRadius: 3, cursor: 'pointer',
-                    background: promo.bg,
-                    border: `1px solid ${alpha(promo.color, 0.25)}`,
-                    position: 'relative', overflow: 'hidden',
-                    transition: 'all 0.2s',
-                    '&:hover': { border: `1px solid ${alpha(promo.color, 0.5)}` },
-                  }}
-                >
-                  <Chip
-                    label={promo.badge}
-                    sx={{
-                      position: 'absolute', top: 12, right: 12,
-                      background: `linear-gradient(135deg, ${promo.color}, ${alpha(promo.color, 0.6)})`,
-                      color: '#000', fontWeight: 900, fontSize: '0.85rem',
-                      height: 32, '& .MuiChip-label': { px: 1.5 },
-                    }}
-                  />
-                  <Typography sx={{ fontWeight: 800, mb: 0.5, pr: 6 }}>{promo.title}</Typography>
-                  <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{promo.desc}</Typography>
-                  <Button
-                    size="small"
-                    sx={{
-                      mt: 1.5, color: promo.color, border: `1px solid ${alpha(promo.color, 0.4)}`,
-                      fontSize: '0.72rem', fontWeight: 700, borderRadius: 1.5,
-                      '&:hover': { background: alpha(promo.color, 0.1) },
-                    }}
-                  >
-                    Claim Now →
-                  </Button>
-                </Box>
-              </motion.div>
-            </Grid>
-          ))}
+      <PromotionsSection />
+    </Box>
+  );
+}
+
+/**
+ * Two promotion cards on the homepage:
+ *   1. Welcome bonus — 100% of first deposit, drives signup or deposit
+ *   2. Claim cashback — copy + CTA driven by the user's current VIP level.
+ *
+ * No BTC anywhere; figures are described in % so they read the same in
+ * every fiat currency.
+ */
+function PromotionsSection() {
+  const navigate = useNavigate();
+  const { user, openAuthPrompt } = useAuth();
+  const isGuest = !user;
+  const tierName  = user?.vipName ?? 'Unranked';
+  const tierColor = user?.vipColor ?? '#64748b';
+  const cashbackPct = (user?.vipCashbackPct ?? 0) * 100;
+  const usdToNext = user?.vipNextThresholdUsd != null
+    ? Math.max(0, user.vipNextThresholdUsd - (user.vipWageredUsd ?? 0))
+    : 0;
+
+  // Welcome card always links to register; cashback card varies by state.
+  const cashbackTitle = isGuest
+    ? 'VIP Cashback'
+    : cashbackPct > 0
+      ? `${tierName} Cashback`
+      : 'Unlock VIP Cashback';
+  const cashbackDesc = isGuest
+    ? 'Sign in and start wagering — Bronze members earn 5% weekly cashback on net losses, Diamond earn 15%.'
+    : cashbackPct > 0
+      ? `You earn ${cashbackPct.toFixed(0)}% of your weekly net losses back automatically. Credited every Monday with a 3× wagering requirement.`
+      : `Wager $${usdToNext.toFixed(0)} more to unlock Bronze (5%) cashback. Top tier is Diamond at 15% weekly.`;
+  const cashbackBadge = isGuest
+    ? 'UP TO 15%'
+    : cashbackPct > 0
+      ? `${cashbackPct.toFixed(0)}% WEEKLY`
+      : 'LOCKED';
+
+  return (
+    <Box sx={{ mb: 1 }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', mb: 2 }}>
+        🎁 Active Promotions
+      </Typography>
+      <Grid container spacing={1.5}>
+        {/* WELCOME 100% */}
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Box
+              onClick={isGuest ? openAuthPrompt : () => navigate('/profile')}
+              sx={{
+                p: 2.5, borderRadius: 3, cursor: 'pointer',
+                background: alpha(neonGreen, 0.08),
+                border: `1px solid ${alpha(neonGreen, 0.25)}`,
+                position: 'relative', overflow: 'hidden',
+                transition: 'all 0.2s',
+                '&:hover': { border: `1px solid ${alpha(neonGreen, 0.55)}` },
+              }}
+            >
+              <Chip
+                label="100%"
+                sx={{
+                  position: 'absolute', top: 12, right: 12,
+                  background: `linear-gradient(135deg, ${neonGreen}, ${alpha(neonGreen, 0.6)})`,
+                  color: '#000', fontWeight: 900, fontSize: '0.85rem',
+                  height: 32, '& .MuiChip-label': { px: 1.5 },
+                }}
+              />
+              <Typography sx={{ fontWeight: 800, mb: 0.5, pr: 6 }}>Welcome bonus</Typography>
+              <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                Match 100% of your first deposit as playable bonus credit (5× wagering).
+                Apply a promo code at signup or claim from your profile after depositing.
+              </Typography>
+              <Button
+                size="small"
+                sx={{
+                  mt: 1.5, color: neonGreen, border: `1px solid ${alpha(neonGreen, 0.4)}`,
+                  fontSize: '0.72rem', fontWeight: 700, borderRadius: 1.5,
+                  '&:hover': { background: alpha(neonGreen, 0.1) },
+                }}
+              >
+                {isGuest ? 'Sign up to claim →' : 'Open profile →'}
+              </Button>
+            </Box>
+          </motion.div>
         </Grid>
-      </Box>
+
+        {/* VIP CASHBACK — copy driven by user's tier */}
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Box
+              onClick={isGuest ? openAuthPrompt : () => navigate('/vip')}
+              sx={{
+                p: 2.5, borderRadius: 3, cursor: 'pointer',
+                background: alpha(tierColor, 0.08),
+                border: `1px solid ${alpha(tierColor, 0.25)}`,
+                position: 'relative', overflow: 'hidden',
+                transition: 'all 0.2s',
+                '&:hover': { border: `1px solid ${alpha(tierColor, 0.55)}` },
+              }}
+            >
+              <Chip
+                label={cashbackBadge}
+                sx={{
+                  position: 'absolute', top: 12, right: 12,
+                  background: `linear-gradient(135deg, ${tierColor}, ${alpha(tierColor, 0.6)})`,
+                  color: '#000', fontWeight: 900, fontSize: '0.7rem',
+                  height: 32, '& .MuiChip-label': { px: 1.5 },
+                }}
+              />
+              <Typography sx={{ fontWeight: 800, mb: 0.5, pr: 9 }}>{cashbackTitle}</Typography>
+              <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{cashbackDesc}</Typography>
+              <Button
+                size="small"
+                sx={{
+                  mt: 1.5, color: tierColor, border: `1px solid ${alpha(tierColor, 0.4)}`,
+                  fontSize: '0.72rem', fontWeight: 700, borderRadius: 1.5,
+                  '&:hover': { background: alpha(tierColor, 0.1) },
+                }}
+              >
+                {isGuest ? 'Sign in to see your level →' : cashbackPct > 0 ? 'Claim cashback →' : 'View VIP ladder →'}
+              </Button>
+            </Box>
+          </motion.div>
+        </Grid>
+      </Grid>
     </Box>
   );
 }

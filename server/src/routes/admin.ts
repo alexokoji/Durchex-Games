@@ -9,8 +9,13 @@ import { PromoCode, type PromoKind, type PromoTier } from '../models/PromoCode';
 import { User } from '../models/User';
 import { JobState } from '../models/JobState';
 import { runCashbackOnce } from '../services/cashbackJob';
+import { runDailySummaryOnce } from '../services/dailySummaryJob';
+import { HouseLedger, ledgerKeyFor } from '../models/HouseLedger';
+import { HousePayout } from '../models/HousePayout';
+import { aggregateRange } from '../services/houseLedger';
 import { AuditLog } from '../models/AuditLog';
 import { auditFromReq } from '../services/audit';
+import { sendMail } from '../services/email';
 
 const router = Router();
 
@@ -385,6 +390,155 @@ router.get(
     if (!user) { res.status(404).json({ error: 'user_not_found' }); return; }
     await auditFromReq(req, 'user.view', 'user', req.params.userId);
     res.json({ user });
+  },
+);
+
+// ─── House ledger + dashboard summary ────────────────────────────────────
+
+/**
+ * Aggregate stats for the admin home tile — today, last 7d, last 30d, plus
+ * a 30-row daily series for the chart.
+ */
+router.get('/ledger/summary', requireAdmin, async (_req: Request, res: Response) => {
+  const today = ledgerKeyFor();
+  const yest = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const yestKey = ledgerKeyFor(yest);
+  const week  = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000);
+  const month = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [todayRow, yestRow, last7, last30, pendingPayouts, recentPayouts, series] = await Promise.all([
+    HouseLedger.findById(today).lean(),
+    HouseLedger.findById(yestKey).lean(),
+    aggregateRange(ledgerKeyFor(week),  today),
+    aggregateRange(ledgerKeyFor(month), today),
+    HousePayout.countDocuments({ status: 'requested' }),
+    HousePayout.find().sort({ createdAt: -1 }).limit(10).lean(),
+    HouseLedger.find({ _id: { $gte: ledgerKeyFor(month) } }).sort({ _id: 1 }).lean(),
+  ]);
+
+  res.json({
+    today: todayRow,
+    yesterday: yestRow,
+    last7: last7,
+    last30: last30,
+    pendingPayouts,
+    recentPayouts,
+    series,
+  });
+});
+
+router.get('/ledger', requireAdmin, async (req: Request, res: Response) => {
+  const limit = Math.min(Number(req.query.limit) || 60, 365);
+  const rows = await HouseLedger.find()
+    .sort({ _id: -1 })
+    .limit(limit)
+    .lean();
+  res.json({ rows });
+});
+
+router.post(
+  '/jobs/daily-summary/run',
+  requireAdmin,
+  body('force').optional().isBoolean(),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const result = await runDailySummaryOnce({ force: !!req.body.force });
+    await auditFromReq(req, 'cashback.run', 'system', undefined, { job: 'daily_summary', force: !!req.body.force, result });
+    res.json(result);
+  },
+);
+
+// ─── House payouts (record-and-email; admin actions manually in FLW) ─────
+
+router.get('/payouts', requireAdmin, async (req: Request, res: Response) => {
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const filter: Record<string, unknown> = {};
+  if (status) filter.status = status;
+  const rows = await HousePayout.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  res.json({ payouts: rows });
+});
+
+router.post(
+  '/payouts',
+  requireAdmin,
+  body('amountUsd').isFloat({ gt: 0 }),
+  body('currency').optional().isString().isLength({ min: 3, max: 6 }),
+  body('destination').optional().isObject(),
+  body('notes').optional().isString().isLength({ max: 500 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const me = req.user!;
+    const doc = await HousePayout.create({
+      amountUsd: req.body.amountUsd,
+      currency: (req.body.currency ?? 'NGN').toString().toUpperCase(),
+      destination: req.body.destination ?? {},
+      notes: req.body.notes,
+      status: 'requested',
+      requestedById: me._id,
+      requestedByEmail: me.email,
+    });
+    await auditFromReq(req, 'cashback.run', 'system', doc._id.toString(), {
+      kind: 'house_payout_request',
+      amountUsd: req.body.amountUsd,
+      currency: req.body.currency,
+    });
+
+    // Notify every admin so they can action the request in Flutterwave.
+    const recipients = (process.env.ADMIN_EMAILS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const payoutId = doc._id.toString();
+    const destStr = Object.keys(doc.destination ?? {}).length > 0
+      ? `<pre style="background:#0a0c10;padding:10px;border-radius:6px;color:#cbd5e1;font-size:12px">${JSON.stringify(doc.destination, null, 2)}</pre>`
+      : '<i style="color:#94a3b8">No destination details provided</i>';
+    const html = `
+<!doctype html><html><body style="font-family:Inter,system-ui,sans-serif;background:#0a0c10;color:#e2e8f0;padding:24px">
+  <div style="max-width:520px;margin:0 auto;background:#11151c;border:1px solid #1f2937;border-radius:12px;padding:24px">
+    <h2 style="margin:0 0 4px 0">House payout requested</h2>
+    <p style="color:#94a3b8;margin-top:0">By ${me.email}</p>
+    <div style="font-size:28px;font-weight:900;color:#fbbf24;margin:18px 0">$${Number(req.body.amountUsd).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+    <p style="color:#cbd5e1;font-size:14px">Action this in the Flutterwave dashboard, then mark it completed in the admin console.</p>
+    ${doc.notes ? `<p style="background:#1f293730;padding:12px;border-radius:8px;font-style:italic">${doc.notes}</p>` : ''}
+    <div style="margin-top:14px"><div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">Destination</div>${destStr}</div>
+    <p style="color:#64748b;font-size:12px;margin-top:18px">Payout ref: ${payoutId}</p>
+  </div>
+</body></html>`;
+    // Fire-and-forget — don't block the response on slow SMTP.
+    void Promise.all(recipients.map(to =>
+      sendMail({ to, subject: `[Action needed] House payout $${Number(req.body.amountUsd).toFixed(2)}`, html }).catch(err => console.error('[payout] mail failed', to, err)),
+    ));
+
+    res.status(201).json({ payout: doc });
+  },
+);
+
+router.patch(
+  '/payouts/:id',
+  requireAdmin,
+  param('id').isString().isLength({ min: 12 }),
+  body('status').optional().isIn(['requested', 'in_progress', 'completed', 'cancelled', 'failed']),
+  body('flutterwaveReference').optional().isString().isLength({ max: 128 }),
+  body('notes').optional().isString().isLength({ max: 500 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const me = req.user!;
+    const update: Record<string, unknown> = {};
+    if (req.body.status) update.status = req.body.status;
+    if (req.body.flutterwaveReference) update.flutterwaveReference = req.body.flutterwaveReference;
+    if (req.body.notes) update.notes = req.body.notes;
+    if (req.body.status && ['completed', 'cancelled', 'failed'].includes(req.body.status)) {
+      update.actionedById = me._id;
+      update.actionedByEmail = me.email;
+      update.actionedAt = new Date();
+    }
+    const doc = await HousePayout.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!doc) { res.status(404).json({ error: 'payout_not_found' }); return; }
+    await auditFromReq(req, 'cashback.run', 'system', req.params.id, {
+      kind: 'house_payout_update',
+      update: req.body,
+    });
+    res.json({ payout: doc });
   },
 );
 

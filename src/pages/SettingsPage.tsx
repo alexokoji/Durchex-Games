@@ -1,17 +1,29 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Switch, TextField, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Button, Switch, TextField, Select, MenuItem, Chip } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useBetSlip } from '../virtual-sports/core/BetSlipContext';
+import { useToasts } from '../contexts/ToastContext';
 import type { OddsFormat } from '../virtual-sports/core/types';
-import { darkBorder, darkCard, neonBlue } from '../theme';
+import { darkBorder, darkCard, neonBlue, neonGreen } from '../theme';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
 
 export default function SettingsPage() {
-  const { isAuthenticated, openAuthPrompt, user } = useAuth();
+  const { isAuthenticated, openAuthPrompt, user, redetectCurrency } = useAuth();
   const slip = useBetSlip();
+  const toasts = useToasts();
   const [username, setUsername] = useState(user?.username ?? '');
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideAmounts, setHideAmounts] = useState(false);
   const [animations, setAnimations] = useState(true);
+  const [detecting, setDetecting] = useState(false);
+
+  async function handleRedetect() {
+    setDetecting(true);
+    const r = await redetectCurrency();
+    setDetecting(false);
+    if (r.ok) toasts.success('Currency updated', `Set to ${r.currency} based on your location.`);
+    else      toasts.error('Detection failed', r.error.replace(/_/g, ' '));
+  }
 
   if (!isAuthenticated || !user) {
     return (
@@ -35,6 +47,25 @@ export default function SettingsPage() {
         </FieldRow>
         <FieldRow label="Email">
           <TextField size="small" value={user.email} disabled />
+        </FieldRow>
+        <FieldRow label="Currency">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label={user.currency}
+              size="small"
+              sx={{ background: neonBlue + '22', color: neonBlue, fontWeight: 800 }}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<MyLocationIcon sx={{ fontSize: 16 }} />}
+              onClick={handleRedetect}
+              disabled={detecting}
+              sx={{ borderColor: neonGreen, color: neonGreen, textTransform: 'none' }}
+            >
+              {detecting ? 'Detecting…' : 'Detect from location'}
+            </Button>
+          </Box>
         </FieldRow>
         <Button variant="contained" sx={{ mt: 1 }} disabled>Save changes (backend pending)</Button>
       </SectionCard>

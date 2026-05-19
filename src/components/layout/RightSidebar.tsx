@@ -73,6 +73,24 @@ function nowHHMM() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * Approximate a millisecond timestamp from an `HH:MM` chat label, assuming
+ * the message landed on the current day. Used by the prune logic — we don't
+ * persist exact timestamps on simulated messages but we know they're newer
+ * than the latest day-boundary.
+ */
+function parseHHMM(label: string, now: number): number {
+  const [h, m] = label.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return now;
+  const d = new Date(now);
+  d.setHours(h, m, 0, 0);
+  // If the label appears to be in the future (e.g. message at 23:55 viewed
+  // just after midnight), roll back a day so we don't think a stale message
+  // is in tomorrow.
+  if (d.getTime() > now) d.setDate(d.getDate() - 1);
+  return d.getTime();
+}
+
 function toChatMsg(m: ApiChatMessage): ChatMsg {
   const id = (m._id ?? m.id ?? `${m.username}-${m.createdAt}-${Math.random().toString(36).slice(2,5)}`) as string;
   return {
@@ -142,25 +160,71 @@ export default function RightSidebar() {
     }
   }, [auth.isAuthenticated]);
 
-  // Ambient simulation — only fires if no real message has landed in a while.
-  // Generates chatter to keep the room feeling alive on a quiet night.
+  /**
+   * Hybrid chat strategy:
+   *   • Count distinct real users who chatted in the last 2 minutes.
+   *   • If that ≥ ACTIVE_THRESHOLD, treat the room as "busy" → stop
+   *     simulating AND prune older ambient messages so the user sees only
+   *     real chatter (the busier it gets, the less padding we need).
+   *   • Otherwise simulate at a varied cadence to keep the room alive.
+   *
+   * This means an empty room never looks empty, but a real conversation
+   * isn't drowned out by fake noise the moment people start talking.
+   */
+  const ACTIVE_THRESHOLD = 3;       // distinct real users in the recent window
+  const PRUNE_AFTER_MS  = 60 * 1000; // remove sims older than this when busy
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      const lastRealMs = messages.filter(m => m.isReal).slice(-1)[0];
-      const idleMs = lastRealMs ? Date.now() - new Date(lastRealMs.time).getTime() : Infinity;
-      // Inject ambient roughly every 4s when quiet, never if a real message arrived recently.
-      if (idleMs > 30_000) {
+    function tick() {
+      const now = Date.now();
+      // Real users active in the last window. `time` is HH:MM so we approximate
+      // recency by message-index from the tail — anything in the last 60
+      // messages within the window counts.
+      const recentReals = messages.slice(-60).filter(m => m.isReal);
+      const recentUsers = new Set(recentReals.map(m => m.user));
+      const isBusy = recentUsers.size >= ACTIVE_THRESHOLD;
+
+      if (isBusy) {
+        // Busy room — prune stale simulated messages so the real conversation
+        // dominates the visible feed. Keep recent sims (< PRUNE_AFTER_MS)
+        // because they may have just landed.
+        setMessages(prev => {
+          const next = prev.filter(m => {
+            if (m.isReal) return true;
+            const ts = parseHHMM(m.time, now);
+            return now - ts < PRUNE_AFTER_MS;
+          });
+          // Avoid an empty re-render if nothing changed.
+          return next.length === prev.length ? prev : next;
+        });
+        return;
+      }
+
+      // Quiet room — generate ambient chatter. Cadence varies so it doesn't
+      // feel robotic: ~50% chance per tick when fully idle, lower when there
+      // are a couple of real users already chatting.
+      const generationOdds = recentUsers.size === 0 ? 0.6
+        : recentUsers.size === 1 ? 0.35
+        : 0.18;
+      if (Math.random() < generationOdds) {
         const user = randItem(USERS);
         appendMessage({
-          id: `sim-${idRef.current++}`,
+          id: `sim-${idRef.current++}-${now}`,
           user, text: randItem(SIM_MESSAGES),
           color: colourFor(user),
           time: nowHHMM(),
           isReal: false,
         });
       }
-      // Big-wins stream is still simulated until we add the real feed. The
-      // amount is denominated in whatever currency the viewing user uses.
+    }
+    const interval = setInterval(tick, 4500);
+    return () => clearInterval(interval);
+  }, [messages, appendMessage]);
+
+  // Big-wins stream lives on its own cadence so chat density doesn't
+  // accidentally throttle the wins panel.
+  useEffect(() => {
+    const interval = setInterval(() => {
       const newWin: WinMsg = {
         id: idRef.current++,
         user: randItem(USERS), game: randItem(GAMES),
@@ -170,7 +234,7 @@ export default function RightSidebar() {
       setWins(prev => [newWin, ...prev.slice(0, 19)]);
     }, 4000);
     return () => clearInterval(interval);
-  }, [messages, appendMessage]);
+  }, [winFloor, wallet.currency]);
 
   // Auto-scroll the chat container only (not the page).
   useEffect(() => {

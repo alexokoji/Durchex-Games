@@ -4,6 +4,7 @@ import { Bet, type IBet } from '../models/Bet';
 import { Transaction, type TxKind, type TxMethod } from '../models/Transaction';
 import type { Types } from 'mongoose';
 import { isCrypto, isFiat, type AnyCurrency, type CryptoCurrency, type FiatCurrency } from '../config/currencies';
+import { recordBetSettlement, recordDeposit, recordWithdrawal } from './houseLedger';
 
 const EPS = 1e-9;
 
@@ -153,6 +154,9 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
     newBalance = u?.balance ?? 0;
   }
 
+  // Update today's house ledger with this bet's contribution to P/L. Non-blocking.
+  void recordBetSettlement({ stake: bet.stake, payout: bet.payout, currency: bet.currency });
+
   return { bet, balance: newBalance };
 }
 
@@ -172,6 +176,7 @@ interface CreditFiatArgs {
 export async function creditFiatDeposit(args: CreditFiatArgs): Promise<void> {
   if (args.amount <= 0) return;
   await User.findByIdAndUpdate(args.user._id, { $inc: { balance: args.amount } });
+  void recordDeposit(args.amount, args.currency);
   await Transaction.create({
     userId:   args.user._id,
     kind:     'deposit',
@@ -260,6 +265,7 @@ export async function debitFiatWithdrawal(args: DebitFiatArgs): Promise<
     currency: args.currency,
     reference: args.reference,
   });
+  void recordWithdrawal(args.amount, args.currency);
   return { ok: true };
 }
 
@@ -308,6 +314,7 @@ export async function debitCryptoWithdrawal(args: DebitCryptoArgs): Promise<
     cryptoNetwork: args.network,
     cryptoAddress: args.address,
   });
+  void recordWithdrawal(args.amount, args.currency);
   return { ok: true };
 }
 

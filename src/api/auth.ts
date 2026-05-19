@@ -16,6 +16,12 @@ export interface ApiUser {
   totalWagered: number;
   totalWon: number;
   vipLevel: number;
+  vipName: string;
+  vipCashbackPct: number;
+  vipColor: string;
+  vipWageredUsd: number;
+  vipNextThresholdUsd: number | null;
+  vipProgressPct: number;
   vipXp: number;
   referralCode: string;
   promoterStatus: 'none' | 'pending' | 'approved' | 'banned';

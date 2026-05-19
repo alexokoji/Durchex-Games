@@ -85,7 +85,19 @@ export interface UserPublicProfile {
   cryptoBalances: CryptoBalances;
   totalWagered: number;
   totalWon: number;
+  /** VIP tier 0..5 (0 = Unranked). Derived from totalWagered (USD-equivalent). */
   vipLevel: number;
+  /** Display name for the tier — "Bronze", "Silver", … "Diamond" or "Unranked". */
+  vipName: string;
+  /** Cashback % (0..1) for the current tier. */
+  vipCashbackPct: number;
+  vipColor: string;
+  /** Lifetime wagered in USD-equivalent. */
+  vipWageredUsd: number;
+  /** USD needed to reach the next tier (null at Diamond). */
+  vipNextThresholdUsd: number | null;
+  /** 0..100, share of the current tier band already wagered. */
+  vipProgressPct: number;
   vipXp: number;
   referralCode: string;
   promoterStatus: 'none' | 'pending' | 'approved' | 'banned';
@@ -154,6 +166,13 @@ userSchema.methods.comparePassword = async function (candidate: string): Promise
 };
 
 userSchema.methods.publicProfile = function (): UserPublicProfile {
+  // Lazy-import to avoid a circular dep between User → vip → houseLedger → currencies.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const vipMod = require('../services/vip') as typeof import('../services/vip');
+  const { tier, wageredUsd, nextThresholdUsd, progressPct } = vipMod.tierForUser({
+    totalWagered: this.totalWagered ?? 0,
+    currency: this.currency,
+  });
   return {
     id:              this._id.toString(),
     email:           this.email,
@@ -168,7 +187,13 @@ userSchema.methods.publicProfile = function (): UserPublicProfile {
     cryptoBalances:  this.cryptoBalances ?? {},
     totalWagered:    this.totalWagered,
     totalWon:        this.totalWon,
-    vipLevel:        this.vipLevel,
+    vipLevel:        tier.level,
+    vipName:         tier.name,
+    vipCashbackPct:  tier.cashbackPct,
+    vipColor:        tier.color,
+    vipWageredUsd:   wageredUsd,
+    vipNextThresholdUsd: nextThresholdUsd,
+    vipProgressPct:  progressPct,
     vipXp:           this.vipXp,
     referralCode:    this.referralCode,
     promoterStatus:  this.promoterStatus,

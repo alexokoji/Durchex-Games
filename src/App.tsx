@@ -75,39 +75,44 @@ function App() {
         <WalletProvider>
           <BetSlipProvider>
             <BrowserRouter>
-            <MainLayout>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/crash" element={<CrashGame />} />
-                <Route path="/dice" element={<DiceGame />} />
-                <Route path="/plinko" element={<PlinkoGame />} />
-                <Route path="/blackjack" element={<BlackjackGame />} />
-                <Route path="/baccarat" element={<BaccaratGame />} />
-                <Route path="/roulette" element={<RouletteGame />} />
-                <Route path="/slots" element={<SlotsGame />} />
-                <Route path="/vip" element={<VIPPage />} />
-                <Route path="/virtual"          element={<VirtualSportsbook />} />
-                <Route path="/virtual/:sport"   element={<VirtualSportsbook />} />
-                <Route path="/soccer"      element={<VirtualSportsbook initialSport="soccer" />} />
-                <Route path="/basketball"  element={<VirtualSportsbook initialSport="basketball" />} />
-                <Route path="/hockey"      element={<VirtualSportsbook initialSport="hockey" />} />
-                <Route path="/horserace"   element={<VirtualSportsbook initialSport="horseracing" />} />
-                <Route path="/horse-race"  element={<VirtualSportsbook initialSport="horseracing" />} />
-                <Route path="/mines" element={<MinesGame />} />
-                <Route path="/profile"     element={<ProfilePage />} />
-                <Route path="/bet-history" element={<BetHistoryPage />} />
-                <Route path="/rewards"     element={<RewardsPage />} />
-                <Route path="/security"    element={<SecurityPage />} />
-                <Route path="/settings"    element={<SettingsPage />} />
-                <Route path="/promoter"    element={<PromoterDashboardPage />} />
-                <Route path="/admin"       element={<AdminPage />} />
-                <Route path="/auth/callback"   element={<OAuthCallbackPage />} />
-                <Route path="/verify-email"    element={<VerifyEmailPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password"  element={<ResetPasswordPage />} />
-                <Route path="*" element={<HomePage />} />
-              </Routes>
-            </MainLayout>
+            <Routes>
+              {/* Admin lives outside the casino chrome — it renders its own
+                  minimal AdminLayout (no sidebar, no game header). */}
+              <Route path="/admin" element={<AdminPage />} />
+              {/* Everything else flows through the standard MainLayout. */}
+              <Route path="/*" element={<MainLayout>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/crash" element={<CrashGame />} />
+                  <Route path="/dice" element={<DiceGame />} />
+                  <Route path="/plinko" element={<PlinkoGame />} />
+                  <Route path="/blackjack" element={<BlackjackGame />} />
+                  <Route path="/baccarat" element={<BaccaratGame />} />
+                  <Route path="/roulette" element={<RouletteGame />} />
+                  <Route path="/slots" element={<SlotsGame />} />
+                  <Route path="/vip" element={<VIPPage />} />
+                  <Route path="/virtual"          element={<VirtualSportsbook />} />
+                  <Route path="/virtual/:sport"   element={<VirtualSportsbook />} />
+                  <Route path="/soccer"      element={<VirtualSportsbook initialSport="soccer" />} />
+                  <Route path="/basketball"  element={<VirtualSportsbook initialSport="basketball" />} />
+                  <Route path="/hockey"      element={<VirtualSportsbook initialSport="hockey" />} />
+                  <Route path="/horserace"   element={<VirtualSportsbook initialSport="horseracing" />} />
+                  <Route path="/horse-race"  element={<VirtualSportsbook initialSport="horseracing" />} />
+                  <Route path="/mines" element={<MinesGame />} />
+                  <Route path="/profile"     element={<ProfilePage />} />
+                  <Route path="/bet-history" element={<BetHistoryPage />} />
+                  <Route path="/rewards"     element={<RewardsPage />} />
+                  <Route path="/security"    element={<SecurityPage />} />
+                  <Route path="/settings"    element={<SettingsPage />} />
+                  <Route path="/promoter"    element={<PromoterDashboardPage />} />
+                  <Route path="/auth/callback"   element={<OAuthCallbackPage />} />
+                  <Route path="/verify-email"    element={<VerifyEmailPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password"  element={<ResetPasswordPage />} />
+                  <Route path="*" element={<HomePage />} />
+                </Routes>
+              </MainLayout>} />
+            </Routes>
             <GlobalAuthModal />
             <InstallAppPrompt />
           </BrowserRouter>

@@ -1,16 +1,17 @@
 import { User } from '../models/User';
 import { Bet } from '../models/Bet';
-import { PromoCode } from '../models/PromoCode';
 import { JobState } from '../models/JobState';
-import { redeemPromo } from './promo';
-import type { FiatCurrency } from '../config/currencies';
+import { Transaction } from '../models/Transaction';
+import { recordBonus } from './houseLedger';
+import { tierForUser } from './vip';
+import { newReference } from './wallet';
+import { FIAT, type FiatCurrency } from '../config/currencies';
 import { isFiat } from '../config/currencies';
 
 const JOB_ID = 'cashback_weekly';
-/** Default cashback campaign code. Created by admin via /api/admin/promo-codes. */
-const CASHBACK_CODE = (process.env.CASHBACK_CODE ?? 'WEEKLY_CASHBACK').toUpperCase();
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const TICK_MS = 60 * 60 * 1000;            // re-evaluate every hour
+const CASHBACK_ROLLOVER = 3;               // bonus × this = wagering requirement
 
 let timer: NodeJS.Timeout | null = null;
 let running = false;
@@ -71,33 +72,42 @@ export async function runCashbackOnce(opts: { force?: boolean } = {}): Promise<{
       return { ran: false, credited: 0, skipped: 0, reason: 'too_soon' };
     }
 
-    const promo = await PromoCode.findOne({ code: CASHBACK_CODE, kind: 'cashback', active: true });
-    if (!promo) {
-      console.warn(`[cashback] code ${CASHBACK_CODE} not found or inactive — skipping run`);
-      await JobState.findByIdAndUpdate(
-        JOB_ID,
-        { _id: JOB_ID, lastRunAt: now, lastRunCount: 0, lastRunError: 'code_missing', updatedAt: now },
-        { upsert: true, setDefaultsOnInsert: true },
-      );
-      return { ran: false, credited: 0, skipped: 0, reason: 'code_missing' };
-    }
-
+    // Cashback rates come from the VIP ladder (see services/vip.ts), so
+    // Bronze gets 5%, Silver 8%, Gold 10%, Platinum 12%, Diamond 15%. Users
+    // below the Bronze threshold ($100 USD wagered lifetime) don't get any.
     const eligible = await findEligibleUsers(7);
     let credited = 0;
     let skipped  = 0;
     for (const [userId, info] of eligible) {
       const user = await User.findById(userId);
       if (!user) { skipped++; continue; }
-      // Skip if user's currency differs from their best-loss currency window.
       if (user.currency !== info.currency) { skipped++; continue; }
 
-      const r = await redeemPromo({
-        user, code: CASHBACK_CODE,
-        trigger: 'cashback',
-        cashbackLossAmount: info.netLoss,
+      const { tier } = tierForUser(user);
+      if (tier.cashbackPct <= 0) { skipped++; continue; }    // Unranked users
+
+      const dp = FIAT[info.currency].decimals;
+      const bonusRaw = info.netLoss * tier.cashbackPct;
+      const bonus = Math.round(bonusRaw * 10 ** dp) / 10 ** dp;
+      if (bonus <= 0) { skipped++; continue; }
+      const rollover = bonus * CASHBACK_ROLLOVER;
+
+      await User.findByIdAndUpdate(user._id, {
+        $inc: { bonusBalance: bonus, bonusRollover: rollover },
       });
-      if ('ok' in r) credited++;
-      else skipped++;
+      await Transaction.create({
+        userId:    user._id,
+        kind:      'bonus',
+        status:    'completed',
+        method:    'internal',
+        amount:    bonus,
+        currency:  info.currency,
+        reference: newReference(`cashback-${tier.name.toLowerCase()}`),
+        notes:     `${tier.name} cashback ${Math.round(tier.cashbackPct * 100)}% on ${info.netLoss.toFixed(2)} net loss (rollover ${rollover.toFixed(2)})`,
+        completedAt: new Date(),
+      });
+      void recordBonus(bonus, info.currency);
+      credited++;
     }
 
     await JobState.findByIdAndUpdate(

@@ -5,7 +5,7 @@ import {
 import { authApi, type ApiUser } from '../api/auth';
 import { walletApi } from '../api/wallet';
 import { ApiError, hasTokens, clearTokens } from '../api/client';
-import { detectCountryAndCurrency } from '../utils/geolocation';
+import { detectCountryAndCurrency, clearGeoCache } from '../utils/geolocation';
 import { type FiatCurrency, currencyForCountry } from '../utils/currency';
 import { getDeviceSignature } from '../utils/deviceFingerprint';
 
@@ -15,7 +15,12 @@ export interface AuthUser {
   email: string;
   initials: string;
   vipLevel: number;
+  vipName: string;
+  vipColor: string;
+  vipCashbackPct: number;
   vipProgress: number;
+  vipWageredUsd: number;
+  vipNextThresholdUsd: number | null;
   wagered: number;
   currency: FiatCurrency;
   countryCode?: string;
@@ -67,19 +72,27 @@ interface AuthContextValue {
   detectedCurrency?: FiatCurrency;
   /** Push the detected currency to the server (called after sign-in if user has the default USD). */
   syncCurrencyFromGeo: () => Promise<void>;
+  /** Force a fresh geolocation lookup (bypassing cache) and push to server.
+   *  Used by Settings → "Detect from location" so VPN users can fix a wrong
+   *  currency without manually choosing one. */
+  redetectCurrency: () => Promise<{ ok: true; currency: FiatCurrency } | { ok: false; error: string }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function toAuthUser(u: ApiUser): AuthUser {
-  const vipProgress = Math.min(99, Math.round((u.vipXp % 100)));
   return {
     id: u.id,
     username: u.username,
     email: u.email,
     initials: u.initials,
-    vipLevel: u.vipLevel,
-    vipProgress,
+    vipLevel: u.vipLevel ?? 0,
+    vipName: u.vipName ?? 'Unranked',
+    vipColor: u.vipColor ?? '#64748b',
+    vipCashbackPct: u.vipCashbackPct ?? 0,
+    vipProgress: u.vipProgressPct ?? 0,
+    vipWageredUsd: u.vipWageredUsd ?? 0,
+    vipNextThresholdUsd: u.vipNextThresholdUsd ?? null,
     wagered: u.totalWagered,
     currency: u.currency,
     countryCode: u.countryCode,
@@ -146,6 +159,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(toAuthUser(r.user));
     } catch { /* non-blocking */ }
   }, [user, detectedCurrency, detectedCountry]);
+
+  const redetectCurrency = useCallback(async () => {
+    clearGeoCache();
+    const r = await detectCountryAndCurrency({ force: true });
+    if (!r) return { ok: false as const, error: 'detection_failed' };
+    setDetectedCountry(r.country);
+    setDetectedCurrency(r.currency);
+    // If signed in, also push to the server so the user's account currency
+    // is updated. This is the path that fixes "I VPN'd to NY but still see GBP".
+    if (user) {
+      try {
+        const resp = await walletApi.setCurrency(r.currency, r.country);
+        setUser(toAuthUser(resp.user));
+      } catch (err) {
+        return { ok: false as const, error: err instanceof ApiError ? err.code : 'sync_failed' };
+      }
+    }
+    return { ok: true as const, currency: r.currency };
+  }, [user]);
 
   // Auto-sync after sign-in if user is on default USD but we detected otherwise.
   useEffect(() => { void syncCurrencyFromGeo(); }, [user?.id, syncCurrencyFromGeo]);
@@ -241,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn, signUp, signOut, signInWithGoogle, signInWithApple, acceptOAuthTokens,
       refreshMe, requireAuth, authPromptOpen, openAuthPrompt, closeAuthPrompt,
       forgotPassword, resetPassword, verifyEmail, resendVerification,
-      detectedCountry, detectedCurrency, syncCurrencyFromGeo,
+      detectedCountry, detectedCurrency, syncCurrencyFromGeo, redetectCurrency,
     }}>
       {children}
     </AuthContext.Provider>

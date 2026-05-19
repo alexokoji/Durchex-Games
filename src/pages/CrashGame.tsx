@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, TextField, Chip, Avatar,
   InputAdornment,
@@ -6,9 +6,12 @@ import {
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from '../components/casino/BettingControls';
+import AutoBetPanel from '../components/casino/AutoBetPanel';
+import { useAutoBet } from '../components/casino/useAutoBet';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet, type BetRecord } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
+import { formatMoney } from '../utils/currency';
 
 type GameState = 'waiting' | 'running' | 'crashed';
 
@@ -45,6 +48,11 @@ export default function CrashGame() {
   const crashAtRef = useRef(1.0);
   const stateRef = useRef<GameState>('waiting');
   const activeBetRef = useRef<BetRecord | null>(null);
+  // When auto-play is driving the round, this resolves the per-round Promise
+  // so the useAutoBet loop can advance. We can't await React state directly,
+  // so the resolver is stored in a ref and called from the settlement paths
+  // (manual cashout effect, crash settle, cancel).
+  const roundResolveRef = useRef<((r: { won: boolean; profit: number } | null) => void) | null>(null);
 
   function generateCrash(): number {
     const r = Math.random();
@@ -237,12 +245,16 @@ export default function CrashGame() {
         // Settle the user's bet on crash if they never cashed out.
         const bet = activeBetRef.current;
         if (bet && cashedOut === null) {
+          const lostStake = bet.stake;
           void wallet.settleBet(bet.id, {
             won: false,
             payout: 0,
             details: `Crashed at ${m.toFixed(2)}× before cashout`,
           });
           activeBetRef.current = null;
+          // Tell the auto-play loop this round ended as a loss.
+          roundResolveRef.current?.({ won: false, profit: -lostStake });
+          roundResolveRef.current = null;
         }
         setTimeout(startCountdown, 3000);
         return;
@@ -275,6 +287,52 @@ export default function CrashGame() {
     }
   }
 
+  /**
+   * Auto-play: place a bet on the next 'waiting' phase and wait for the
+   * round to resolve (either auto-cashout hit or crash). Returns null if
+   * the bet couldn't be placed (auth/balance) or if we couldn't grab a
+   * 'waiting' slot within ~30 seconds.
+   *
+   * useAutoBet drives this via stake progression + stop conditions.
+   */
+  const runOneRound = useCallback((overrideStake?: number): Promise<{ won: boolean; profit: number } | null> => {
+    return new Promise(async (resolve) => {
+      // Wait for the next 'waiting' phase. Poll stateRef so we see fresh state.
+      const startedAt = Date.now();
+      while (stateRef.current !== 'waiting' || activeBetRef.current) {
+        if (Date.now() - startedAt > 30_000) return resolve(null);
+        await new Promise(r => setTimeout(r, 250));
+      }
+      const stake = overrideStake != null ? overrideStake : Math.max(0, parseFloat(betAmount) || 0);
+      const bet = await wallet.placeBet({
+        gameId: 'crash',
+        gameName: 'Crash',
+        stake,
+        details: `Auto-play · cashout @ ${parseFloat(autoCashout || '0').toFixed(2)}×`,
+      });
+      if (!bet) return resolve(null);
+      activeBetRef.current = bet;
+      setBetPlaced(true);
+      // The existing cashout / crash useEffect paths call roundResolveRef.
+      roundResolveRef.current = resolve;
+    });
+  }, [betAmount, autoCashout, wallet]);
+
+  const auto = useAutoBet({
+    runOneBet: runOneRound,
+    baseStake: parseFloat(betAmount) || 0,
+    setStake: (n) => setBetAmount(n.toFixed(2)),
+  });
+
+  // If auto stops mid-round (user clicked Stop), tear down any pending Promise
+  // so the loop doesn't hang waiting on a settlement that never comes.
+  useEffect(() => {
+    if (!auto.isRunning && roundResolveRef.current) {
+      roundResolveRef.current(null);
+      roundResolveRef.current = null;
+    }
+  }, [auto.isRunning]);
+
   // Settle a winning cashout once `cashedOut` flips from null to a number.
   useEffect(() => {
     if (cashedOut === null) return;
@@ -288,6 +346,10 @@ export default function CrashGame() {
       details: `Cashed out at ${cashedOut.toFixed(2)}×`,
     });
     activeBetRef.current = null;
+    // Auto-play loop is waiting on this Promise.
+    const profit = stake * cashedOut - stake;
+    roundResolveRef.current?.({ won: true, profit });
+    roundResolveRef.current = null;
   }, [cashedOut, wallet]);
 
   return (
@@ -517,11 +579,21 @@ export default function CrashGame() {
               <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>Cashed out at</Typography>
               <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: neonGreen }}>{cashedOut.toFixed(2)}x</Typography>
               <Typography sx={{ fontSize: '0.85rem', color: neonGold, fontWeight: 700 }}>
-                +{(parseFloat(betAmount) * cashedOut).toFixed(5)} BTC
+                +{formatMoney((parseFloat(betAmount) || 0) * cashedOut - (parseFloat(betAmount) || 0), wallet.currency)}
               </Typography>
             </Box>
           </motion.div>
         )}
+
+        {/* Auto-play panel — places a bet each waiting phase, auto-cashes out
+            at the multiplier above, applies progression between rounds. */}
+        <Box sx={{ mt: 2 }}>
+          <AutoBetPanel
+            auto={auto}
+            formatMoney={(n) => formatMoney(n, wallet.currency)}
+            disabled={false}
+          />
+        </Box>
       </Box>
     </Box>
   );

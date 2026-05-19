@@ -199,6 +199,13 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
   res.json({ user: req.user!.publicProfile() });
 });
 
+/** Public VIP ladder — exposed so the VIP page can render thresholds + perks
+ *  without re-importing the server module on the client. */
+router.get('/vip-tiers', async (_req: Request, res: Response) => {
+  const mod = await import('../services/vip');
+  res.json({ tiers: mod.VIP_TIERS });
+});
+
 router.post('/logout', requireAuth, async (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
