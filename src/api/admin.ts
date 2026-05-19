@@ -189,6 +189,14 @@ export const adminApi = {
   runDailySummary: (force?: boolean) =>
     apiPost<{ sent: boolean; reason?: string }>('/admin/jobs/daily-summary/run', { force: !!force }),
 
+  // Deposit reconciliation
+  pendingDeposits: () =>
+    apiGet<{ rows: PendingDepositRow[] }>('/admin/payments/pending'),
+  reconcileDeposit: (body: { txRef?: string; flwTxId?: string | number; trustLocal?: boolean }) =>
+    apiPost<ReconcileResult>('/admin/payments/reconcile', body),
+  reconcileSweep: () =>
+    apiPost<ReconcileSweepResult>('/admin/payments/reconcile-sweep', {}),
+
   // House payouts
   payouts: (status?: HousePayout['status']) =>
     apiGet<{ payouts: HousePayout[] }>(`/admin/payouts${status ? `?status=${status}` : ''}`),
@@ -243,4 +251,38 @@ export interface CreatePayoutBody {
   currency?: string;
   notes?: string;
   destination?: Record<string, string>;
+}
+
+export interface PendingDepositRow {
+  _id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  method: string;
+  flwTxId?: string;
+  createdAt: string;
+  notes?: string;
+  userId: { _id: string; email: string; username: string; currency: string } | string;
+}
+
+/** All possible terminal states from a single reconcile attempt. Matches
+ *  `ReconcileOutcome` on the server. */
+export type ReconcileResult =
+  | { ok: true;  status: 'credited' }
+  | { ok: true;  status: 'already_credited' }
+  | { ok: false; status: 'not_found' }
+  | { ok: false; status: 'user_not_found' }
+  | { ok: false; status: 'not_successful'; flwStatus?: string }
+  | { ok: false; status: 'currency_mismatch'; expected: string; got: string }
+  | { ok: false; status: 'amount_mismatch'; expected: number; got: number }
+  | { ok: false; status: 'not_fiat' }
+  | { ok: false; status: 'verify_failed'; message: string };
+
+export interface ReconcileSweepResult {
+  scanned: number;
+  credited: number;
+  alreadyCredited: number;
+  notSuccessful: number;
+  failed: number;
+  details: Array<{ ref: string; status: string; message?: string }>;
 }

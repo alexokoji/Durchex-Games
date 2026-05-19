@@ -6,6 +6,7 @@ import AdminLayout         from './AdminLayout';
 import AdminOverviewPanel  from './AdminOverviewPanel';
 import AdminPayoutsPanel   from './AdminPayoutsPanel';
 import AdminLedgerPanel    from './AdminLedgerPanel';
+import AdminReconcilePanel from './AdminReconcilePanel';
 import AdminPromotersPanel  from './AdminPromotersPanel';
 import AdminPromoCodesPanel from './AdminPromoCodesPanel';
 import AdminFlaggedPanel    from './AdminFlaggedPanel';
@@ -15,7 +16,7 @@ import AdminRiskPanel       from './AdminRiskPanel';
 import AdminUsersPanel      from './AdminUsersPanel';
 
 type TabId =
-  | 'overview' | 'payouts' | 'ledger'
+  | 'overview' | 'payouts' | 'ledger' | 'reconcile'
   | 'users' | 'promoters' | 'codes' | 'flagged'
   | 'risk' | 'jobs' | 'audit';
 
@@ -64,6 +65,7 @@ export default function AdminPage() {
           <Tab label="Overview"     value="overview" />
           <Tab label="Payouts"      value="payouts" />
           <Tab label="Ledger"       value="ledger" />
+          <Tab label="Reconcile"    value="reconcile" />
           <Tab label="Users"        value="users" />
           <Tab label="Promoters"    value="promoters" />
           <Tab label="Promo codes"  value="codes" />
@@ -76,6 +78,7 @@ export default function AdminPage() {
         {tab === 'overview'  && <AdminOverviewPanel onJumpToPayouts={() => setTab('payouts')} />}
         {tab === 'payouts'   && <AdminPayoutsPanel   />}
         {tab === 'ledger'    && <AdminLedgerPanel    />}
+        {tab === 'reconcile' && <AdminReconcilePanel />}
         {tab === 'users'     && <AdminUsersPanel     />}
         {tab === 'promoters' && <AdminPromotersPanel />}
         {tab === 'codes'     && <AdminPromoCodesPanel />}

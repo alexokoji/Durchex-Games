@@ -16,6 +16,8 @@ import { aggregateRange } from '../services/houseLedger';
 import { AuditLog } from '../models/AuditLog';
 import { auditFromReq } from '../services/audit';
 import { sendMail } from '../services/email';
+import { Transaction } from '../models/Transaction';
+import { reconcileTransaction } from '../services/paymentReconcile';
 
 const router = Router();
 
@@ -392,6 +394,84 @@ router.get(
     res.json({ user });
   },
 );
+
+// ─── Deposit reconciliation ──────────────────────────────────────────────
+// When a Flutterwave deposit succeeds on their side but our webhook didn't
+// process it (server downtime, signature mismatch, bad redirect URL, etc.)
+// the customer sees their money on the FLW dashboard but their wallet stays
+// at the pre-deposit balance. These endpoints let an admin recover those
+// funds without double-crediting.
+
+/** All deposit transactions still in `pending` state — the orphan pool. */
+router.get('/payments/pending', requireAdmin, async (_req: Request, res: Response) => {
+  const rows = await Transaction.find({ kind: 'deposit', status: 'pending' })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .populate('userId', 'email username currency')
+    .lean();
+  res.json({ rows });
+});
+
+router.post(
+  '/payments/reconcile',
+  requireAdmin,
+  body('txRef').optional().isString().isLength({ min: 4, max: 128 }),
+  body('flwTxId').optional().custom((v) => typeof v === 'string' || typeof v === 'number'),
+  body('trustLocal').optional().isBoolean(),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    if (!req.body.txRef && !req.body.flwTxId) {
+      res.status(400).json({ error: 'tx_ref_or_flw_tx_id_required' });
+      return;
+    }
+    const result = await reconcileTransaction({
+      txRef: req.body.txRef,
+      flwTxId: req.body.flwTxId,
+      trustLocal: !!req.body.trustLocal,
+    });
+    await auditFromReq(req, 'cashback.run', 'system', req.body.txRef ?? String(req.body.flwTxId ?? ''), {
+      kind: 'deposit_reconcile',
+      input: { txRef: req.body.txRef, flwTxId: req.body.flwTxId, trustLocal: !!req.body.trustLocal },
+      result,
+    });
+    res.json(result);
+  },
+);
+
+/** Sweep all pending deposit transactions and try to verify+credit each.
+ *  Returns counts so the UI can show a summary. Errors on individual rows
+ *  are collected, not thrown — one bad row shouldn't stop the rest. */
+router.post('/payments/reconcile-sweep', requireAdmin, async (req: Request, res: Response) => {
+  const rows = await Transaction.find({ kind: 'deposit', status: 'pending' })
+    .sort({ createdAt: -1 })
+    .limit(200);
+  const summary = {
+    scanned: rows.length,
+    credited: 0,
+    alreadyCredited: 0,
+    notSuccessful: 0,
+    failed: 0,
+    details: [] as Array<{ ref: string; status: string; message?: string }>,
+  };
+  for (const row of rows) {
+    const r = await reconcileTransaction({ txRef: row.reference });
+    summary.details.push({
+      ref: row.reference,
+      status: r.status,
+      message: 'message' in r ? r.message : undefined,
+    });
+    if (r.ok && r.status === 'credited') summary.credited++;
+    else if (r.ok && r.status === 'already_credited') summary.alreadyCredited++;
+    else if (!r.ok && r.status === 'not_successful') summary.notSuccessful++;
+    else summary.failed++;
+  }
+  await auditFromReq(req, 'cashback.run', 'system', undefined, {
+    kind: 'deposit_reconcile_sweep',
+    scanned: summary.scanned,
+    credited: summary.credited,
+  });
+  res.json(summary);
+});
 
 // ─── House ledger + dashboard summary ────────────────────────────────────
 
