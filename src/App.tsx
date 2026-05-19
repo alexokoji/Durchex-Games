@@ -21,6 +21,7 @@ import SecurityPage from './pages/SecurityPage';
 import SettingsPage from './pages/SettingsPage';
 import PromoterDashboardPage from './pages/PromoterDashboardPage';
 import AdminPage from './pages/admin/AdminPage';
+import PaymentReturnPage from './pages/PaymentReturnPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -105,6 +106,7 @@ function App() {
                   <Route path="/security"    element={<SecurityPage />} />
                   <Route path="/settings"    element={<SettingsPage />} />
                   <Route path="/promoter"    element={<PromoterDashboardPage />} />
+                  <Route path="/payment/return"  element={<PaymentReturnPage />} />
                   <Route path="/auth/callback"   element={<OAuthCallbackPage />} />
                   <Route path="/verify-email"    element={<VerifyEmailPage />} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
