@@ -165,7 +165,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     // balance + bonus split; if it returns null, the user is either not
     // signed in (auth modal opens) or short on funds (toast fires).
     const summary = selections.length === 1
-      ? selections[0].matchLabel
+      ? `${selections[0].homeTeam} vs ${selections[0].awayTeam} · ${selections[0].optionLabel}`
       : `${selections.length}-leg ${mode}`;
     const walletBet = await wallet.placeBet({
       gameId: 'virtual_sports',
