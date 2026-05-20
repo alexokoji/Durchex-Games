@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Chip, Tabs, Tab } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import type { BetSelection, Market, MarketCategory, MarketOption, SportKey, Team } from '../core/types';
+import type { BetSelection, Market, MarketCategory, MarketOption, MatchEvent, SportKey, Team } from '../core/types';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import { useBetSlip } from '../core/BetSlipContext';
 
@@ -14,6 +14,16 @@ export interface ListMatch {
   kickoffAt: number;
   /** Once true (week in progress / settled), odds are no longer placeable. */
   closed?: boolean;
+  /** Status across the schedule. `pre` = future/betting, `live` = playing now,
+   *  `final` = match has ended. Drives whether to show a score and how. */
+  status?: 'pre' | 'live' | 'final';
+  /** Final score of the simulated match — set whenever the simulation is
+   *  available (so we can also show it for live matches by clipping to
+   *  current progress). */
+  finalScore?: { home: number; away: number };
+  /** Sorted match events used to derive the live in-progress score so the
+   *  list view stays in lockstep with the preview pane. */
+  events?: MatchEvent[];
 }
 
 interface Props {
@@ -25,6 +35,9 @@ interface Props {
   /** Override the visible market tabs. Defaults to 1X2 + DC + OU2.5 (soccer).
    *  For basketball/hockey we drop Double Chance and the line shifts. */
   marketTabs?: MarketTab[];
+  /** 0–1 progress through the live phase. Used together with each match's
+   *  events to show a current scoreboard for in-play matches. */
+  liveProgress?: number;
 }
 
 export type MarketTab = '1X2' | 'DOUBLE_CHANCE' | 'OVER_UNDER' | 'WINNER' | 'TOTAL_POINTS' | 'SPREAD';
@@ -75,7 +88,44 @@ function fmtTime(ms: number): string {
   return `${day} · ${time}`;
 }
 
-export default function MatchListView({ sport, matches, leagueName, weekLabel, marketTabs = DEFAULT_TABS }: Props) {
+/** Total game-clock span used to interpolate a live score from sorted events. */
+function spanForSport(sport: SportKey): number {
+  return sport === 'soccer' ? 90 : sport === 'basketball' ? 48 : 60;
+}
+
+/** Derive a current scoreboard for a match. For finished matches this is the
+ *  final score; for live matches we clip the event log to the current minute
+ *  (the same approach MatchPreview2D uses) so the list always agrees with the
+ *  preview pane. For matches that haven't kicked off we return null. */
+function deriveScore(m: ListMatch, sport: SportKey, liveProgress: number): { home: number; away: number } | null {
+  if (m.status === 'final' || (m.status !== 'live' && m.closed && m.finalScore)) {
+    return m.finalScore ?? null;
+  }
+  if (m.status !== 'live') return null;
+  if (!m.finalScore) return null;
+  // Without events we just scale the final by progress (rough fallback).
+  if (!m.events || m.events.length === 0) {
+    const p = Math.max(0, Math.min(1, liveProgress));
+    return { home: Math.floor(m.finalScore.home * p), away: Math.floor(m.finalScore.away * p) };
+  }
+  const fullSpan = spanForSport(sport);
+  const minute = Math.floor(Math.min(fullSpan, Math.max(0, liveProgress) * fullSpan));
+  const goalType: 'goal' = 'goal';
+  let home = 0, away = 0;
+  for (const e of m.events) {
+    if (e.minute > minute) break;
+    if (e.type !== goalType) continue;
+    if (e.team === 'home') home++;
+    else if (e.team === 'away') away++;
+  }
+  // Clip to final so a flaky event log can't exceed the simulated total.
+  return {
+    home: Math.min(home, m.finalScore.home),
+    away: Math.min(away, m.finalScore.away),
+  };
+}
+
+export default function MatchListView({ sport, matches, leagueName, weekLabel, marketTabs = DEFAULT_TABS, liveProgress = 0 }: Props) {
   const slip = useBetSlip();
   const visibleTabs = useMemo(() => marketTabs.map(t => TAB_CONFIG[t]), [marketTabs]);
   const [tab, setTab] = useState<MarketTab>(marketTabs[0]);
@@ -247,17 +297,52 @@ export default function MatchListView({ sport, matches, leagueName, weekLabel, m
               background: m.closed ? alpha('#fff', 0.015) : 'transparent',
               opacity: m.closed ? 0.65 : 1,
             }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', mb: 0.25 }}>
-                  {fmtTime(m.kickoffAt)} · W{m.week}
-                </Typography>
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {m.home.shortName}
-                </Typography>
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {m.away.shortName}
-                </Typography>
-              </Box>
+              {(() => {
+                const score = deriveScore(m, sport, liveProgress);
+                const isLive = m.status === 'live';
+                const isFinal = m.status === 'final' || (!isLive && m.closed && !!m.finalScore);
+                return (
+                  <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {score ? (
+                      <Box sx={{
+                        flexShrink: 0,
+                        px: 0.75, py: 0.25,
+                        borderRadius: 0.75,
+                        background: isLive ? alpha('#ff4757', 0.12) : alpha(neonGold, 0.12),
+                        border: `1px solid ${isLive ? alpha('#ff4757', 0.4) : alpha(neonGold, 0.3)}`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        minWidth: 32,
+                      }}>
+                        <Typography sx={{
+                          fontSize: '0.85rem', fontWeight: 900, lineHeight: 1.05,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: isLive ? '#ff4757' : neonGold,
+                        }}>
+                          {score.home}
+                        </Typography>
+                        <Typography sx={{
+                          fontSize: '0.85rem', fontWeight: 900, lineHeight: 1.05,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: isLive ? '#ff4757' : neonGold,
+                        }}>
+                          {score.away}
+                        </Typography>
+                      </Box>
+                    ) : null}
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography sx={{ fontSize: '0.65rem', color: isLive ? '#ff4757' : 'text.disabled', mb: 0.25, fontWeight: isLive ? 800 : 400 }}>
+                        {isLive ? `LIVE · ${Math.floor(Math.min(1, Math.max(0, liveProgress)) * spanForSport(sport))}'` : isFinal ? 'FINAL' : fmtTime(m.kickoffAt)} · W{m.week}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.home.shortName}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.away.shortName}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })()}
               {config.columns.map(col => {
                 const option = findOption(market, col.id);
                 const sel = market && option ? slip.isSelected(m.id, market.id, option.id) : false;

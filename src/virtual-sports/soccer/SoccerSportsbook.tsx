@@ -69,9 +69,20 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
       // Once the week's in progress (live/finished), don't accept new bets
       // on its markets — show as closed for clarity.
       closed: isLiveWeek && season.phase !== 'betting',
+      status: !isLiveWeek
+        ? 'pre' as const
+        : season.phase === 'betting' ? 'pre' as const
+        : season.phase === 'live'    ? 'live' as const
+        : 'final' as const,
+      finalScore: m.simulation.finalScore,
+      events: m.simulation.events,
     })),
     [activeWeek, isLiveWeek, season.phase],
   );
+
+  const liveProgress = season.phase === 'betting' ? 0
+    : season.phase === 'live'    ? 1 - (season.secondsToNextPhase / 180)
+    : 1;
 
   return (
     <>
@@ -141,6 +152,7 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
               matches={listMatches}
               leagueName={league.name}
               weekLabel={`Week ${selectedWeek} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
+              liveProgress={liveProgress}
             />
           </Box>
         )}

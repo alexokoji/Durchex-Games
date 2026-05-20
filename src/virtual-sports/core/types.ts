@@ -180,4 +180,7 @@ export interface BetTicket {
   potentialPayout: number;
   settledPayout?: number;
   settledAt?: number;
+  /** Wallet bet id — set when the slip charges the user's wallet so we can
+   *  settle the same bet record when the round's outcomes come in. */
+  walletBetId?: string;
 }

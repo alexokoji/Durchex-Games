@@ -37,7 +37,10 @@ export interface BetSlipContextValue {
   setStake: (s: number) => void;
   setOddsFormat: (f: OddsFormat) => void;
 
-  placeBet: () => BetTicket | null;
+  /** Charges the wallet and returns the new ticket. Async because the wallet
+   *  call goes to the server. Returns null if auth required or the wallet
+   *  rejects (insufficient funds). */
+  placeBet: () => Promise<BetTicket | null>;
   cancelTicket: (ticketId: string) => void;
   cashout: (ticketId: string) => void;
   settleOutcomes: (outcomes: SettlementOutcome[]) => void;
@@ -147,9 +150,31 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     return { totalStake: sys.totalStake, potentialPayout: sys.maxPayout, systemLines: sys.lines };
   }, [mode, selections, stake, systemK, computedOdds]);
 
-  const placeBet = useCallback((): BetTicket | null => {
+  /**
+   * Charge the user's wallet for `totalStake` and open a virtual-sports
+   * ticket. The wallet bet id is stored on the ticket so `settleOutcomes`
+   * can later credit (win) or close out (loss) the same bet record. This
+   * is what makes virtual-sports wins actually pay out and losses actually
+   * cost the user.
+   */
+  const placeBet = useCallback(async (): Promise<BetTicket | null> => {
     if (selections.length === 0 || stake <= 0) return null;
     if (mode === 'system' && selections.length < 3) return null;
+
+    // One slip = one wallet bet. The wallet's atomic placement does the
+    // balance + bonus split; if it returns null, the user is either not
+    // signed in (auth modal opens) or short on funds (toast fires).
+    const summary = selections.length === 1
+      ? selections[0].matchLabel
+      : `${selections.length}-leg ${mode}`;
+    const walletBet = await wallet.placeBet({
+      gameId: 'virtual_sports',
+      gameName: 'Virtual Sports',
+      stake: totalStake,
+      details: summary,
+      selections,
+    });
+    if (!walletBet) return null;
 
     const ticket: BetTicket = {
       id: `tk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -161,11 +186,12 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
       placedAt: Date.now(),
       status: 'pending',
       potentialPayout,
+      walletBetId: walletBet.id,
     };
     setOpenTickets(prev => [ticket, ...prev]);
     setSelections([]);
     return ticket;
-  }, [selections, stake, mode, systemK, totalStake, potentialPayout]);
+  }, [selections, stake, mode, systemK, totalStake, potentialPayout, wallet]);
 
   const cancelTicket = useCallback((ticketId: string) => {
     setOpenTickets(prev => {
@@ -207,10 +233,25 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
       }
       if (settled.length > 0) {
         setHistory(h => [...settled, ...h].slice(0, 50));
+        // Settle each ticket's wallet bet. A losing ticket settles with
+        // payout=0 (stake stays gone); a winning ticket settles with the
+        // computed payout (stake + winnings credited to the real balance).
+        // Done outside the React state update so settleBet doesn't fight
+        // the render — fire-and-forget per ticket.
+        for (const ticket of settled) {
+          if (!ticket.walletBetId) continue;
+          const payout = ticket.settledPayout ?? 0;
+          const won = payout > 0;
+          void wallet.settleBet(ticket.walletBetId, {
+            won,
+            payout,
+            details: `Virtual sports · ${ticket.status} · ${ticket.selections.length} pick${ticket.selections.length === 1 ? '' : 's'}`,
+          });
+        }
       }
       return stillOpen;
     });
-  }, []);
+  }, [wallet]);
 
   const value: BetSlipContextValue = {
     selections, mode, systemK, stake, oddsFormat, openTickets, history,

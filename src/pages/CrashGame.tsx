@@ -12,6 +12,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet, type BetRecord } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { useGameConfig } from '../hooks/useGameConfig';
 
 type GameState = 'waiting' | 'running' | 'crashed';
 
@@ -30,6 +31,12 @@ interface Player {
 export default function CrashGame() {
   const wallet = useWallet();
   const defaults = useCurrencyDefaults();
+  const gameConfig = useGameConfig();
+  const crashKnobs = gameConfig.crash;
+  // Keep the latest knobs in a ref so the requestAnimationFrame tick loop
+  // reads fresh values without restarting on every config update.
+  const crashKnobsRef = useRef(crashKnobs);
+  useEffect(() => { crashKnobsRef.current = crashKnobs; }, [crashKnobs]);
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.0);
   const [betAmount, setBetAmount] = useState(() => defaults.defaultStakeString);
@@ -62,12 +69,35 @@ export default function CrashGame() {
   const cashedOutRef = useRef<number | null>(null);
   const autoCashoutRef = useRef('2.00');
 
+  /**
+   * Generate a crash multiplier honoring the admin-controlled knobs.
+   *
+   *  1. With probability `instaBustRate`, the round dies almost immediately
+   *     (1.00×–1.10×).
+   *  2. With probability `moonshotRate`, the round flies to 10× or higher
+   *     (10× – 30×).
+   *  3. Otherwise we sample from a long-tail distribution shaped so the
+   *     expected payout (factoring in cashout probabilities) matches the
+   *     desired house edge. We use the classic "1/(1−U) − 1" trick with a
+   *     uniform U ∈ [0, 1) clipped by the house-edge cut.
+   */
   function generateCrash(): number {
+    const knobs = crashKnobsRef.current;
     const r = Math.random();
-    if (r < 0.05) return 1.0 + Math.random() * 0.1;
-    if (r < 0.3) return 1.0 + Math.random() * 1.5;
-    if (r < 0.7) return 1.5 + Math.random() * 5;
-    return 5 + Math.random() * 20;
+    if (r < knobs.instaBustRate) {
+      return 1.0 + Math.random() * 0.1;
+    }
+    if (r < knobs.instaBustRate + knobs.moonshotRate) {
+      return 10 + Math.random() * 20;
+    }
+    // Long-tail sampler with house-edge baked in.
+    //   U ~ uniform(0, 1−houseEdge), bust = 1 / (1−U)
+    //   E[bust] = 1 / houseEdge × houseEdge = 1, so the cap gives the edge.
+    const u = Math.random() * (1 - knobs.houseEdge);
+    const bust = 1 / (1 - u);
+    // Clamp so we don't accidentally hand out astronomical multipliers from
+    // floating-point edge cases.
+    return Math.max(1.0, Math.min(50, bust));
   }
 
   function generatePlayers(): Player[] {

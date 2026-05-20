@@ -101,6 +101,15 @@ export interface RiskConfigDto {
   maxLiabilityUsd: number;
   maxUserConcentration: number;
   bookingCodeDays: number;
+  // Per-game knobs
+  crashHouseEdge: number;
+  crashInstaBustRate: number;
+  crashMoonshotRate: number;
+  diceHouseEdge: number;
+  plinkoHouseEdge: number;
+  slotsRtp: number;
+  minesHouseEdge: number;
+  rouletteHouseEdge: number;
 }
 
 export interface RiskSnapshot {
@@ -108,6 +117,15 @@ export interface RiskSnapshot {
   rtp24h: number;
   overround: { base: number; adjusted: number };
   exposure: Array<{ market: string; liabilityUsd: number; count: number }>;
+}
+
+export interface PublicGameConfig {
+  crash:    { houseEdge: number; instaBustRate: number; moonshotRate: number };
+  dice:     { houseEdge: number };
+  plinko:   { houseEdge: number };
+  slots:    { rtp: number };
+  mines:    { houseEdge: number };
+  roulette: { houseEdge: number };
 }
 
 export interface CashbackJobInfo {
@@ -174,6 +192,11 @@ export const adminApi = {
     apiGet<RiskSnapshot>('/admin/risk'),
   updateRisk: (body: Partial<RiskConfigDto>) =>
     apiPatch<{ config: RiskConfigDto }>('/admin/risk', body),
+
+  // Public game knobs (no auth required server-side). Returned in a shape
+  // each game can read at startup.
+  publicGameConfig: () =>
+    apiGet<PublicGameConfig>('/admin/public-game-config'),
 
   // Cashback job
   cashbackInfo: () =>

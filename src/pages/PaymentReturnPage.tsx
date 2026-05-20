@@ -43,38 +43,51 @@ export default function PaymentReturnPage() {
   const [confirmed, setConfirmed] = useState<{ delta: number } | null>(null);
   const [timedOut, setTimedOut] = useState(false);
 
-  // Snapshot the wallet balance once on mount so we can detect deltas.
+  // Stable ref to wallet.refresh so the polling effect doesn't tear down
+  // every time the wallet context object changes (which it does on every
+  // balance/socket update — *exactly* the thing we're waiting for).
+  const refreshRef = useRef(wallet.refresh);
+  useEffect(() => { refreshRef.current = wallet.refresh; }, [wallet.refresh]);
+
+  // Snapshot the wallet balance once on mount so we can detect deltas. We
+  // only seed it; later balance changes are read directly from `wallet.balance`
+  // in the detection effect below.
   useEffect(() => {
     if (initialBalanceRef.current === null) initialBalanceRef.current = wallet.balance;
   }, [wallet.balance]);
 
-  // Poll every 4s for ~90s. We refresh the wallet snapshot to pick up the
-  // webhook-driven credit. We don't fight with the live socket — it'll
-  // sometimes update faster, sometimes the polling beats it.
+  // Detect the deposit credit. Runs on every wallet.balance change — the
+  // socket-driven update (or the polling refresh) flips us to "confirmed".
+  // Splitting detection from polling avoids the previous bug where the
+  // polling effect's deps included the whole `wallet` object, tearing the
+  // interval down on every state update and never accumulating ticks.
   useEffect(() => {
     if (confirmed) return;
     if (status === 'failed' || status === 'cancelled') return;
-    let cancelled = false;
+    const base = initialBalanceRef.current;
+    if (base === null) return;
+    const delta = wallet.balance - base;
+    if (delta > 0.001) setConfirmed({ delta });
+  }, [confirmed, status, wallet.balance]);
+
+  // Poll every 4s for ~90s — just nudges the backend to re-pull the wallet
+  // snapshot in case the webhook lags or the socket dropped. The detection
+  // effect above does the actual flip-to-confirmed work.
+  useEffect(() => {
+    if (confirmed) return;
+    if (status === 'failed' || status === 'cancelled') return;
     let ticks = 0;
     const TICKS_MAX = 22;   // ~90s @ 4s
-    const id = window.setInterval(async () => {
-      if (cancelled) return;
+    const id = window.setInterval(() => {
       ticks++;
-      try { await wallet.refresh(); } catch { /* keep polling */ }
-      const base = initialBalanceRef.current ?? 0;
-      const delta = wallet.balance - base;
-      if (delta > 0.001) {
-        setConfirmed({ delta });
-        window.clearInterval(id);
-        return;
-      }
+      void refreshRef.current().catch(() => { /* keep polling */ });
       if (ticks >= TICKS_MAX) {
         setTimedOut(true);
         window.clearInterval(id);
       }
     }, 4000);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, [confirmed, status, wallet]);
+    return () => window.clearInterval(id);
+  }, [confirmed, status]);
 
   // Pick the right state to render.
   const display = useMemo<{

@@ -60,9 +60,20 @@ export default function BasketballSection({ leagueId, onSelectLeague }: Props) {
       week: m.week,
       kickoffAt: activeWeek?.startsAt ?? Date.now(),
       closed: isLiveWeek && season.phase !== 'betting',
+      status: !isLiveWeek
+        ? 'pre' as const
+        : season.phase === 'betting' ? 'pre' as const
+        : season.phase === 'live'    ? 'live' as const
+        : 'final' as const,
+      finalScore: m.simulation.finalScore,
+      events: m.simulation.events,
     })),
     [activeWeek, isLiveWeek, season.phase],
   );
+
+  const liveProgress = season.phase === 'betting' ? 0
+    : season.phase === 'live'    ? 1 - (season.secondsToNextPhase / 180)
+    : 1;
 
   return (
     <>
@@ -127,6 +138,7 @@ export default function BasketballSection({ leagueId, onSelectLeague }: Props) {
               leagueName={league.name}
               weekLabel={`Week ${selectedWeek} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
               marketTabs={['WINNER', 'TOTAL_POINTS', 'SPREAD']}
+              liveProgress={liveProgress}
             />
           </Box>
         )}

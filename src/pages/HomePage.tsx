@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Box, Typography, Button, Grid, Chip, Tabs, Tab,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import BoltIcon from '@mui/icons-material/Bolt';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
@@ -11,7 +11,6 @@ import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 
 const GAMES: GameCardData[] = [
   {
@@ -222,213 +221,12 @@ function HeroBanner() {
   );
 }
 
-/**
- * Auto-scrolling slider that surfaces "look — people are winning here!"
- * social proof. Reads recent activity (real + generated padding from the
- * server's /api/activity/recent feed; falls back to a local roster) and
- * cycles through 3 cards at a time on desktop, 1.5 on mobile.
- *
- * Replaces the old VIP-level progress block on the homepage.
- */
-function WinningsSlider() {
-  const wallet = useWallet();
-  const { user, detectedCurrency } = useAuth();
-  // For signed-in users use their account currency; for guests fall back to
-  // whatever the geolocation detection settled on so a US visitor sees USD
-  // and a Lagos visitor sees NGN even before they sign up.
-  const displayCurrency = user ? wallet.currency : (detectedCurrency ?? 'USD');
-  const [items, setItems] = useState<{
-    user: string; game: string; mult: string; amount: string; color: string;
-  }[]>(() => seedSliderItems(displayCurrency));
-  const [offset, setOffset] = useState(0);
-
-  // Re-seed when the display currency changes (e.g. detection completed).
-  useEffect(() => {
-    setItems(seedSliderItems(displayCurrency));
-  }, [displayCurrency]);
-
-  // Try to pull real wins; fall back to the seeded roster.
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const { activityApi } = await import('../api/activity');
-        const { toUsd } = await import('../utils/currency');
-        const { FIAT } = await import('../utils/currency');
-        const r = await activityApi.recent(20);
-        if (cancelled) return;
-        // Convert every real-bet amount into the viewer's display currency
-        // (best-effort via the static FX table) so a Lagos visitor sees NGN
-        // amounts even when the winner played in USD.
-        const fxRate = FIAT[displayCurrency as keyof typeof FIAT]?.usdPerUnit ?? 1;
-        const real = r.entries.map(e => {
-          const profitNative = e.payout - e.stake;
-          const profitUsd = toUsd(profitNative, e.currency as never);
-          const profit = profitUsd / fxRate;
-          const color = profitUsd > 100 ? neonGold : profitUsd > 10 ? neonGreen : neonBlue;
-          return {
-            user: e.maskedUser,
-            game: e.gameName,
-            mult: e.multiplier ? `${e.multiplier.toFixed(2)}×` : '—',
-            amount: `+${profit.toFixed(2)} ${displayCurrency}`,
-            color,
-          };
-        });
-        setItems(real.length > 0 ? [...real, ...seedSliderItems(displayCurrency)] : seedSliderItems(displayCurrency));
-      } catch { /* keep seed */ }
-    }
-    void load();
-    const t = window.setInterval(load, 60_000);
-    return () => { cancelled = true; window.clearInterval(t); };
-  }, [displayCurrency]);
-
-  // Auto-advance every 3.5s.
-  useEffect(() => {
-    const t = window.setInterval(() => setOffset(o => (o + 1) % items.length), 3500);
-    return () => window.clearInterval(t);
-  }, [items.length]);
-
-  // Take however many cards fit horizontally — the strip wraps around so the
-  // viewer just sees a continuous sliding rail. We cap at 8 even on wide
-  // screens so the cards stay readable and the rail never tries to render
-  // dozens of nodes.
-  const visible = useMemo(() => {
-    const out: typeof items = [];
-    for (let i = 0; i < 8; i++) out.push(items[(offset + i) % items.length]);
-    return out;
-  }, [items, offset]);
-
-  return (
-    <Box sx={{
-      p: 2, mb: 3, borderRadius: 3,
-      background: `linear-gradient(135deg, ${alpha(neonGold, 0.06)}, ${alpha(neonGreen, 0.04)})`,
-      border: `1px solid ${alpha(neonGold, 0.18)}`,
-      // Critical: cap the slider to its parent's width AND clip overflow at
-      // multiple levels so the inner flex strip can't inflate the page.
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflow: 'hidden',
-    }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18, color: '#ff4757' }} />
-        <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.08em' }}>LATEST WINNERS</Typography>
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{
-          width: 7, height: 7, borderRadius: '50%', background: neonGreen,
-          animation: 'pulse 1.5s ease-in-out infinite',
-          '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } },
-        }} />
-        <Typography sx={{ fontSize: '0.7rem', color: neonGreen }}>Live</Typography>
-      </Box>
-
-      {/* Horizontal scrollable strip — clip overflow so cards beyond the
-          right edge stay hidden instead of widening the page. */}
-      <Box
-        sx={{
-          display: 'flex', gap: 1.25,
-          width: '100%', maxWidth: '100%', minWidth: 0,
-          overflowX: 'hidden', overflowY: 'visible',
-          maskImage: 'linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent)',
-        }}
-      >
-        <AnimatePresence mode="popLayout">
-          {visible.map((w, i) => (
-            <motion.div
-              key={`${offset}-${i}`}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              style={{ flexShrink: 0 }}
-            >
-              <Box sx={{
-                width: { xs: 200, sm: 230 },
-                p: 1.25, borderRadius: 2,
-                background: alpha('#fff', 0.04),
-                border: `1px solid ${alpha(w.color, 0.3)}`,
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                  <Box sx={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${w.color}, ${alpha(w.color, 0.5)})`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.7rem', fontWeight: 900, color: '#000',
-                    flexShrink: 0,
-                  }}>
-                    {w.user.slice(0, 2).toUpperCase()}
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {w.user}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {w.game}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <Chip
-                    size="small"
-                    label={w.mult}
-                    sx={{
-                      height: 18, fontSize: '0.65rem', fontWeight: 800,
-                      background: alpha(neonBlue, 0.15), color: neonBlue,
-                      '& .MuiChip-label': { px: 0.6 },
-                    }}
-                  />
-                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: w.color, fontVariantNumeric: 'tabular-nums' }}>
-                    {w.amount}
-                  </Typography>
-                </Box>
-              </Box>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </Box>
-    </Box>
-  );
-}
-
-/**
- * Generates a roster of plausible-looking winners scaled to the user's
- * currency. Mirrors the style of the live-wins ticker so the homepage
- * doesn't look empty in regions with low real-traffic.
- */
-function seedSliderItems(currency: string): { user: string; game: string; mult: string; amount: string; color: string }[] {
-  const games = ['Crash', 'Dice', 'Plinko', 'Slots', 'Mines', 'Roulette', 'Virtual Soccer', 'Virtual Basketball'];
-  const users = ['sa****a', 'kw****e', 'le****k', 'mi****l', 'ad****o', 'th****o', 'ni****a', 'ay****a',
-                 'ke****a', 'fr****e', 'pa****o', 'el****a', 'ra****l', 'no****n', 'jo****a', 'fa****a'];
-  const colors = [neonGreen, neonGold, neonBlue, '#ff4757', '#a855f7', '#ff9f43'];
-  // Scaled base amount per currency so the figures look right (NGN reads
-  // ~₦12,000, USD reads ~$8 — both feel plausible without doing real FX).
-  const base = currency === 'NGN' ? 6000
-             : currency === 'KES' ? 400
-             : currency === 'ZAR' ? 80
-             : currency === 'GHS' ? 30
-             : currency === 'GBP' ? 4
-             : currency === 'EUR' ? 5
-             : 6;
-  return users.map((u, i) => {
-    const mult = 1.5 + ((i * 7) % 50) * 0.4;
-    const amount = base * (1 + ((i * 11) % 35));
-    return {
-      user: u,
-      game: games[i % games.length],
-      mult: `${mult.toFixed(2)}×`,
-      amount: `+${amount.toFixed(2)} ${currency}`,
-      color: colors[i % colors.length],
-    };
-  });
-}
-
 export default function HomePage() {
   const [category, setCategory] = useState(0);
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 }, pb: { xs: 10, md: 2.5 } }}>
       <HeroBanner />
-      <WinningsSlider />
 
       {/* Category tabs */}
       <Box id="games-grid" sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, scrollMarginTop: 80 }}>

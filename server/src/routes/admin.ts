@@ -28,6 +28,27 @@ function validate(req: Request, res: Response): boolean {
   return false;
 }
 
+// ─── Public game-config snapshot ─────────────────────────────────────────
+// Surfaces the player-facing risk knobs (Crash bust shape, dice/plinko edges,
+// slots RTP, etc.) so client games can read them at runtime. No auth — the
+// values aren't sensitive (they affect outcome distributions, not RNG seeds),
+// and games need them to start.
+router.get('/public-game-config', async (_req: Request, res: Response) => {
+  const config = await getRiskConfig();
+  res.json({
+    crash: {
+      houseEdge:      config.crashHouseEdge,
+      instaBustRate:  config.crashInstaBustRate,
+      moonshotRate:   config.crashMoonshotRate,
+    },
+    dice:     { houseEdge: config.diceHouseEdge },
+    plinko:   { houseEdge: config.plinkoHouseEdge },
+    slots:    { rtp:       config.slotsRtp },
+    mines:    { houseEdge: config.minesHouseEdge },
+    roulette: { houseEdge: config.rouletteHouseEdge },
+  });
+});
+
 // ─── Risk dashboard ──────────────────────────────────────────────────────
 router.get('/risk', requireAdmin, async (_req: Request, res: Response) => {
   const [config, rtp, exposure, overround] = await Promise.all([
@@ -56,6 +77,14 @@ router.patch(
   body('maxLiabilityUsd').optional().isFloat({ min: 1 }),
   body('maxUserConcentration').optional().isFloat({ min: 0.05, max: 1 }),
   body('bookingCodeDays').optional().isInt({ min: 1, max: 30 }),
+  body('crashHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
+  body('crashInstaBustRate').optional().isFloat({ min: 0, max: 0.5 }),
+  body('crashMoonshotRate').optional().isFloat({ min: 0, max: 0.5 }),
+  body('diceHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
+  body('plinkoHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
+  body('slotsRtp').optional().isFloat({ min: 0.7, max: 1 }),
+  body('minesHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
+  body('rouletteHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const update = { ...req.body, updatedAt: new Date() };

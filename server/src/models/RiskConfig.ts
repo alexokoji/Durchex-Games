@@ -26,6 +26,27 @@ export interface IRiskConfig extends Document<string> {
   maxUserConcentration: number;  // 0.25 = 25%
   /** Booking-code expiry in days. */
   bookingCodeDays: number;    // 7
+
+  // ─── Per-game tuning ────────────────────────────────────────────────────
+  // These shape the OUTCOME distribution of casino games (Crash, Dice, etc).
+  // They don't fix outcomes — they bias the underlying RNG.
+  /** Crash — house edge applied to the bust distribution (0.01 = 1% edge). */
+  crashHouseEdge: number;     // 0.01 default
+  /** Crash — chance the round busts almost immediately (< 1.10×). 0.05 = 5%. */
+  crashInstaBustRate: number; // 0.05 default
+  /** Crash — chance of a "moonshot" round (≥ 10×). 0.05 = 5%. */
+  crashMoonshotRate: number;  // 0.05 default
+  /** Dice — house edge in decimal (0.01 = 1%). */
+  diceHouseEdge: number;      // 0.01 default
+  /** Plinko — house edge in decimal. */
+  plinkoHouseEdge: number;    // 0.01 default
+  /** Slots — target RTP (0.96 = 96% returned to player on average). */
+  slotsRtp: number;           // 0.95 default
+  /** Mines — house edge in decimal. */
+  minesHouseEdge: number;     // 0.01 default
+  /** Roulette — house edge in decimal. */
+  rouletteHouseEdge: number;  // 0.027 default (European single-zero)
+
   updatedAt: Date;
 }
 
@@ -40,6 +61,14 @@ const riskSchema = new Schema<IRiskConfig>({
   maxLiabilityUsd:     { type: Number, default: 50_000 },
   maxUserConcentration:{ type: Number, default: 0.25 },
   bookingCodeDays:     { type: Number, default: 7 },
+  crashHouseEdge:      { type: Number, default: 0.01 },
+  crashInstaBustRate:  { type: Number, default: 0.05 },
+  crashMoonshotRate:   { type: Number, default: 0.05 },
+  diceHouseEdge:       { type: Number, default: 0.01 },
+  plinkoHouseEdge:     { type: Number, default: 0.01 },
+  slotsRtp:            { type: Number, default: 0.95 },
+  minesHouseEdge:      { type: Number, default: 0.01 },
+  rouletteHouseEdge:   { type: Number, default: 0.027 },
   updatedAt:           { type: Date, default: Date.now },
 }, { timestamps: false, _id: false });
 

@@ -430,7 +430,12 @@ function BetSlipBody() {
             toasts.error('Insufficient balance', `Top up ${formatMoney(shortBy, wallet.currency)} to place this slip.`);
             return;
           }
-          slip.placeBet();
+          // slip.placeBet is async — charges the wallet, then opens the ticket.
+          // Fire-and-forget: the button stays in its disabled state until the
+          // wallet round-trip completes (~200ms typical), then re-enables.
+          void slip.placeBet().then(ticket => {
+            if (ticket) toasts.success('Bet placed', `Stake ${formatMoney(totalStake, wallet.currency)} locked in.`);
+          });
         }}
         sx={{
           py: 1, fontWeight: 900, fontSize: '0.85rem',
