@@ -653,31 +653,31 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
   const states = ticket.selections.map(s => deriveMatchState(s));
   const ticketPhase = aggregatePhase(states);
 
-  // CRITICAL: only count wins/losses when matches have actually played out.
-  // During 'betting' we deliberately don't peek at currentResult — even
-  // though the simulation has the outcome rolled, we don't want to spoil it
-  // before the user has watched the live phase.
+  // CRITICAL: do NOT inspect currentResult until the whole live phase has
+  // ended. The simulation has the outcome rolled at kickoff but we never
+  // reveal it — not via banner copy, not via row color, not via "K legs
+  // ahead" counters. The user has to wait for FINAL to know the result.
+  // Anything else spoils the live phase the user paid to watch.
   const known = states.filter((s): s is MatchStateForSelection => s != null);
-  const decidedLegs = known.filter(s => s.phase === 'finished');
-  const liveWinsSoFar = ticketPhase === 'live' || ticketPhase === 'finished'
-    ? known.filter(s => (s.phase === 'live' || s.phase === 'finished') && s.currentResult === 'win').length
-    : 0;
-  const finalLost = ticketPhase === 'finished' && ticket.mode !== 'system'
-    && known.some(s => s.phase === 'finished' && s.finalResult === 'loss');
-  const finalWonAll = ticketPhase === 'finished'
-    && decidedLegs.length === ticket.selections.length
-    && decidedLegs.every(s => s.finalResult === 'win');
+  const ticketSettled = ticketPhase === 'finished'
+    && known.length === ticket.selections.length;
+  const finalLost = ticketSettled && ticket.mode !== 'system'
+    && known.some(s => s.finalResult === 'loss');
+  const finalWonAll = ticketSettled && known.every(s => s.finalResult === 'win');
 
-  const tone = finalLost ? '#ff6b7a' : finalWonAll ? neonGreen : ticketPhase === 'live' ? '#ff4757' : neonGold;
+  const tone = ticketSettled
+    ? (finalLost ? '#ff6b7a' : finalWonAll ? neonGreen : neonGold)
+    : ticketPhase === 'live' ? '#ff4757'
+    : neonGold;
   void secondsToFirstKickoff;
 
-  // Collapsed-state header bits — what the user sees when the card is folded.
-  const statusLabel = ticketPhase === 'finished'
-    ? (finalLost ? 'AWAITING SETTLE · projected loss'
-      : finalWonAll ? 'AWAITING SETTLE · all legs won'
+  // Collapsed-state header bits — NEVER hint at outcome while live.
+  const statusLabel = ticketSettled
+    ? (finalLost ? 'AWAITING SETTLE · loss'
+      : finalWonAll ? 'AWAITING SETTLE · won'
       : 'AWAITING SETTLE')
     : ticketPhase === 'live'
-      ? `LIVE · ${liveWinsSoFar}/${ticket.selections.length} ahead`
+      ? 'LIVE · matches in progress'
       : ticketPhase === 'betting'
         ? 'Awaiting kickoff'
         : 'Pending';
@@ -770,13 +770,13 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
                     '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
                   }}
                 />
-                <span>Live now · {liveWinsSoFar}/{ticket.selections.length} legs ahead</span>
+                <span>Live — matches in progress, result locked in at full-time</span>
               </>
-            ) : ticketPhase === 'finished' ? (
+            ) : ticketSettled ? (
               finalLost ? (
                 <>
                   <CancelIcon sx={{ fontSize: 12 }} />
-                  <span>One leg lost — ticket settling as a loss</span>
+                  <span>Settled — ticket lost</span>
                 </>
               ) : finalWonAll ? (
                 <>
@@ -818,8 +818,8 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>POTENTIAL PAYOUT</Typography>
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: finalLost ? '#ff6b7a' : neonGreen }}>
-                {finalLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: ticketSettled && finalLost ? '#ff6b7a' : neonGreen }}>
+                {ticketSettled && finalLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
               </Typography>
             </Box>
           </Box>
@@ -832,11 +832,11 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
 function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchStateForSelection | null }) {
   const phase = state?.phase ?? 'unknown';
   const decided = phase === 'finished';
-  // During betting phase we DO NOT consult currentResult — the simulation
-  // already has the result rolled, and showing it before kickoff spoils the
-  // experience the user is paying to watch.
-  const winning = (phase === 'live' || phase === 'finished') && state?.currentResult === 'win';
-  const losing  = (phase === 'live' || phase === 'finished') && state?.currentResult === 'loss';
+  // Win/loss is ONLY read once the match has fully ended. During live we
+  // show the running score (that's the "update") but never which way the
+  // bet is leaning — the row stays neutral until full-time.
+  const winning = decided && state?.finalResult === 'win';
+  const losing  = decided && state?.finalResult === 'loss';
   // Only show a score chip after kickoff. Pre-match shows "vs", not 0-0.
   const showScore = state != null && (phase === 'live' || phase === 'finished');
   const score = showScore ? state!.liveScore : null;
