@@ -653,29 +653,19 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
   const states = ticket.selections.map(s => deriveMatchState(s));
   const ticketPhase = aggregatePhase(states);
 
-  // CRITICAL: do NOT inspect currentResult until the whole live phase has
-  // ended. The simulation has the outcome rolled at kickoff but we never
-  // reveal it — not via banner copy, not via row color, not via "K legs
-  // ahead" counters. The user has to wait for FINAL to know the result.
-  // Anything else spoils the live phase the user paid to watch.
-  const known = states.filter((s): s is MatchStateForSelection => s != null);
-  const ticketSettled = ticketPhase === 'finished'
-    && known.length === ticket.selections.length;
-  const finalLost = ticketSettled && ticket.mode !== 'system'
-    && known.some(s => s.finalResult === 'loss');
-  const finalWonAll = ticketSettled && known.every(s => s.finalResult === 'win');
-
-  const tone = ticketSettled
-    ? (finalLost ? '#ff6b7a' : finalWonAll ? neonGreen : neonGold)
-    : ticketPhase === 'live' ? '#ff4757'
+  // HARD RULE: the OPEN list NEVER reveals win/loss. It only mirrors the
+  // live-games view — scores during live phase, time remaining, status
+  // wording. Per-leg and total results only appear in HISTORY, after the
+  // ticket has settled. This keeps the live phase a real wait, not a
+  // pre-revealed reveal.
+  const tone = ticketPhase === 'live' ? '#ff4757'
+    : ticketPhase === 'finished' ? neonGold
     : neonGold;
   void secondsToFirstKickoff;
 
-  // Collapsed-state header bits — NEVER hint at outcome while live.
-  const statusLabel = ticketSettled
-    ? (finalLost ? 'AWAITING SETTLE · loss'
-      : finalWonAll ? 'AWAITING SETTLE · won'
-      : 'AWAITING SETTLE')
+  // Collapsed-state header bits — purely descriptive. No outcome hints.
+  const statusLabel = ticketPhase === 'finished'
+    ? 'Awaiting settle'
     : ticketPhase === 'live'
       ? 'LIVE · matches in progress'
       : ticketPhase === 'betting'
@@ -770,25 +760,13 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
                     '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
                   }}
                 />
-                <span>Live — matches in progress, result locked in at full-time</span>
+                <span>Live — matches in progress</span>
               </>
-            ) : ticketSettled ? (
-              finalLost ? (
-                <>
-                  <CancelIcon sx={{ fontSize: 12 }} />
-                  <span>Settled — ticket lost</span>
-                </>
-              ) : finalWonAll ? (
-                <>
-                  <CheckCircleIcon sx={{ fontSize: 12 }} />
-                  <span>All legs won — payout incoming</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircleIcon sx={{ fontSize: 12 }} />
-                  <span>Matches finished — settling now</span>
-                </>
-              )
+            ) : ticketPhase === 'finished' ? (
+              <>
+                <SportsScoreIcon sx={{ fontSize: 12 }} />
+                <span>Matches finished — settling, result will appear in History</span>
+              </>
             ) : (
               <>
                 <RadioButtonUncheckedIcon sx={{ fontSize: 12 }} />
@@ -818,8 +796,8 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>POTENTIAL PAYOUT</Typography>
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: ticketSettled && finalLost ? '#ff6b7a' : neonGreen }}>
-                {ticketSettled && finalLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: neonGreen }}>
+                {formatMoney(ticket.potentialPayout, currency)}
               </Typography>
             </Box>
           </Box>
@@ -831,38 +809,35 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
 
 function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchStateForSelection | null }) {
   const phase = state?.phase ?? 'unknown';
-  const decided = phase === 'finished';
-  // Win/loss is ONLY read once the match has fully ended. During live we
-  // show the running score (that's the "update") but never which way the
-  // bet is leaning — the row stays neutral until full-time.
-  const winning = decided && state?.finalResult === 'win';
-  const losing  = decided && state?.finalResult === 'loss';
-  // Only show a score chip after kickoff. Pre-match shows "vs", not 0-0.
+  // Score chip appears as soon as the match kicks off. NO result-coloring
+  // is applied anywhere in this component — the OPEN list is informational
+  // only. Win/loss markings only appear in the HISTORY tab.
   const showScore = state != null && (phase === 'live' || phase === 'finished');
   const score = showScore ? state!.liveScore : null;
 
-  const rowTone = decided
-    ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold)
-    : phase === 'live' ? '#ff4757'
-    : darkBorder;
+  // Remaining time = total match span minus elapsed minutes. Mirrors the
+  // live-games list copy "LIVE · 47'".
+  const sportSpan = state?.sport === 'soccer' ? 90 : state?.sport === 'basketball' ? 48 : 60;
+  const elapsedMin = state && (phase === 'live' || phase === 'finished')
+    ? Math.floor(state.liveProgress * sportSpan)
+    : 0;
+  const remainingMin = state && phase === 'live'
+    ? Math.max(0, sportSpan - elapsedMin)
+    : 0;
+
+  // Neutral border / tone — never reveals outcome.
+  const phaseTone = phase === 'live' ? '#ff4757'
+    : phase === 'finished' ? neonGold
+    : 'text.disabled';
 
   return (
     <Box sx={{
       p: 0.75, borderRadius: 1,
       background: alpha('#fff', 0.025),
-      border: `1px solid ${decided
-        ? alpha(winning ? neonGreen : losing ? '#ff6b7a' : neonGold, 0.3)
-        : phase === 'live' ? alpha('#ff4757', 0.25)
-        : darkBorder}`,
+      border: `1px solid ${phase === 'live' ? alpha('#ff4757', 0.25) : darkBorder}`,
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
-        {decided ? (
-          winning
-            ? <CheckCircleIcon sx={{ fontSize: 14, color: neonGreen }} />
-            : losing
-              ? <CancelIcon sx={{ fontSize: 14, color: '#ff6b7a' }} />
-              : <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: neonGold }} />
-        ) : phase === 'live' ? (
+        {phase === 'live' ? (
           <FiberManualRecordIcon
             sx={{
               fontSize: 12, color: '#ff4757',
@@ -880,11 +855,10 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
           }}>
             {sel.marketLabel}
           </Typography>
+          {/* Pick label stays neutral white throughout — no green/red leak. */}
           <Typography sx={{
             fontSize: '0.75rem', fontWeight: 800,
-            // Don't color the pick green/red until the match has played out
-            // (or is in progress). During betting it stays neutral white.
-            color: decided ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold) : '#fff',
+            color: '#fff',
             lineHeight: 1.2,
           }}>
             {sel.optionLabel}
@@ -918,18 +892,16 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
         ) : null}
       </Box>
 
-      {/* Phase / status line. Carefully avoids any "win/loss" wording until
-          the match has actually played — during betting we just show
-          "Match starts soon". */}
+      {/* Status line — score + time remaining, just like the live games list. */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.4 }}>
-        <Typography sx={{ fontSize: '0.6rem', color: rowTone, fontWeight: 700 }}>
-          {phase === 'finished'
-            ? `FINAL · ${winning ? 'Won' : losing ? 'Lost' : 'Void'}`
-            : phase === 'live'
-              ? `LIVE${state ? ` · ${Math.floor(state.liveProgress * (state.sport === 'soccer' ? 90 : state.sport === 'basketball' ? 48 : 60))}'` : ''}`
+        <Typography sx={{ fontSize: '0.6rem', color: phaseTone, fontWeight: 700 }}>
+          {phase === 'live'
+            ? `LIVE · ${elapsedMin}'${remainingMin > 0 ? ` · ${remainingMin}' to go` : ''}`
+            : phase === 'finished'
+              ? 'Awaiting settle'
               : phase === 'betting'
                 ? 'Match starts soon'
-                : 'Awaiting result'}
+                : 'Awaiting kickoff'}
         </Typography>
         {phase === 'live' && state && (
           <LinearProgress
