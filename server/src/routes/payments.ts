@@ -12,6 +12,7 @@ import {
 import {
   creditFiatDeposit, debitFiatWithdrawal, debitCryptoWithdrawal, newReference,
 } from '../services/wallet';
+import { reconcileTransaction } from '../services/paymentReconcile';
 import { redeemPromo } from '../services/promo';
 import { isCrypto, isFiat, FIAT, type CryptoCurrency } from '../config/currencies';
 import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
@@ -138,6 +139,25 @@ router.post('/flutterwave/webhook', raw({ type: '*/*' }), async (req: Request, r
         res.status(200).end();
         return;
       }
+      // Atomic claim — prevents this webhook from racing with the client-driven
+      // `/deposit/confirm` endpoint or an admin reconcile sweep. Whoever flips
+      // `status` first credits; the loser silently bails.
+      const claim = await Transaction.findOneAndUpdate(
+        { _id: tx._id, status: 'pending' },
+        {
+          $set: {
+            status: 'completed',
+            completedAt: new Date(),
+            flwTxId: String(flwTxId ?? ''),
+          },
+        },
+        { new: true },
+      );
+      if (!claim) {
+        // Already credited by the confirm endpoint or another webhook delivery.
+        res.status(200).end();
+        return;
+      }
       await creditFiatDeposit({
         user,
         amount: tx.amount,
@@ -148,10 +168,6 @@ router.post('/flutterwave/webhook', raw({ type: '*/*' }), async (req: Request, r
         flwTxRef: tx.reference,
         notes: 'Flutterwave deposit',
       });
-      tx.status = 'completed';
-      tx.flwTxId = String(flwTxId ?? '');
-      tx.completedAt = new Date();
-      await tx.save();
 
       // ─── First-deposit promo (deposit-match campaigns) ─────────────────
       // If signup stashed a `pendingDepositPromo`, drain it now that we have
@@ -200,6 +216,46 @@ router.post('/flutterwave/webhook', raw({ type: '*/*' }), async (req: Request, r
 
   res.status(200).end();
 });
+
+// ─── deposit confirm (client-driven, fallback when webhook is slow/missed) ──
+//
+// Called from PaymentReturnPage with the tx_ref and (when present) the
+// Flutterwave transaction_id that Flutterwave appended to the redirect URL.
+// We re-verify against Flutterwave and credit immediately if the charge is
+// successful and matches the local pending row. This makes deposits work
+// even when the webhook fails (signature mismatch, server downtime, wrong
+// URL on the FLW dashboard).
+//
+// Auth-required: the caller must be the owner of the pending tx. We don't
+// short-circuit on `req.user._id` though — we let `reconcileTransaction`
+// look the tx up, then verify ownership here. This keeps the verification
+// logic centralised.
+router.post(
+  '/deposit/confirm',
+  requireAuth,
+  body('txRef').optional().isString().isLength({ min: 4, max: 128 }),
+  body('flwTxId').optional().custom((v) => typeof v === 'string' || typeof v === 'number'),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    if (!env.flutterwave.enabled) { res.status(503).json({ error: 'flutterwave_not_configured' }); return; }
+    const { txRef, flwTxId } = req.body as { txRef?: string; flwTxId?: string | number };
+    if (!txRef && !flwTxId) {
+      res.status(400).json({ error: 'tx_ref_or_flw_tx_id_required' });
+      return;
+    }
+    // Ownership check before we hit Flutterwave — saves an unnecessary API call.
+    if (txRef) {
+      const tx = await Transaction.findOne({ reference: txRef }).lean();
+      if (!tx) { res.status(404).json({ error: 'transaction_not_found' }); return; }
+      if (String(tx.userId) !== String(req.user!._id)) {
+        res.status(403).json({ error: 'not_owner' });
+        return;
+      }
+    }
+    const result = await reconcileTransaction({ txRef, flwTxId });
+    res.json(result);
+  },
+);
 
 // ─── withdraw ────────────────────────────────────────────────────────────
 router.post(

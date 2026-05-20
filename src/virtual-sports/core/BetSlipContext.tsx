@@ -18,7 +18,20 @@ const STORAGE_KEY_HISTORY = 'vsb.history.v1';
 export type SettlementOutcome = {
   selectionId: string;
   result: 'win' | 'loss' | 'void';
+  /** Final score snapshot — captured at settle time so the ticket retains
+   *  finished match details even after the season seed rotates (UTC
+   *  midnight rollover). */
+  finalScore?: { home: number; away: number };
 };
+
+/** Per-selection result snapshot attached to a settled ticket. Drives the
+ *  history view so each leg can show its own win/loss + final score even
+ *  days after the season has moved on. */
+export interface TicketSelectionResult {
+  selectionId: string;
+  result: 'win' | 'loss' | 'void';
+  finalScore?: { home: number; away: number };
+}
 
 export interface BetSlipContextValue {
   selections: BetSelection[];
@@ -42,7 +55,6 @@ export interface BetSlipContextValue {
    *  rejects (insufficient funds). */
   placeBet: () => Promise<BetTicket | null>;
   cancelTicket: (ticketId: string) => void;
-  cashout: (ticketId: string) => void;
   settleOutcomes: (outcomes: SettlementOutcome[]) => void;
 
   isSelected: (matchId: string, marketId: string, optionId: string) => boolean;
@@ -203,32 +215,31 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const cashout = useCallback((ticketId: string) => {
-    setOpenTickets(prev => {
-      const t = prev.find(x => x.id === ticketId);
-      if (!t) return prev;
-      // 80% of current potential payout — typical cashout discount.
-      const payout = Math.max(t.totalStake * 0.5, t.potentialPayout * 0.8);
-      setHistory(h => [{ ...t, status: 'cashout', settledPayout: payout, settledAt: Date.now() }, ...h]);
-      return prev.filter(x => x.id !== ticketId);
-    });
-  }, []);
-
-  const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
+const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
     if (outcomes.length === 0) return;
-    const map = new Map(outcomes.map(o => [o.selectionId, o.result]));
+    const outcomeBySel = new Map(outcomes.map(o => [o.selectionId, o]));
     setOpenTickets(prev => {
       const stillOpen: BetTicket[] = [];
       const settled: BetTicket[] = [];
       for (const t of prev) {
-        const decisions = t.selections.map(s => map.get(s.id));
+        const decisions = t.selections.map(s => outcomeBySel.get(s.id)?.result);
         const anyUnknown = decisions.some(d => d === undefined);
         if (anyUnknown) {
           stillOpen.push(t);
           continue;
         }
         const results = decisions as ('win' | 'loss' | 'void')[];
-        const ticket = applyResults(t, results);
+        // Snapshot per-selection results + final scores on the ticket so the
+        // history view stays accurate even after the season seed rotates.
+        const selectionResults = t.selections.map(s => {
+          const outcome = outcomeBySel.get(s.id);
+          return {
+            selectionId: s.id,
+            result: (outcome?.result ?? 'void') as 'win' | 'loss' | 'void',
+            finalScore: outcome?.finalScore,
+          };
+        });
+        const ticket = applyResults({ ...t, selectionResults }, results);
         settled.push(ticket);
       }
       if (settled.length > 0) {
@@ -257,7 +268,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     selections, mode, systemK, stake, oddsFormat, openTickets, history,
     addSelection, removeSelection, clearSlip,
     setMode, setSystemK, setStake, setOddsFormat,
-    placeBet, cancelTicket, cashout, settleOutcomes,
+    placeBet, cancelTicket, settleOutcomes,
     isSelected, hasSelectionFromMarket,
     computedOdds, potentialPayout, totalStake, systemLines,
   };

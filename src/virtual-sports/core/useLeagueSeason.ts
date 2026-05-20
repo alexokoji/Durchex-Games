@@ -220,7 +220,13 @@ export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagu
     for (const sel of pending) {
       const match = week.matches.find(m => m.id === sel.matchId);
       if (!match) continue;
-      outcomes.push({ selectionId: sel.id, result: resolveSelection(sel, match.simulation) });
+      // Snapshot the final score onto the outcome so the bet slip can show
+      // settled details even after the season seed rotates (UTC midnight).
+      outcomes.push({
+        selectionId: sel.id,
+        result: resolveSelection(sel, match.simulation),
+        finalScore: scoreOf(match.simulation),
+      });
     }
     if (outcomes.length > 0) slip.settleOutcomes(outcomes);
 

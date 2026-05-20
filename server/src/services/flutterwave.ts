@@ -87,6 +87,21 @@ export async function verifyTransaction(flwTxId: string | number) {
   return res.data?.data;
 }
 
+/**
+ * Verify a transaction by our own reference (tx_ref). This is the fallback
+ * for when we don't have Flutterwave's numeric transaction id — typically
+ * because the webhook never fired and the local pending row was created
+ * before we knew the FLW id. Flutterwave's "verify_by_reference" endpoint
+ * returns the same shape as the regular verify endpoint, including `id`.
+ */
+export async function verifyByReference(txRef: string) {
+  if (!env.flutterwave.enabled) throw new Error('flutterwave_not_configured');
+  const res = await client().get(`/transactions/verify_by_reference`, {
+    params: { tx_ref: txRef },
+  });
+  return res.data?.data;
+}
+
 export interface InitTransferArgs {
   reference: string;
   amount: number;

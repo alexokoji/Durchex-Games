@@ -183,4 +183,12 @@ export interface BetTicket {
   /** Wallet bet id — set when the slip charges the user's wallet so we can
    *  settle the same bet record when the round's outcomes come in. */
   walletBetId?: string;
+  /** Per-selection outcome snapshots, written at settle time. Lets the
+   *  history view show each leg's result + final score independently of the
+   *  current season state (which rotates at UTC midnight). */
+  selectionResults?: Array<{
+    selectionId: string;
+    result: 'win' | 'loss' | 'void';
+    finalScore?: { home: number; away: number };
+  }>;
 }

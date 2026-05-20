@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Box, Typography, IconButton, ToggleButtonGroup, ToggleButton, Button, Chip,
+  Box, Typography, IconButton, ToggleButtonGroup, ToggleButton, Button, Chip, LinearProgress,
   InputBase, Select, MenuItem,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -13,16 +13,21 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import ShareIcon from '@mui/icons-material/Share';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LinkIcon from '@mui/icons-material/Link';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useToasts } from '../../contexts/ToastContext';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard, darkSurface } from '../../theme';
 import { useBetSlip } from '../core/BetSlipContext';
 import { formatOdds } from '../core/oddsEngine';
-import type { BetMode, OddsFormat, BetSelection } from '../core/types';
+import type { BetMode, OddsFormat, BetSelection, BetTicket } from '../core/types';
+import { deriveMatchState, type MatchStateForSelection } from '../core/matchStateForSelection';
 import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
-import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes } from '../../utils/currency';
+import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes, type FiatCurrency } from '../../utils/currency';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
@@ -574,12 +579,24 @@ function BookingCodeRow(props: BookingCodeRowProps) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// OPEN BETS
+// OPEN BETS — live updating cards showing per-selection state
 // ────────────────────────────────────────────────────────────────────────────
 
+/** Shared 1s tick so every open card re-renders together. Cheaper than each
+ *  card running its own setInterval. */
+function useSecondTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick(t => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return tick;
+}
+
 function OpenBetsBody() {
-  const { openTickets, cashout, oddsFormat } = useBetSlip();
+  const { openTickets } = useBetSlip();
   const wallet = useWallet();
+  const tick = useSecondTick();
 
   if (openTickets.length === 0) {
     return (
@@ -594,70 +611,235 @@ function OpenBetsBody() {
   }
 
   return (
-    <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+    <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
       {openTickets.map(t => (
-        <Box
-          key={t.id}
+        <OpenTicketCard key={t.id} ticket={t} currency={wallet.currency} tick={tick} />
+      ))}
+    </Box>
+  );
+}
+
+function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currency: FiatCurrency; tick: number }) {
+  // tick is unused directly — its mere presence triggers a re-render every
+  // second so deriveMatchState() returns fresh numbers below.
+  void tick;
+  const states = ticket.selections.map(s => deriveMatchState(s));
+  const known = states.filter((s): s is MatchStateForSelection => s != null);
+
+  // Aggregate live status across legs.
+  const decidedLegs = known.filter(s => s.phase === 'finished');
+  const winningLegs = known.filter(s => s.currentResult === 'win').length;
+  const losingLegs  = known.filter(s => s.currentResult === 'loss').length;
+  const finishedAll = decidedLegs.length === ticket.selections.length;
+  const projectedLost = ticket.mode !== 'system'
+    && known.some(s => s.phase === 'finished' && s.finalResult === 'loss');
+
+  // Banner tone tracks the projected outcome so users get instant feedback.
+  const tone = projectedLost
+    ? '#ff6b7a'
+    : finishedAll && winningLegs === ticket.selections.length
+      ? neonGreen
+      : neonGold;
+
+  return (
+    <Box
+      sx={{
+        p: 1.25, borderRadius: 1.5,
+        background: darkSurface,
+        border: `1px solid ${alpha(tone, 0.35)}`,
+        boxShadow: `0 0 0 1px ${alpha(tone, 0.08)} inset`,
+      }}
+    >
+      {/* Header — mode chip + placed time */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+        <Chip
+          size="small"
+          label={
+            ticket.mode === 'system'
+              ? `SYSTEM ${ticket.systemK}/${ticket.selections.length}`
+              : ticket.mode === 'multi'
+                ? `MULTI · ${ticket.selections.length}`
+                : 'SINGLE'
+          }
           sx={{
-            p: 1, borderRadius: 1.5,
-            background: darkSurface,
-            border: `1px solid ${darkBorder}`,
+            height: 18, fontSize: '0.58rem', fontWeight: 800,
+            background: alpha(neonBlue, 0.15), color: neonBlue,
           }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-            <Chip
-              size="small"
-              label={t.mode === 'system' ? `SYSTEM ${t.systemK}/${t.selections.length}` : t.mode === 'multi' ? `MULTI · ${t.selections.length}` : 'SINGLE'}
+        />
+        <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }}>
+          Placed {new Date(ticket.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Typography>
+      </Box>
+
+      {/* Live progress banner */}
+      <Box sx={{
+        mb: 0.75, px: 0.75, py: 0.5,
+        background: alpha(tone, 0.08),
+        border: `1px solid ${alpha(tone, 0.25)}`,
+        borderRadius: 1,
+        fontSize: '0.66rem', color: tone, fontWeight: 800,
+        display: 'flex', alignItems: 'center', gap: 0.5,
+      }}>
+        {projectedLost ? (
+          <>
+            <CancelIcon sx={{ fontSize: 12 }} />
+            <span>One leg lost — ticket void on settle</span>
+          </>
+        ) : finishedAll ? (
+          <>
+            <CheckCircleIcon sx={{ fontSize: 12 }} />
+            <span>All legs decided — awaiting settle ({winningLegs} won, {losingLegs} lost)</span>
+          </>
+        ) : (
+          <>
+            <FiberManualRecordIcon
               sx={{
-                height: 18, fontSize: '0.58rem', fontWeight: 800,
-                background: alpha(neonBlue, 0.15), color: neonBlue,
+                fontSize: 10,
+                animation: 'pulse 1.4s ease-in-out infinite',
+                '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
               }}
             />
-            <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }}>
-              {new Date(t.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mb: 0.5 }}>
-            {t.selections.map(s => (
-              <Typography key={s.id} sx={{ fontSize: '0.65rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <strong style={{ color: '#fff' }}>{s.optionLabel}</strong> · {s.homeTeam} vs {s.awayTeam}
-              </Typography>
-            ))}
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-            <Box>
-              <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>Stake</Typography>
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 800 }}>{formatMoney(t.totalStake, wallet.currency)}</Typography>
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>To win</Typography>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, color: neonGreen }}>
-                {formatMoney(t.potentialPayout, wallet.currency)}
-              </Typography>
-            </Box>
-          </Box>
-          <Button
-            fullWidth size="small"
-            onClick={() => cashout(t.id)}
-            sx={{
-              py: 0.5, fontSize: '0.7rem', fontWeight: 800,
-              background: alpha(neonGold, 0.15),
-              color: neonGold,
-              border: `1px solid ${alpha(neonGold, 0.4)}`,
-              '&:hover': { background: alpha(neonGold, 0.25) },
-            }}
-          >
-            Cash out ≈ {formatMoney(Math.max(t.totalStake * 0.5, t.potentialPayout * 0.8), wallet.currency)}
-          </Button>
+            <span>{decidedLegs.length}/{ticket.selections.length} legs settled · {winningLegs} currently winning</span>
+          </>
+        )}
+      </Box>
+
+      {/* Per-leg list */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
+        {ticket.selections.map((s, i) => (
+          <OpenSelectionRow key={s.id} sel={s} state={states[i]} />
+        ))}
+      </Box>
+
+      {/* Footer — stake / potential payout */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
         </Box>
-      ))}
-      <Box sx={{ display: 'none' }}>{oddsFormat}</Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>POTENTIAL PAYOUT</Typography>
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: projectedLost ? '#ff6b7a' : neonGreen }}>
+            {projectedLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchStateForSelection | null }) {
+  const phase = state?.phase ?? 'unknown';
+  const result = state?.currentResult ?? 'void';
+  // Phase tone — what color the row reads as. Decided legs show green/red,
+  // live shows red-ish (active), upcoming shows neutral.
+  const decided = phase === 'finished';
+  const winning = state?.currentResult === 'win';
+  const losing  = state?.currentResult === 'loss';
+  const tone = decided
+    ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold)
+    : phase === 'live' ? neonGold
+    : 'text.secondary';
+  const score = state?.liveScore;
+
+  return (
+    <Box sx={{
+      p: 0.75, borderRadius: 1,
+      background: alpha('#fff', 0.025),
+      border: `1px solid ${decided
+        ? alpha(winning ? neonGreen : losing ? '#ff6b7a' : neonGold, 0.3)
+        : darkBorder}`,
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
+        {decided ? (
+          winning
+            ? <CheckCircleIcon sx={{ fontSize: 14, color: neonGreen }} />
+            : losing
+              ? <CancelIcon sx={{ fontSize: 14, color: '#ff6b7a' }} />
+              : <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: neonGold }} />
+        ) : phase === 'live' ? (
+          <FiberManualRecordIcon
+            sx={{
+              fontSize: 12, color: '#ff4757',
+              animation: 'pulse 1.4s ease-in-out infinite',
+              '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
+            }}
+          />
+        ) : (
+          <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+        )}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{
+            fontSize: '0.62rem', color: 'text.disabled',
+            textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1,
+          }}>
+            {sel.marketLabel}
+          </Typography>
+          <Typography sx={{
+            fontSize: '0.75rem', fontWeight: 800,
+            color: decided ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold) : '#fff',
+            lineHeight: 1.2,
+          }}>
+            {sel.optionLabel}
+          </Typography>
+        </Box>
+        <Typography sx={{
+          fontSize: '0.7rem', fontWeight: 900, color: neonGold,
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          @{sel.odds.toFixed(2)}
+        </Typography>
+      </Box>
+
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 0.5,
+        fontSize: '0.65rem', color: 'text.secondary',
+      }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {sel.homeTeam} vs {sel.awayTeam}
+        </Box>
+        {score ? (
+          <Box sx={{
+            px: 0.6, py: 0.1, borderRadius: 0.5,
+            background: alpha(phase === 'live' ? '#ff4757' : phase === 'finished' ? neonGold : '#fff', 0.12),
+            color: phase === 'live' ? '#ff4757' : phase === 'finished' ? neonGold : 'text.secondary',
+            fontWeight: 900, fontVariantNumeric: 'tabular-nums',
+            fontSize: '0.72rem',
+          }}>
+            {score.home}–{score.away}
+          </Box>
+        ) : null}
+      </Box>
+
+      {/* Phase / status line */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.4 }}>
+        <Typography sx={{ fontSize: '0.6rem', color: tone, fontWeight: 700 }}>
+          {phase === 'finished'
+            ? `FINAL · ${winning ? 'Won' : losing ? 'Lost' : result === 'void' ? 'Void' : ''}`
+            : phase === 'live'
+              ? `LIVE${state ? ` · ${Math.floor(state.liveProgress * (state.sport === 'soccer' ? 90 : state.sport === 'basketball' ? 48 : 60))}'` : ''}`
+              : phase === 'betting'
+                ? 'Pre-match'
+                : 'Awaiting result'}
+        </Typography>
+        {phase === 'live' && state && (
+          <LinearProgress
+            variant="determinate"
+            value={state.liveProgress * 100}
+            sx={{
+              flex: 1, ml: 0.5, height: 3, borderRadius: 1.5,
+              backgroundColor: alpha('#ff4757', 0.15),
+              '& .MuiLinearProgress-bar': { background: '#ff4757' },
+            }}
+          />
+        )}
+      </Box>
     </Box>
   );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// HISTORY
+// HISTORY — settled tickets with per-leg final scores
 // ────────────────────────────────────────────────────────────────────────────
 
 function HistoryBody() {
@@ -669,45 +851,149 @@ function HistoryBody() {
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <HistoryIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
         <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>No settled bets yet</Typography>
+        <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mt: 0.5 }}>
+          Bets are decided when the match round finishes — sit tight, no early cashouts.
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {history.map(t => {
-        const won  = t.status === 'won' || (t.status === 'partial' && (t.settledPayout ?? 0) > 0);
-        const lost = t.status === 'lost';
-        const cash = t.status === 'cashout';
-        const color = won ? neonGreen : lost ? '#ff4757' : cash ? neonGold : 'text.secondary';
-        return (
-          <Box
-            key={t.id}
-            sx={{
-              p: 0.75, borderRadius: 1.5,
-              background: darkSurface,
-              border: `1px solid ${alpha(typeof color === 'string' ? color : '#fff', 0.18)}`,
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
-              <Chip
-                size="small"
-                label={t.status.toUpperCase()}
-                sx={{
-                  height: 16, fontSize: '0.58rem', fontWeight: 800,
-                  background: alpha(typeof color === 'string' ? color : '#fff', 0.15), color,
-                }}
-              />
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
-                {won ? '+' : ''}{formatMoney((t.settledPayout ?? 0) - t.totalStake, wallet.currency)}
-              </Typography>
+    <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {history.map(t => (
+        <HistoryTicketCard key={t.id} ticket={t} currency={wallet.currency} />
+      ))}
+    </Box>
+  );
+}
+
+function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: FiatCurrency }) {
+  const won  = ticket.status === 'won' || (ticket.status === 'partial' && (ticket.settledPayout ?? 0) > 0);
+  const lost = ticket.status === 'lost';
+  const tone = won ? neonGreen : lost ? '#ff6b7a' : neonGold;
+  const profit = (ticket.settledPayout ?? 0) - ticket.totalStake;
+  const resultMap = new Map(
+    (ticket.selectionResults ?? []).map(r => [r.selectionId, r]),
+  );
+
+  return (
+    <Box
+      sx={{
+        p: 1.25, borderRadius: 1.5,
+        background: darkSurface,
+        border: `1px solid ${alpha(tone, 0.35)}`,
+        boxShadow: `0 0 0 1px ${alpha(tone, 0.06)} inset`,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+        <Chip
+          size="small"
+          label={ticket.status.toUpperCase()}
+          sx={{
+            height: 18, fontSize: '0.58rem', fontWeight: 800,
+            background: alpha(tone, 0.15), color: tone,
+          }}
+        />
+        <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }}>
+          {ticket.settledAt
+            ? new Date(ticket.settledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '—'}
+        </Typography>
+      </Box>
+
+      {/* Mode + selection count summary */}
+      <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mb: 0.5 }}>
+        {ticket.mode === 'system'
+          ? `System ${ticket.systemK}/${ticket.selections.length}`
+          : ticket.mode === 'multi'
+            ? `${ticket.selections.length}-leg accumulator`
+            : 'Single bet'}
+      </Typography>
+
+      {/* Per-leg result list */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
+        {ticket.selections.map(s => {
+          const res = resultMap.get(s.id);
+          const win = res?.result === 'win';
+          const loss = res?.result === 'loss';
+          const score = res?.finalScore;
+          return (
+            <Box key={s.id} sx={{
+              p: 0.6, borderRadius: 1,
+              background: alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.06),
+              border: `1px solid ${alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.25)}`,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {win ? (
+                  <CheckCircleIcon sx={{ fontSize: 13, color: neonGreen }} />
+                ) : loss ? (
+                  <CancelIcon sx={{ fontSize: 13, color: '#ff6b7a' }} />
+                ) : (
+                  <RadioButtonUncheckedIcon sx={{ fontSize: 13, color: neonGold }} />
+                )}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{
+                    fontSize: '0.58rem', color: 'text.disabled',
+                    textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1,
+                  }}>
+                    {s.marketLabel}
+                  </Typography>
+                  <Typography sx={{
+                    fontSize: '0.72rem', fontWeight: 800,
+                    color: win ? neonGreen : loss ? '#ff6b7a' : neonGold,
+                    lineHeight: 1.2,
+                  }}>
+                    {s.optionLabel}
+                  </Typography>
+                </Box>
+                <Typography sx={{
+                  fontSize: '0.68rem', fontWeight: 900, color: neonGold,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  @{s.odds.toFixed(2)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', display: 'inline' }}>
+                    {s.homeTeam} vs {s.awayTeam}
+                  </Typography>
+                </Box>
+                {score ? (
+                  <Box sx={{
+                    px: 0.5, py: 0.05, borderRadius: 0.5,
+                    background: alpha(neonGold, 0.12),
+                    color: neonGold, fontWeight: 800,
+                    fontVariantNumeric: 'tabular-nums', fontSize: '0.65rem',
+                  }}>
+                    {score.home}–{score.away}
+                  </Box>
+                ) : (
+                  <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>—</Typography>
+                )}
+              </Box>
             </Box>
-            <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>
-              {t.selections.length} pick · {formatMoney(t.totalStake, wallet.currency)} stake
-            </Typography>
-          </Box>
-        );
-      })}
+          );
+        })}
+      </Box>
+
+      {/* Footer */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
+        </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>
+            {won ? 'PAYOUT' : 'PROFIT'}
+          </Typography>
+          <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: tone, fontVariantNumeric: 'tabular-nums' }}>
+            {won
+              ? formatMoney(ticket.settledPayout ?? 0, currency)
+              : `${profit >= 0 ? '+' : ''}${formatMoney(profit, currency)}`}
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   );
 }

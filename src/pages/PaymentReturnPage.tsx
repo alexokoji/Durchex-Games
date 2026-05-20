@@ -8,6 +8,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { neonGreen, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { formatMoney } from '../utils/currency';
+import { paymentsApi, type DepositConfirmResult } from '../api/payments';
 
 /**
  * Landing page for Flutterwave's `redirect_url` callback after a deposit.
@@ -42,6 +43,8 @@ export default function PaymentReturnPage() {
   const initialBalanceRef = useRef<number | null>(null);
   const [confirmed, setConfirmed] = useState<{ delta: number } | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmAttempts, setConfirmAttempts] = useState(0);
 
   // Stable ref to wallet.refresh so the polling effect doesn't tear down
   // every time the wallet context object changes (which it does on every
@@ -89,6 +92,71 @@ export default function PaymentReturnPage() {
     return () => window.clearInterval(id);
   }, [confirmed, status]);
 
+  // Client-driven confirmation — DOES NOT rely on the webhook.
+  //
+  // Flutterwave's webhook is best-effort: sometimes it fails (signature
+  // mismatch, server downtime, dashboard URL not updated, etc.) and the
+  // deposit just stays pending forever. So on landing we tell our backend
+  // directly: "here's the tx_ref + transaction_id from the URL — please
+  // verify and credit me." The endpoint re-verifies against Flutterwave so
+  // it's safe even if the URL params are tampered with.
+  //
+  // We retry up to 3 times with 6s backoff in case Flutterwave's verify API
+  // is briefly lagging behind their checkout (it sometimes takes a few
+  // seconds after capture for verify to return `successful`).
+  useEffect(() => {
+    if (confirmed) return;
+    if (status !== 'success') return;
+    if (!txRef && !flwTxId) return;
+    let cancelled = false;
+    const MAX_ATTEMPTS = 3;
+    async function attempt(n: number) {
+      if (cancelled) return;
+      try {
+        const result: DepositConfirmResult = await paymentsApi.confirmDeposit({
+          txRef:   txRef || undefined,
+          flwTxId: flwTxId || undefined,
+        });
+        if (cancelled) return;
+        if (result.ok && (result.status === 'credited' || result.status === 'already_credited')) {
+          // Fire a wallet refresh so the balance update lands fast. The
+          // detection effect will catch the new balance and flip to
+          // "confirmed" with the actual delta.
+          void refreshRef.current().catch(() => { /* ignored */ });
+          return;
+        }
+        if (!result.ok && result.status === 'not_successful' && n < MAX_ATTEMPTS) {
+          // Verify lag: try again shortly.
+          window.setTimeout(() => void attempt(n + 1), 6000);
+          return;
+        }
+        if (!result.ok) {
+          // Friendly per-status messages. The error is informational —
+          // we still rely on the polling/socket path as a backup.
+          setConfirmError(
+            result.status === 'not_successful' ? `Flutterwave reports status: ${('flwStatus' in result ? result.flwStatus : undefined) ?? 'unknown'}`
+            : result.status === 'not_found' ? 'Reference not found — contact support.'
+            : result.status === 'verify_failed' ? `Could not verify with Flutterwave: ${('message' in result ? result.message : undefined) ?? 'unknown'}`
+            : result.status === 'currency_mismatch' ? 'Currency mismatch — contact support.'
+            : result.status === 'amount_mismatch' ? 'Amount mismatch — contact support.'
+            : result.status,
+          );
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (n < MAX_ATTEMPTS) {
+          window.setTimeout(() => void attempt(n + 1), 6000);
+          return;
+        }
+        setConfirmError((err as Error).message ?? 'Network error');
+      } finally {
+        if (!cancelled) setConfirmAttempts(c => c + 1);
+      }
+    }
+    void attempt(1);
+    return () => { cancelled = true; };
+  }, [status, txRef, flwTxId, confirmed]);
+
   // Pick the right state to render.
   const display = useMemo<{
     tone: string;
@@ -123,7 +191,9 @@ export default function PaymentReturnPage() {
         tone: neonGold,
         icon: <HourglassEmptyIcon sx={{ fontSize: 56 }} />,
         title: 'Still processing',
-        sub: 'Flutterwave is finalising the transfer. It usually shows up in a couple of minutes — refresh your wallet later if you don\'t see it yet.',
+        sub: confirmError
+          ? `${confirmError} — please contact support with the reference below if your balance doesn\'t update soon.`
+          : 'Flutterwave is finalising the transfer. It usually shows up in a couple of minutes — refresh your wallet later if you don\'t see it yet.',
         primaryLabel: 'Back to casino',
         primaryAction: () => navigate('/'),
       };
@@ -133,11 +203,13 @@ export default function PaymentReturnPage() {
       tone: neonGold,
       icon: <CircularProgress size={48} sx={{ color: neonGold }} />,
       title: 'Confirming your deposit…',
-      sub: 'Talking to Flutterwave. This usually takes 5–30 seconds.',
+      sub: confirmAttempts === 0
+        ? 'Talking to Flutterwave. This usually takes 5–30 seconds.'
+        : 'Verifying — sometimes takes a few seconds after the card is captured.',
       primaryLabel: 'Back to casino',
       primaryAction: () => navigate('/'),
     };
-  }, [status, confirmed, timedOut, wallet.currency, navigate]);
+  }, [status, confirmed, timedOut, wallet.currency, navigate, confirmError, confirmAttempts]);
 
   return (
     <Box sx={{

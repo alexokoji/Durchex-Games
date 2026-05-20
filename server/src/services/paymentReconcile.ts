@@ -1,6 +1,6 @@
 import { User } from '../models/User';
 import { Transaction } from '../models/Transaction';
-import { verifyTransaction } from './flutterwave';
+import { verifyTransaction, verifyByReference } from './flutterwave';
 import { creditFiatDeposit } from './wallet';
 import { redeemPromo } from './promo';
 import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
@@ -76,11 +76,17 @@ export async function reconcileTransaction(input: ReconcileInput): Promise<Recon
   let flwTxId: string | number | undefined = input.flwTxId ?? tx.flwTxId;
 
   if (!input.trustLocal) {
-    if (!flwTxId) {
-      return { ok: false, status: 'verify_failed', message: 'no_flw_tx_id_available' };
-    }
+    // Two lookup strategies:
+    //  • `flwTxId` known → `/transactions/:id/verify` (canonical, has Flutterwave's own state).
+    //  • Only `tx_ref` known → `/transactions/verify_by_reference` (used when the
+    //    webhook never fired so we never stored an flwTxId locally).
     try {
-      const verified = await verifyTransaction(flwTxId);
+      const verified = flwTxId
+        ? await verifyTransaction(flwTxId)
+        : await verifyByReference(tx.reference);
+      if (!verified) {
+        return { ok: false, status: 'verify_failed', message: 'no_data_returned' };
+      }
       fwStatus = verified?.status;
       fwAmount = Number(verified?.amount ?? tx.amount);
       fwCurrency = String(verified?.currency ?? tx.currency).toUpperCase();
@@ -99,7 +105,31 @@ export async function reconcileTransaction(input: ReconcileInput): Promise<Recon
     }
   }
 
-  // ─── 3. Credit + mark completed ───────────────────────────────────────
+  // ─── 3. Atomic claim — prevents the webhook and a parallel confirm/sweep
+  //         from both crediting the same deposit. `findOneAndUpdate` with the
+  //         `status: 'pending'` guard is the lock: whoever flips the status
+  //         first wins, the other path sees null and treats it as a no-op. ─
+  const claim = await Transaction.findOneAndUpdate(
+    { _id: tx._id, status: 'pending' },
+    {
+      $set: {
+        status: 'completed',
+        completedAt: new Date(),
+        ...(flwTxId ? { flwTxId: String(flwTxId) } : {}),
+        ...(input.trustLocal
+          ? { notes: (tx.notes ? tx.notes + ' · ' : '') + 'manually credited' }
+          : {}),
+      },
+    },
+    { new: true },
+  );
+  if (!claim) {
+    // Another path (webhook / parallel reconcile) already completed this tx.
+    // Idempotent: not an error, just nothing for us to do.
+    return { ok: true, status: 'already_credited' };
+  }
+
+  // ─── 4. Credit (we hold the claim, so this runs exactly once) ────────
   await creditFiatDeposit({
     user,
     amount: tx.amount,
@@ -114,11 +144,6 @@ export async function reconcileTransaction(input: ReconcileInput): Promise<Recon
       ? 'Manually credited by admin (Flutterwave verification skipped)'
       : 'Recovered via admin reconcile',
   });
-  tx.status = 'completed';
-  if (flwTxId) tx.flwTxId = String(flwTxId);
-  tx.completedAt = new Date();
-  if (input.trustLocal) tx.notes = (tx.notes ? tx.notes + ' · ' : '') + 'manually credited';
-  await tx.save();
 
   // Drain any pending deposit-match promo (same logic as the webhook).
   if (user.pendingDepositPromo) {
