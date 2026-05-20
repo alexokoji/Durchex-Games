@@ -20,6 +20,7 @@
 import type { BetSelection, MatchEvent, SportKey, Team } from './types';
 import { teamsByLeague } from './teamDatabase';
 import { getLeague } from './leagueDatabase';
+import { buildSeasonSchedule, buildLeaguePhaseSchedule } from './seasonScheduler';
 import { simulateSoccerMatch } from '../soccer/soccerSimulation';
 import { simulateBasketballMatch } from '../basketball/basketballSimulation';
 import { simulateHockeyMatch } from '../hockey/hockeySimulation';
@@ -141,6 +142,7 @@ interface CacheEntry {
   events: MatchEvent[];
 }
 const simCache = new Map<string, CacheEntry>();
+const totalWeeksCache = new Map<string, number>();
 let cacheDayKey = '';
 
 function ensureCache(): void {
@@ -148,8 +150,32 @@ function ensureCache(): void {
   const dayKey = `${d.getUTCFullYear()}${d.getUTCMonth()}${d.getUTCDate()}`;
   if (dayKey !== cacheDayKey) {
     simCache.clear();
+    totalWeeksCache.clear();
     cacheDayKey = dayKey;
   }
+}
+
+/**
+ * Number of weeks in the league's current-day fixture set. We rebuild the
+ * same schedule useLeagueSeason builds (same seed + same algorithm) so the
+ * total matches across both, which lets the phase-clock MOD line up.
+ */
+function getTotalWeeks(leagueId: string): number {
+  ensureCache();
+  const cached = totalWeeksCache.get(leagueId);
+  if (cached != null) return cached;
+  const league = getLeague(leagueId);
+  if (!league) { totalWeeksCache.set(leagueId, 0); return 0; }
+  const teams = teamsByLeague(leagueId);
+  if (teams.length < 2) { totalWeeksCache.set(leagueId, 0); return 0; }
+  const seed = seasonSeedFor(leagueId);
+  const fixtures = league.tier === 'continental'
+    ? buildLeaguePhaseSchedule(teams.map(t => t.id), seed, 8)
+    : buildSeasonSchedule(teams.map(t => t.id), seed);
+  let m = 0;
+  for (const f of fixtures) if (f.week > m) m = f.week;
+  totalWeeksCache.set(leagueId, m);
+  return m;
 }
 
 function getSimForMatch(parsed: ParsedMatchId): CacheEntry | null {
@@ -197,27 +223,33 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
   const cached = getSimForMatch(parsed);
   if (!cached) return null;
 
-  // Phase clock — replicate useLeagueSeason's algorithm. The active week
-  // rotates around the season; absolute week N in the matchId maps to a
-  // slot in the rotation based on today's anchor.
+  // Phase clock — mirror useLeagueSeason's algorithm EXACTLY, including the
+  // MOD-by-totalWeeks step. The season is short (e.g. 38 weeks × 10 min =
+  // ~6.3h) and cycles multiple times per UTC day. Without the MOD, a bet
+  // placed in the first cycle's week 8 would look "past" by the time the
+  // second cycle's week 8 rolls around, leaking the result via a "finished"
+  // phase + score chip even though the match hasn't actually played yet.
   const anchor = utcMidnight();
   const now = Date.now();
-  const elapsedSec = Math.max(0, Math.floor((now - anchor) / 1000));
-
-  // The fixtures cycle every `totalWeeks` weeks. Without rebuilding the full
-  // schedule we don't know totalWeeks, but we can still locate parsed.week's
-  // slot WITHIN today's cycle by looking at which week is currently live.
-  const currentWeekSlot = Math.floor(elapsedSec / WEEK_S) + 1;
-  const secondsIntoWeek = elapsedSec % WEEK_S;
+  const elapsedFromAnchor = Math.max(0, now - anchor);
+  const totalWeeks = getTotalWeeks(parsed.leagueId);
+  if (totalWeeks === 0) return null;
+  const totalSeasonSeconds = totalWeeks * WEEK_S;
+  const elapsedInLoopMs = elapsedFromAnchor % (totalSeasonSeconds * 1000);
+  const elapsedSecondsInSeason = Math.floor(elapsedInLoopMs / 1000);
+  const currentWeek = Math.min(totalWeeks, Math.floor(elapsedSecondsInSeason / WEEK_S) + 1);
+  const secondsIntoWeek = elapsedSecondsInSeason % WEEK_S;
 
   // Distance (in weeks) between this match's encoded week and the current
-  // active slot, treating the slot as the live week.
-  // If parsed.week === currentWeekSlot → the match is the current week.
-  // If parsed.week > currentWeekSlot   → upcoming (still in pre-booking).
-  // If parsed.week < currentWeekSlot   → already finished.
+  // active week, treating it as the live week.
+  //   parsed.week === currentWeek → the match is the current week.
+  //   parsed.week > currentWeek   → upcoming (still in pre-booking).
+  //   parsed.week < currentWeek   → already finished THIS CYCLE; will come
+  //                                  around again after totalWeeks - delta
+  //                                  weeks, but is awaiting settle now.
   let phase: SelectionPhase;
   let liveProgress = 0;
-  if (parsed.week === currentWeekSlot) {
+  if (parsed.week === currentWeek) {
     phase = secondsIntoWeek < BETTING_S ? 'betting'
           : secondsIntoWeek < BETTING_S + LIVE_S ? 'live'
           : 'finished';
@@ -225,7 +257,7 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
       ? Math.max(0, Math.min(1, (secondsIntoWeek - BETTING_S) / LIVE_S))
       : phase === 'finished' ? 1
       : 0;
-  } else if (parsed.week > currentWeekSlot) {
+  } else if (parsed.week > currentWeek) {
     phase = 'betting';
     liveProgress = 0;
   } else {
