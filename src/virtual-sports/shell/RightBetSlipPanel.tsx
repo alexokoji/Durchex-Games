@@ -17,6 +17,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useToasts } from '../../contexts/ToastContext';
@@ -619,46 +622,93 @@ function OpenBetsBody() {
   );
 }
 
+/** Aggregate ticket-level phase from the worst-progressed leg. If any leg is
+ *  still in 'betting' we treat the whole ticket as pre-match. This drives
+ *  the banner copy and decides whether to show projected outcomes. */
+function aggregatePhase(states: (MatchStateForSelection | null)[]): 'betting' | 'live' | 'finished' | 'unknown' {
+  if (states.some(s => s == null)) return 'unknown';
+  if (states.some(s => s!.phase === 'betting')) return 'betting';
+  if (states.some(s => s!.phase === 'live'))    return 'live';
+  return 'finished';
+}
+
+/** Seconds until the earliest selection's match kicks off (live phase begins).
+ *  Used for the "kicks off in X" countdown on the banner. Returns 0 if all
+ *  matches have already started. */
+function secondsToFirstKickoff(states: (MatchStateForSelection | null)[]): number {
+  // We can't recover absolute startsAt from a state object, but we can
+  // approximate: every match has a 6 min betting window before kickoff. So
+  // when phase === 'betting' the matches start sometime in the next 6 min.
+  // Pulling the real seconds requires re-deriving from the matchId — out of
+  // scope; a coarse "kicks off soon" message is plenty for the open card.
+  return states.some(s => s?.phase === 'betting') ? -1 : 0;
+}
+
 function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currency: FiatCurrency; tick: number }) {
   // tick is unused directly — its mere presence triggers a re-render every
   // second so deriveMatchState() returns fresh numbers below.
   void tick;
+  const [expanded, setExpanded] = useState(true);
+
   const states = ticket.selections.map(s => deriveMatchState(s));
+  const ticketPhase = aggregatePhase(states);
+
+  // CRITICAL: only count wins/losses when matches have actually played out.
+  // During 'betting' we deliberately don't peek at currentResult — even
+  // though the simulation has the outcome rolled, we don't want to spoil it
+  // before the user has watched the live phase.
   const known = states.filter((s): s is MatchStateForSelection => s != null);
-
-  // Aggregate live status across legs.
   const decidedLegs = known.filter(s => s.phase === 'finished');
-  const winningLegs = known.filter(s => s.currentResult === 'win').length;
-  const losingLegs  = known.filter(s => s.currentResult === 'loss').length;
-  const finishedAll = decidedLegs.length === ticket.selections.length;
-  const projectedLost = ticket.mode !== 'system'
+  const liveWinsSoFar = ticketPhase === 'live' || ticketPhase === 'finished'
+    ? known.filter(s => (s.phase === 'live' || s.phase === 'finished') && s.currentResult === 'win').length
+    : 0;
+  const finalLost = ticketPhase === 'finished' && ticket.mode !== 'system'
     && known.some(s => s.phase === 'finished' && s.finalResult === 'loss');
+  const finalWonAll = ticketPhase === 'finished'
+    && decidedLegs.length === ticket.selections.length
+    && decidedLegs.every(s => s.finalResult === 'win');
 
-  // Banner tone tracks the projected outcome so users get instant feedback.
-  const tone = projectedLost
-    ? '#ff6b7a'
-    : finishedAll && winningLegs === ticket.selections.length
-      ? neonGreen
-      : neonGold;
+  const tone = finalLost ? '#ff6b7a' : finalWonAll ? neonGreen : ticketPhase === 'live' ? '#ff4757' : neonGold;
+  void secondsToFirstKickoff;
+
+  // Collapsed-state header bits — what the user sees when the card is folded.
+  const statusLabel = ticketPhase === 'finished'
+    ? (finalLost ? 'AWAITING SETTLE · projected loss'
+      : finalWonAll ? 'AWAITING SETTLE · all legs won'
+      : 'AWAITING SETTLE')
+    : ticketPhase === 'live'
+      ? `LIVE · ${liveWinsSoFar}/${ticket.selections.length} ahead`
+      : ticketPhase === 'betting'
+        ? 'Awaiting kickoff'
+        : 'Pending';
 
   return (
     <Box
       sx={{
-        p: 1.25, borderRadius: 1.5,
+        borderRadius: 1.5,
         background: darkSurface,
         border: `1px solid ${alpha(tone, 0.35)}`,
         boxShadow: `0 0 0 1px ${alpha(tone, 0.08)} inset`,
+        overflow: 'hidden',
       }}
     >
-      {/* Header — mode chip + placed time */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+      {/* Collapsible header — clicking toggles expanded state. Always visible. */}
+      <Box
+        onClick={() => setExpanded(v => !v)}
+        sx={{
+          px: 1.25, py: 0.9, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 1,
+          background: alpha(tone, 0.05),
+          '&:hover': { background: alpha(tone, 0.1) },
+        }}
+      >
         <Chip
           size="small"
           label={
             ticket.mode === 'system'
-              ? `SYSTEM ${ticket.systemK}/${ticket.selections.length}`
+              ? `SYS ${ticket.systemK}/${ticket.selections.length}`
               : ticket.mode === 'multi'
-                ? `MULTI · ${ticket.selections.length}`
+                ? `${ticket.selections.length}-LEG`
                 : 'SINGLE'
           }
           sx={{
@@ -666,81 +716,135 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
             background: alpha(neonBlue, 0.15), color: neonBlue,
           }}
         />
-        <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }}>
-          Placed {new Date(ticket.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Typography>
-      </Box>
-
-      {/* Live progress banner */}
-      <Box sx={{
-        mb: 0.75, px: 0.75, py: 0.5,
-        background: alpha(tone, 0.08),
-        border: `1px solid ${alpha(tone, 0.25)}`,
-        borderRadius: 1,
-        fontSize: '0.66rem', color: tone, fontWeight: 800,
-        display: 'flex', alignItems: 'center', gap: 0.5,
-      }}>
-        {projectedLost ? (
-          <>
-            <CancelIcon sx={{ fontSize: 12 }} />
-            <span>One leg lost — ticket void on settle</span>
-          </>
-        ) : finishedAll ? (
-          <>
-            <CheckCircleIcon sx={{ fontSize: 12 }} />
-            <span>All legs decided — awaiting settle ({winningLegs} won, {losingLegs} lost)</span>
-          </>
-        ) : (
-          <>
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {ticketPhase === 'live' && (
             <FiberManualRecordIcon
               sx={{
-                fontSize: 10,
+                fontSize: 10, color: '#ff4757',
                 animation: 'pulse 1.4s ease-in-out infinite',
                 '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
               }}
             />
-            <span>{decidedLegs.length}/{ticket.selections.length} legs settled · {winningLegs} currently winning</span>
-          </>
-        )}
-      </Box>
-
-      {/* Per-leg list */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
-        {ticket.selections.map((s, i) => (
-          <OpenSelectionRow key={s.id} sel={s} state={states[i]} />
-        ))}
-      </Box>
-
-      {/* Footer — stake / potential payout */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
-        </Box>
-        <Box sx={{ textAlign: 'right' }}>
-          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>POTENTIAL PAYOUT</Typography>
-          <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: projectedLost ? '#ff6b7a' : neonGreen }}>
-            {projectedLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
+          )}
+          <Typography sx={{
+            fontSize: '0.66rem', fontWeight: 800, color: tone,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {statusLabel}
           </Typography>
         </Box>
+        <Typography sx={{
+          fontSize: '0.72rem', fontWeight: 900, color: neonGreen,
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {formatMoney(ticket.potentialPayout, currency)}
+        </Typography>
+        <IconButton size="small" sx={{ p: 0, color: 'text.secondary' }}>
+          {expanded ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
+        </IconButton>
       </Box>
+
+      {/* Expanded body */}
+      {expanded && (
+        <Box sx={{ p: 1.25, pt: 1 }}>
+          {/* Live progress banner — phase-aware, no spoilers during betting */}
+          <Box sx={{
+            mb: 0.75, px: 0.75, py: 0.5,
+            background: alpha(tone, 0.08),
+            border: `1px solid ${alpha(tone, 0.25)}`,
+            borderRadius: 1,
+            fontSize: '0.66rem', color: tone, fontWeight: 800,
+            display: 'flex', alignItems: 'center', gap: 0.5,
+          }}>
+            {ticketPhase === 'betting' ? (
+              <>
+                <SportsScoreIcon sx={{ fontSize: 12 }} />
+                <span>Matches kick off shortly — sit tight and watch them play</span>
+              </>
+            ) : ticketPhase === 'live' ? (
+              <>
+                <FiberManualRecordIcon
+                  sx={{
+                    fontSize: 10,
+                    animation: 'pulse 1.4s ease-in-out infinite',
+                    '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
+                  }}
+                />
+                <span>Live now · {liveWinsSoFar}/{ticket.selections.length} legs ahead</span>
+              </>
+            ) : ticketPhase === 'finished' ? (
+              finalLost ? (
+                <>
+                  <CancelIcon sx={{ fontSize: 12 }} />
+                  <span>One leg lost — ticket settling as a loss</span>
+                </>
+              ) : finalWonAll ? (
+                <>
+                  <CheckCircleIcon sx={{ fontSize: 12 }} />
+                  <span>All legs won — payout incoming</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon sx={{ fontSize: 12 }} />
+                  <span>Matches finished — settling now</span>
+                </>
+              )
+            ) : (
+              <>
+                <RadioButtonUncheckedIcon sx={{ fontSize: 12 }} />
+                <span>Awaiting result</span>
+              </>
+            )}
+          </Box>
+
+          {/* Per-leg list */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
+            {ticket.selections.map((s, i) => (
+              <OpenSelectionRow key={s.id} sel={s} state={states[i]} />
+            ))}
+          </Box>
+
+          {/* Footer — stake / potential payout / placed time */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>PLACED</Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                {new Date(ticket.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>POTENTIAL PAYOUT</Typography>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: finalLost ? '#ff6b7a' : neonGreen }}>
+                {finalLost ? '—' : formatMoney(ticket.potentialPayout, currency)}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
 
 function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchStateForSelection | null }) {
   const phase = state?.phase ?? 'unknown';
-  const result = state?.currentResult ?? 'void';
-  // Phase tone — what color the row reads as. Decided legs show green/red,
-  // live shows red-ish (active), upcoming shows neutral.
   const decided = phase === 'finished';
-  const winning = state?.currentResult === 'win';
-  const losing  = state?.currentResult === 'loss';
-  const tone = decided
+  // During betting phase we DO NOT consult currentResult — the simulation
+  // already has the result rolled, and showing it before kickoff spoils the
+  // experience the user is paying to watch.
+  const winning = (phase === 'live' || phase === 'finished') && state?.currentResult === 'win';
+  const losing  = (phase === 'live' || phase === 'finished') && state?.currentResult === 'loss';
+  // Only show a score chip after kickoff. Pre-match shows "vs", not 0-0.
+  const showScore = state != null && (phase === 'live' || phase === 'finished');
+  const score = showScore ? state!.liveScore : null;
+
+  const rowTone = decided
     ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold)
-    : phase === 'live' ? neonGold
-    : 'text.secondary';
-  const score = state?.liveScore;
+    : phase === 'live' ? '#ff4757'
+    : darkBorder;
 
   return (
     <Box sx={{
@@ -748,6 +852,7 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
       background: alpha('#fff', 0.025),
       border: `1px solid ${decided
         ? alpha(winning ? neonGreen : losing ? '#ff6b7a' : neonGold, 0.3)
+        : phase === 'live' ? alpha('#ff4757', 0.25)
         : darkBorder}`,
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
@@ -777,6 +882,8 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
           </Typography>
           <Typography sx={{
             fontSize: '0.75rem', fontWeight: 800,
+            // Don't color the pick green/red until the match has played out
+            // (or is in progress). During betting it stays neutral white.
             color: decided ? (winning ? neonGreen : losing ? '#ff6b7a' : neonGold) : '#fff',
             lineHeight: 1.2,
           }}>
@@ -801,8 +908,8 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
         {score ? (
           <Box sx={{
             px: 0.6, py: 0.1, borderRadius: 0.5,
-            background: alpha(phase === 'live' ? '#ff4757' : phase === 'finished' ? neonGold : '#fff', 0.12),
-            color: phase === 'live' ? '#ff4757' : phase === 'finished' ? neonGold : 'text.secondary',
+            background: alpha(phase === 'live' ? '#ff4757' : neonGold, 0.12),
+            color: phase === 'live' ? '#ff4757' : neonGold,
             fontWeight: 900, fontVariantNumeric: 'tabular-nums',
             fontSize: '0.72rem',
           }}>
@@ -811,15 +918,17 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
         ) : null}
       </Box>
 
-      {/* Phase / status line */}
+      {/* Phase / status line. Carefully avoids any "win/loss" wording until
+          the match has actually played — during betting we just show
+          "Match starts soon". */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.4 }}>
-        <Typography sx={{ fontSize: '0.6rem', color: tone, fontWeight: 700 }}>
+        <Typography sx={{ fontSize: '0.6rem', color: rowTone, fontWeight: 700 }}>
           {phase === 'finished'
-            ? `FINAL · ${winning ? 'Won' : losing ? 'Lost' : result === 'void' ? 'Void' : ''}`
+            ? `FINAL · ${winning ? 'Won' : losing ? 'Lost' : 'Void'}`
             : phase === 'live'
               ? `LIVE${state ? ` · ${Math.floor(state.liveProgress * (state.sport === 'soccer' ? 90 : state.sport === 'basketball' ? 48 : 60))}'` : ''}`
               : phase === 'betting'
-                ? 'Pre-match'
+                ? 'Match starts soon'
                 : 'Awaiting result'}
         </Typography>
         {phase === 'live' && state && (
@@ -868,6 +977,10 @@ function HistoryBody() {
 }
 
 function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: FiatCurrency }) {
+  // History entries stack up fast — start collapsed and let the user expand
+  // to see per-leg detail.
+  const [expanded, setExpanded] = useState(false);
+
   const won  = ticket.status === 'won' || (ticket.status === 'partial' && (ticket.settledPayout ?? 0) > 0);
   const lost = ticket.status === 'lost';
   const tone = won ? neonGreen : lost ? '#ff6b7a' : neonGold;
@@ -879,13 +992,23 @@ function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: 
   return (
     <Box
       sx={{
-        p: 1.25, borderRadius: 1.5,
+        borderRadius: 1.5,
         background: darkSurface,
         border: `1px solid ${alpha(tone, 0.35)}`,
         boxShadow: `0 0 0 1px ${alpha(tone, 0.06)} inset`,
+        overflow: 'hidden',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+      {/* Collapsed header — always visible. Click anywhere to toggle. */}
+      <Box
+        onClick={() => setExpanded(v => !v)}
+        sx={{
+          px: 1.25, py: 0.9, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 1,
+          background: alpha(tone, 0.05),
+          '&:hover': { background: alpha(tone, 0.1) },
+        }}
+      >
         <Chip
           size="small"
           label={ticket.status.toUpperCase()}
@@ -894,106 +1017,120 @@ function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: 
             background: alpha(tone, 0.15), color: tone,
           }}
         />
-        <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }}>
-          {ticket.settledAt
-            ? new Date(ticket.settledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : '—'}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{
+            fontSize: '0.7rem', fontWeight: 700, color: 'text.secondary',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {ticket.mode === 'system'
+              ? `System ${ticket.systemK}/${ticket.selections.length}`
+              : ticket.mode === 'multi'
+                ? `${ticket.selections.length}-leg accumulator`
+                : 'Single bet'}
+            {ticket.settledAt && ` · ${new Date(ticket.settledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+          </Typography>
+        </Box>
+        <Typography sx={{
+          fontSize: '0.78rem', fontWeight: 900, color: tone,
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {won
+            ? `+${formatMoney((ticket.settledPayout ?? 0) - ticket.totalStake, currency)}`
+            : `${profit >= 0 ? '+' : ''}${formatMoney(profit, currency)}`}
         </Typography>
+        <IconButton size="small" sx={{ p: 0, color: 'text.secondary' }}>
+          {expanded ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
+        </IconButton>
       </Box>
 
-      {/* Mode + selection count summary */}
-      <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mb: 0.5 }}>
-        {ticket.mode === 'system'
-          ? `System ${ticket.systemK}/${ticket.selections.length}`
-          : ticket.mode === 'multi'
-            ? `${ticket.selections.length}-leg accumulator`
-            : 'Single bet'}
-      </Typography>
-
-      {/* Per-leg result list */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
-        {ticket.selections.map(s => {
-          const res = resultMap.get(s.id);
-          const win = res?.result === 'win';
-          const loss = res?.result === 'loss';
-          const score = res?.finalScore;
-          return (
-            <Box key={s.id} sx={{
-              p: 0.6, borderRadius: 1,
-              background: alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.06),
-              border: `1px solid ${alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.25)}`,
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {win ? (
-                  <CheckCircleIcon sx={{ fontSize: 13, color: neonGreen }} />
-                ) : loss ? (
-                  <CancelIcon sx={{ fontSize: 13, color: '#ff6b7a' }} />
-                ) : (
-                  <RadioButtonUncheckedIcon sx={{ fontSize: 13, color: neonGold }} />
-                )}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{
-                    fontSize: '0.58rem', color: 'text.disabled',
-                    textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1,
-                  }}>
-                    {s.marketLabel}
-                  </Typography>
-                  <Typography sx={{
-                    fontSize: '0.72rem', fontWeight: 800,
-                    color: win ? neonGreen : loss ? '#ff6b7a' : neonGold,
-                    lineHeight: 1.2,
-                  }}>
-                    {s.optionLabel}
-                  </Typography>
-                </Box>
-                <Typography sx={{
-                  fontSize: '0.68rem', fontWeight: 900, color: neonGold,
-                  fontVariantNumeric: 'tabular-nums',
+      {/* Expanded body — per-leg results + footer */}
+      {expanded && (
+        <Box sx={{ p: 1.25, pt: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 0.75 }}>
+            {ticket.selections.map(s => {
+              const res = resultMap.get(s.id);
+              const win = res?.result === 'win';
+              const loss = res?.result === 'loss';
+              const score = res?.finalScore;
+              return (
+                <Box key={s.id} sx={{
+                  p: 0.6, borderRadius: 1,
+                  background: alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.06),
+                  border: `1px solid ${alpha(win ? neonGreen : loss ? '#ff6b7a' : neonGold, 0.25)}`,
                 }}>
-                  @{s.odds.toFixed(2)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', display: 'inline' }}>
-                    {s.homeTeam} vs {s.awayTeam}
-                  </Typography>
-                </Box>
-                {score ? (
-                  <Box sx={{
-                    px: 0.5, py: 0.05, borderRadius: 0.5,
-                    background: alpha(neonGold, 0.12),
-                    color: neonGold, fontWeight: 800,
-                    fontVariantNumeric: 'tabular-nums', fontSize: '0.65rem',
-                  }}>
-                    {score.home}–{score.away}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {win ? (
+                      <CheckCircleIcon sx={{ fontSize: 13, color: neonGreen }} />
+                    ) : loss ? (
+                      <CancelIcon sx={{ fontSize: 13, color: '#ff6b7a' }} />
+                    ) : (
+                      <RadioButtonUncheckedIcon sx={{ fontSize: 13, color: neonGold }} />
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{
+                        fontSize: '0.58rem', color: 'text.disabled',
+                        textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1,
+                      }}>
+                        {s.marketLabel}
+                      </Typography>
+                      <Typography sx={{
+                        fontSize: '0.72rem', fontWeight: 800,
+                        color: win ? neonGreen : loss ? '#ff6b7a' : neonGold,
+                        lineHeight: 1.2,
+                      }}>
+                        {s.optionLabel}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{
+                      fontSize: '0.68rem', fontWeight: 900, color: neonGold,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      @{s.odds.toFixed(2)}
+                    </Typography>
                   </Box>
-                ) : (
-                  <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>—</Typography>
-                )}
-              </Box>
-            </Box>
-          );
-        })}
-      </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                    <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', display: 'inline' }}>
+                        {s.homeTeam} vs {s.awayTeam}
+                      </Typography>
+                    </Box>
+                    {score ? (
+                      <Box sx={{
+                        px: 0.5, py: 0.05, borderRadius: 0.5,
+                        background: alpha(neonGold, 0.12),
+                        color: neonGold, fontWeight: 800,
+                        fontVariantNumeric: 'tabular-nums', fontSize: '0.65rem',
+                      }}>
+                        {score.home}–{score.away}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>—</Typography>
+                    )}
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
 
-      {/* Footer */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
+          {/* Footer */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>STAKE</Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{formatMoney(ticket.totalStake, currency)}</Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>
+                {won ? 'PAYOUT' : 'PROFIT'}
+              </Typography>
+              <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: tone, fontVariantNumeric: 'tabular-nums' }}>
+                {won
+                  ? formatMoney(ticket.settledPayout ?? 0, currency)
+                  : `${profit >= 0 ? '+' : ''}${formatMoney(profit, currency)}`}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
-        <Box sx={{ textAlign: 'right' }}>
-          <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.05em' }}>
-            {won ? 'PAYOUT' : 'PROFIT'}
-          </Typography>
-          <Typography sx={{ fontSize: '0.95rem', fontWeight: 900, color: tone, fontVariantNumeric: 'tabular-nums' }}>
-            {won
-              ? formatMoney(ticket.settledPayout ?? 0, currency)
-              : `${profit >= 0 ? '+' : ''}${formatMoney(profit, currency)}`}
-          </Typography>
-        </Box>
-      </Box>
+      )}
     </Box>
   );
 }
