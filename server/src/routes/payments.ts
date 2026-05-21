@@ -334,19 +334,32 @@ router.post(
     }
 
     if (method === 'bank' || method === 'mobilemoney') {
+      if (!accountBank?.trim() || !accountNumber?.trim() || !beneficiaryName?.trim()) {
+        res.status(400).json({ error: 'missing_withdraw_destination', message: 'Bank code, account number, and beneficiary name are required.' });
+        return;
+      }
       try {
         await initTransfer({
           reference,
           amount,
           currency: user.currency,
-          accountBank, accountNumber, beneficiaryName,
+          accountBank: accountBank.trim(),
+          accountNumber: accountNumber.trim(),
+          beneficiaryName: beneficiaryName.trim(),
           meta: { userId: user._id.toString() },
         });
       } catch (err: any) {
-        console.error('[flw] transfer init failed', err?.message ?? err);
+        console.error('[flw] transfer init failed', {
+          message: err?.message ?? err,
+          response: err?.response?.data ?? null,
+        });
         await Transaction.updateOne({ reference }, { status: 'failed', notes: err?.message ?? 'transfer_failed' });
         await User.findByIdAndUpdate(user._id, { $inc: { balance: amount } });
-        res.status(502).json({ error: 'transfer_init_failed' });
+        res.status(502).json({
+          error: 'transfer_init_failed',
+          message: err?.message ?? 'Transfer initialization failed',
+          details: err?.response?.data ?? null,
+        });
         return;
       }
     }
