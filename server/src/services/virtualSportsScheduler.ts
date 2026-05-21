@@ -1,13 +1,13 @@
 import { JobState } from '../models/JobState';
 import { Bet } from '../models/Bet';
 import { settleBetAtomic } from './wallet';
-import { teamsByLeague } from '../../src/virtual-sports/core/teamDatabase';
-import { getLeague, LEAGUES } from '../../src/virtual-sports/core/leagueDatabase';
-import { buildSeasonSchedule, buildLeaguePhaseSchedule, type ScheduledFixture } from '../../src/virtual-sports/core/seasonScheduler';
-import { simulateSoccerMatch, resolveSoccerSelection } from '../../src/virtual-sports/soccer/soccerSimulation';
-import { simulateBasketballMatch, resolveBasketballSelection } from '../../src/virtual-sports/basketball/basketballSimulation';
-import { simulateHockeyMatch, resolveHockeySelection } from '../../src/virtual-sports/hockey/hockeySimulation';
-import { calculatePayout } from '../../src/virtual-sports/core/oddsEngine';
+import { teamsByLeague } from '@virtual-sports/core/teamDatabase';
+import { getLeague, LEAGUES } from '@virtual-sports/core/leagueDatabase';
+import { buildSeasonSchedule, buildLeaguePhaseSchedule, type ScheduledFixture } from '@virtual-sports/core/seasonScheduler';
+import { simulateSoccerMatch, resolveSoccerSelection } from '@virtual-sports/soccer/soccerSimulation';
+import { simulateBasketballMatch, resolveBasketballSelection } from '@virtual-sports/basketball/basketballSimulation';
+import { simulateHockeyMatch, resolveHockeySelection } from '@virtual-sports/hockey/hockeySimulation';
+import { calculatePayout } from '@virtual-sports/core/oddsEngine';
 
 const JOB_PREFIX = 'virtual_settle';
 const WEEK_SECONDS = 600; // same as client
@@ -41,10 +41,10 @@ function combinations(n: number, k: number): number[][] {
   return out;
 }
 
-function buildWeekMatches(leagueId: string, week: number, seasonSeed: number, fixtures: ScheduledFixture[]) {
+function buildWeekMatches(leagueId: string, week: number, seasonSeed: number, fixtures: ScheduledFixture[]): { home: any; away: any; seed: number }[] {
   const teams = teamsByLeague(leagueId);
-  const teamsById = new Map(teams.map(t => [t.id, t]));
-  const matches = fixtures.filter(f => f.week === week).map(f => {
+  const teamsById = new Map(teams.map((t: any) => [t.id, t]));
+  const matches = fixtures.filter((f: any) => f.week === week).map((f: any) => {
     const home = teamsById.get(f.homeId);
     const away = teamsById.get(f.awayId);
     if (!home || !away) return null;
@@ -65,8 +65,8 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
 
   const seed = seasonSeedFor(leagueId);
   const fixtures = leagueMeta?.tier === 'continental'
-    ? buildLeaguePhaseSchedule(teams.map(t => t.id), seed, 8)
-    : buildSeasonSchedule(teams.map(t => t.id), seed);
+    ? buildLeaguePhaseSchedule(teams.map((t: any) => t.id), seed, 8)
+    : buildSeasonSchedule(teams.map((t: any) => t.id), seed);
 
   // Build simulations and outcome map for this week
   const weekMatches = buildWeekMatches(leagueId, currentWeek, seed, fixtures);
@@ -198,9 +198,9 @@ export function startVirtualSportsScheduler(): void {
         if (teams.length < 2) continue;
         const seed = seasonSeedFor(league.id);
         const fixtures = league.tier === 'continental'
-          ? buildLeaguePhaseSchedule(teams.map(t => t.id), seed, 8)
-          : buildSeasonSchedule(teams.map(t => t.id), seed);
-        const total = fixtures.reduce((m, f) => Math.max(m, f.week), 0);
+          ? buildLeaguePhaseSchedule(teams.map((t: any) => t.id), seed, 8)
+          : buildSeasonSchedule(teams.map((t: any) => t.id), seed);
+        const total = fixtures.reduce((m: number, f: any) => Math.max(m, f.week), 0);
         if (total === 0) continue;
         const totalSeasonSeconds = total * WEEK_SECONDS;
         const elapsedFromAnchor = Math.max(0, now - anchor);

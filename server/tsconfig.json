@@ -4,7 +4,8 @@
     "module": "commonjs",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "..",
+    "baseUrl": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -17,7 +18,10 @@
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
-    "declaration": false
+    "declaration": false,
+    "paths": {
+      "@virtual-sports/*": ["../src/virtual-sports/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

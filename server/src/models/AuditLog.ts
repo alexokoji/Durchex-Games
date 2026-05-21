@@ -15,7 +15,8 @@ export type AuditAction =
   | 'promocode.delete'
   | 'risk.update'
   | 'cashback.run'
-  | 'user.view';
+  | 'user.view'
+  | 'virtual_sports.settle';
 
 export interface IAuditLog extends Document {
   _id: Types.ObjectId;

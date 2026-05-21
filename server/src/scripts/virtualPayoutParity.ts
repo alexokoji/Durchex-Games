@@ -1,4 +1,4 @@
-import { calculatePayout } from '../../../src/virtual-sports/core/oddsEngine';
+import { calculatePayout } from '@virtual-sports/core/oddsEngine';
 
 // Minimal combo generator
 function combinations(n: number, k: number): number[][] {

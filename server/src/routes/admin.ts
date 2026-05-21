@@ -367,7 +367,7 @@ router.post(
       const { leagueId, week } = req.body;
       try {
         await settleForLeagueWeek(leagueId, Number(week));
-        await auditFromReq(req, 'virtual_sports.settle', 'virtual_sports', undefined, { leagueId, week });
+        await auditFromReq(req, 'virtual_sports.settle', 'system', undefined, { leagueId, week });
         res.json({ ok: true, leagueId, week });
       } catch (err: any) {
         res.status(500).json({ error: 'settle_failed', details: String(err) });
