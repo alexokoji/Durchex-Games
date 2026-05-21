@@ -52,7 +52,7 @@ interface WalletContextValue {
   isLoading: boolean;
   lastError: string | null;
 
-  placeBet: (args: { gameId: string; gameName: string; stake: number; details?: string; selections?: unknown }) =>
+  placeBet: (args: { gameId: string; gameName: string; stake: number; details?: string; selections?: unknown; mode?: 'single' | 'multi' | 'system'; systemK?: number }) =>
     Promise<BetRecord | null>;
   settleBet: (betId: string, opts: { won: boolean; payout?: number; multiplier?: number; details?: string }) =>
     Promise<void>;
@@ -185,7 +185,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(t);
   }, [isAuthenticated, refresh]);
 
-  const placeBet = useCallback<WalletContextValue['placeBet']>(async ({ gameId, gameName, stake, details, selections }) => {
+  const placeBet = useCallback<WalletContextValue['placeBet']>(async ({ gameId, gameName, stake, details, selections, mode, systemK }) => {
     if (!isAuthenticated) { requireAuth(); return null; }
     const minBet = minBetFor(currency);
     if (stake + 1e-9 < minBet) {
@@ -202,7 +202,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     setLastError(null);
     try {
-      const { bet, balance: newBalance, bonusBalance: newBonus } = await betsApi.place({ gameId, gameName, stake, details, selections });
+      const { bet, balance: newBalance, bonusBalance: newBonus } = await betsApi.place({ gameId, gameName, stake, details, selections, mode, systemK });
       const rec = toBetRecord(bet);
       setPendingBets(prev => [rec, ...prev]);
       setBalance(newBalance);
