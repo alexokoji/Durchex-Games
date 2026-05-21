@@ -9,7 +9,7 @@ import { paymentsApi, type DepositInitBody, type WithdrawBody } from '../api/pay
 import { ApiError } from '../api/client';
 import { getChatSocket } from '../api/chat';
 import type { FiatCurrency, CryptoCurrency, AnyCurrency } from '../utils/currency';
-import { minBetFor, formatMoney } from '../utils/currency';
+import { minBetFor, formatMoney, usdApprox } from '../utils/currency';
 import { useToasts } from './ToastContext';
 import { useNotifications } from './NotificationContext';
 
@@ -264,7 +264,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (err instanceof ApiError && code === 'rollover_outstanding' && err.details && typeof err.details === 'object' && 'rollover' in err.details) {
         const rolloverRequired = Number((err.details as { rollover?: number }).rollover ?? 0);
         if (Number.isFinite(rolloverRequired) && rolloverRequired > 0) {
-          message = `${message} Remaining rollover: ${formatMoney(rolloverRequired, currency)}.`;
+          message = `${message} Remaining rollover: ${formatMoney(rolloverRequired, currency)}${currency !== 'USD' ? ` (${usdApprox(rolloverRequired, currency)})` : ''}.`;
         }
       }
       setLastError(code);

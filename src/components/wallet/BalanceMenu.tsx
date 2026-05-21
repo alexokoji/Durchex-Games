@@ -170,6 +170,9 @@ export default function BalanceMenu({ anchorEl, open, onClose, onDeposit, onWith
                   <LockIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
                   <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
                     Wager {hidden ? '••••' : formatMoney(bonusRollover, currency)} more to unlock withdrawals
+                    {!hidden && currency !== 'USD' && bonusRollover > 0 && (
+                      <> {usdApprox(bonusRollover, currency)}</>
+                    )}
                   </Typography>
                 </Box>
               </Box>
