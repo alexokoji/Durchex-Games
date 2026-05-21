@@ -18,6 +18,8 @@ export interface PlaceBetArgs {
   currency: FiatCurrency;     // for casino bets we always use the user's fiat
   details?: string;
   selections?: unknown;
+  mode?: string;
+  systemK?: number;
 }
 
 /**
@@ -76,6 +78,8 @@ export async function placeBetAtomic(args: PlaceBetArgs): Promise<
     stake:    args.stake,
     bonusStake: bonusUsed,
     currency: args.currency,
+    mode:     args.mode,
+    systemK:  args.systemK,
     status:   'pending',
     details:  args.details,
     selections: args.selections,

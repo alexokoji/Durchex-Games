@@ -18,6 +18,7 @@ import { auditFromReq } from '../services/audit';
 import { sendMail } from '../services/email';
 import { Transaction } from '../models/Transaction';
 import { reconcileTransaction } from '../services/paymentReconcile';
+import { settleForLeagueWeek } from '../services/virtualSportsScheduler';
 
 const router = Router();
 
@@ -354,6 +355,25 @@ router.post(
     res.json(result);
   },
 );
+
+  // Manual virtual-sports settlement for testing: force-settle a league/week
+  router.post(
+    '/virtual-sports/settle',
+    requireAdmin,
+    body('leagueId').isString().isLength({ min: 1 }),
+    body('week').isInt({ min: 1 }),
+    async (req: Request, res: Response) => {
+      if (!validate(req, res)) return;
+      const { leagueId, week } = req.body;
+      try {
+        await settleForLeagueWeek(leagueId, Number(week));
+        await auditFromReq(req, 'virtual_sports.settle', 'virtual_sports', undefined, { leagueId, week });
+        res.json({ ok: true, leagueId, week });
+      } catch (err: any) {
+        res.status(500).json({ error: 'settle_failed', details: String(err) });
+      }
+    },
+  );
 
 // ─── Audit log ───────────────────────────────────────────────────────────
 

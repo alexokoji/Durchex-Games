@@ -15,6 +15,8 @@ export interface IBet extends Document {
   bonusStake: number;
   payout: number;
   multiplier?: number;
+  mode?: string;
+  systemK?: number;
   currency: AnyCurrency;       // currency of stake/payout (user's local fiat for casino)
   status: BetStatus;
   details?: string;
@@ -32,6 +34,8 @@ const betSchema = new Schema<IBet>({
   bonusStake:{ type: Number, default: 0, min: 0 },
   payout:    { type: Number, default: 0, min: 0 },
   multiplier:{ type: Number },
+  mode:      { type: String },
+  systemK:   { type: Number },
   currency:  { type: String, required: true },
   status:    { type: String, enum: ['pending','won','lost','push','cashout'], default: 'pending', index: true },
   details:   { type: String },

@@ -26,6 +26,7 @@ import { setIoInstance } from './sockets/notifier';
 import { notFoundHandler, errorHandler } from './middleware/error';
 import { startCashbackScheduler } from './services/cashbackJob';
 import { startDailySummaryScheduler } from './services/dailySummaryJob';
+import { startVirtualSportsScheduler } from './services/virtualSportsScheduler';
 
 async function main(): Promise<void> {
   await connectDb();
@@ -116,6 +117,7 @@ async function main(): Promise<void> {
   // restart can't double-credit users.
   startCashbackScheduler();
   startDailySummaryScheduler();
+  startVirtualSportsScheduler();
 }
 
 main().catch(err => {

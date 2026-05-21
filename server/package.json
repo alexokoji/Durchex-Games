@@ -8,6 +8,7 @@
     "dev":   "tsx watch src/index.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js",
+    "test:virtual": "tsx ./src/scripts/virtualPayoutParity.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

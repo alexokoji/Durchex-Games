@@ -25,6 +25,8 @@ export interface PlaceBetBody {
   stake: number;
   details?: string;
   selections?: unknown;
+  mode?: 'single' | 'multi' | 'system';
+  systemK?: number;
 }
 
 export interface SettleBetBody {

@@ -185,6 +185,8 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
       stake: totalStake,
       details: summary,
       selections,
+      mode,
+      systemK: mode === 'system' ? Math.max(2, Math.min(systemK, selections.length)) : undefined,
     });
     if (!walletBet) return null;
 

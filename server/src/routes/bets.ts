@@ -27,6 +27,8 @@ router.post(
   body('stake').isFloat({ gt: 0 }),
   body('details').optional().isString().isLength({ max: 240 }),
   body('selections').optional(),
+  body('mode').optional().isIn(['single', 'multi', 'system']),
+  body('systemK').optional().isInt({ min: 2 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const user = req.user!;

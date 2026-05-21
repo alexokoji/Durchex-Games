@@ -441,9 +441,32 @@ function BetSlipBody() {
           // slip.placeBet is async — charges the wallet, then opens the ticket.
           // Fire-and-forget: the button stays in its disabled state until the
           // wallet round-trip completes (~200ms typical), then re-enables.
-          void slip.placeBet().then(ticket => {
-            if (ticket) toasts.success('Bet placed', `Stake ${formatMoney(totalStake, wallet.currency)} locked in.`);
-          });
+          // Capture a snapshot of the current slip so we can mint a booking
+          // code after the wallet placement completes (placeBet clears the
+          // selections on success). Fire-and-forget; minting failures are
+          // non-blocking and surfaced via the booking row UI / toast.
+          const snapSelections = [...selections];
+          const snapStake = stake;
+          void slip.placeBet().then(async ticket => {
+              if (!ticket) return;
+              toasts.success('Bet placed', `Stake ${formatMoney(totalStake, wallet.currency)} locked in.`);
+              // Auto-mint booking code for the placed slip. Keep errors
+              // local to the booking row state so the user can still place
+              // bets even if minting fails.
+              try {
+                setCodeStatus({ kind: 'minting' });
+                const r = await bookingCodesApi.mint({
+                  selections: snapSelections,
+                  suggestedStake: snapStake,
+                  currency: 'USD',
+                  label: `${snapSelections.length}-leg slip`,
+                });
+                setMintedCode(r.code);
+                setCodeStatus({ kind: 'ok', message: `Code ${r.code} ready — copy & share` });
+              } catch (err) {
+                setCodeStatus({ kind: 'error', message: err instanceof ApiError ? err.code : 'mint_failed' });
+              }
+            });
         }}
         sx={{
           py: 1, fontWeight: 900, fontSize: '0.85rem',
