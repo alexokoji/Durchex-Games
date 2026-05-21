@@ -80,7 +80,7 @@ export default function Footer() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
               <DiGLogo size={32} />
               <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', color: '#fff', letterSpacing: '-0.01em' }}>
-                DUCHEXiGAMES
+                DURCHEXiGAMES
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.82rem', lineHeight: 1.55, color: 'text.secondary', mb: 2 }}>

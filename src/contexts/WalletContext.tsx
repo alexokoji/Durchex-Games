@@ -97,6 +97,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   insufficient_funds: "You don't have enough balance for that bet.",
   currency_mismatch:  'Your wallet currency changed — refresh and try again.',
   currency_not_supported_by_flutterwave: "Flutterwave doesn't support your currency yet — try a crypto deposit.",
+  rollover_outstanding: 'Your bonus rollover requirement is still outstanding. Wager the remaining amount before withdrawing.',
   validation_error:   'Some of those details look wrong.',
 };
 
@@ -259,11 +260,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'withdraw_failed';
+      let message = FRIENDLY_ERRORS[code] ?? code;
+      if (err instanceof ApiError && code === 'rollover_outstanding' && err.details && typeof err.details === 'object' && 'rollover' in err.details) {
+        const rolloverRequired = Number((err.details as { rollover?: number }).rollover ?? 0);
+        if (Number.isFinite(rolloverRequired) && rolloverRequired > 0) {
+          message = `${message} Remaining rollover: ${formatMoney(rolloverRequired, currency)}.`;
+        }
+      }
       setLastError(code);
-      toasts.error('Withdrawal failed', FRIENDLY_ERRORS[code] ?? code);
+      toasts.error('Withdrawal failed', message);
       return false;
     }
-  }, [isAuthenticated, requireAuth, refresh, toasts]);
+  }, [isAuthenticated, requireAuth, refresh, toasts, currency]);
 
   const { totalWagered, totalWon, totalLost, netProfit } = useMemo(() => {
     let wagered = 0, won = 0, lost = 0;
