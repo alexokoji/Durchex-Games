@@ -32,12 +32,12 @@ router.post(
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const user = req.user!;
-    const { gameId, gameName, stake, details, selections } = req.body;
+    const { gameId, gameName, stake, details, selections, mode, systemK } = req.body;
 
     const result = await placeBetAtomic({
       userId: user._id,
       currency: user.currency,
-      gameId, gameName, stake, details, selections,
+      gameId, gameName, stake, details, selections, mode, systemK,
     });
 
     if ('error' in result) {

@@ -17,7 +17,7 @@ import { simulateHockeyMatch } from '../../virtual-sports/hockey/hockeySimulatio
 import type { Team } from '../../virtual-sports/core/types';
 
 const WEEK_SECONDS = 600;          // matches useLeagueSeason
-const MIN_LEAD_MS = 60 * 60 * 1000;  // user-stated constraint: 1 hour ahead
+const MIN_LEAD_MS = 5 * 60 * 1000;  // 5 minutes ahead for admin prediction prep
 
 /** Hash mirroring useLeagueSeason exactly so codes line up with what users
  *  will actually see in the sportsbook. */
@@ -181,7 +181,7 @@ export default function AdminVirtualSportsPanel() {
       </Typography>
       <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2 }}>
         On-demand prediction codes for upcoming kickoffs. Only matches that kick
-        off at least <b>1 hour from now</b> are shown.
+        off at least <b>5 minutes from now</b> are shown.
       </Typography>
 
       <Alert
@@ -241,8 +241,7 @@ export default function AdminVirtualSportsPanel() {
             No upcoming kickoffs match the filter
           </Typography>
           <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-            All matches for the next 24 hours fall inside the 1-hour buffer.
-            Try another league or check back later.
+            No matches are scheduled to kick off within the next 24 hours, or all upcoming matches fall within the 5-minute buffer. Try another league or check back later.
           </Typography>
         </Box>
       ) : (
