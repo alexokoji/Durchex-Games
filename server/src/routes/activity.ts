@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { Bet } from '../models/Bet';
 import { User } from '../models/User';
+import { type AnyCurrency } from '../config/currencies';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.get('/recent', async (req: Request, res: Response) => {
   const usernameOf = new Map(users.map(u => [u._id.toString(), u.username]));
 
   const seen = new Set<string>();
-  const out = [];
+  const out: Array<{ maskedUser: string; gameName: string; payout: number; stake: number; currency: AnyCurrency; multiplier?: number; settledAt?: Date }> = [];
   for (const b of bets) {
     const uid = b.userId.toString();
     if (seen.has(uid)) continue;  // one entry per user in the window

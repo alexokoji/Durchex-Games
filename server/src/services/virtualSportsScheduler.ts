@@ -1,13 +1,13 @@
 import { JobState } from '../models/JobState';
 import { Bet } from '../models/Bet';
 import { settleBetAtomic } from './wallet';
-import { teamsByLeague } from '@virtual-sports/core/teamDatabase';
-import { getLeague, LEAGUES } from '@virtual-sports/core/leagueDatabase';
-import { buildSeasonSchedule, buildLeaguePhaseSchedule, type ScheduledFixture } from '@virtual-sports/core/seasonScheduler';
-import { simulateSoccerMatch, resolveSoccerSelection } from '@virtual-sports/soccer/soccerSimulation';
-import { simulateBasketballMatch, resolveBasketballSelection } from '@virtual-sports/basketball/basketballSimulation';
-import { simulateHockeyMatch, resolveHockeySelection } from '@virtual-sports/hockey/hockeySimulation';
-import { calculatePayout } from '@virtual-sports/core/oddsEngine';
+import { teamsByLeague } from '../../../src/virtual-sports/core/teamDatabase';
+import { getLeague, LEAGUES } from '../../../src/virtual-sports/core/leagueDatabase';
+import { buildSeasonSchedule, buildLeaguePhaseSchedule, type ScheduledFixture } from '../../../src/virtual-sports/core/seasonScheduler';
+import { simulateSoccerMatch, resolveSoccerSelection } from '../../../src/virtual-sports/soccer/soccerSimulation';
+import { simulateBasketballMatch, resolveBasketballSelection } from '../../../src/virtual-sports/basketball/basketballSimulation';
+import { simulateHockeyMatch, resolveHockeySelection } from '../../../src/virtual-sports/hockey/hockeySimulation';
+import { calculatePayout } from '../../../src/virtual-sports/core/oddsEngine';
 
 const JOB_PREFIX = 'virtual_settle';
 const WEEK_SECONDS = 600; // same as client
