@@ -242,18 +242,18 @@ export async function debitFiatWithdrawal(args: DebitFiatArgs): Promise<
       _id: args.user._id,
       currency: args.currency,
       balance: { $gte: args.amount - EPS },
-      $or: [{ bonusRollover: { $exists: false } }, { bonusRollover: { $lte: EPS } }],
     },
     { $inc: { balance: -args.amount } },
     { new: true },
   );
   if (!debited) {
-    const exists = await User.findById(args.user._id).select('currency balance bonusRollover');
+    const exists = await User.findById(args.user._id).select('currency balance');
     if (!exists) return { error: 'insufficient_funds' };
     if (exists.currency !== args.currency) return { error: 'currency_mismatch' };
-    if ((exists.bonusRollover ?? 0) > EPS) {
-      return { error: 'rollover_outstanding', rollover: exists.bonusRollover ?? 0 };
+    if ((exists.balance ?? 0) + EPS < args.amount) {
+      return { error: 'insufficient_funds' };
     }
+    // If we reached here, something prevented the update — treat as insufficient funds.
     return { error: 'insufficient_funds' };
   }
   await Transaction.create({
@@ -289,7 +289,6 @@ export async function debitCryptoWithdrawal(args: DebitCryptoArgs): Promise<
   const cond = {
     _id: args.user._id,
     [`cryptoBalances.${args.currency}`]: { $gte: args.amount - EPS },
-    $or: [{ bonusRollover: { $exists: false } }, { bonusRollover: { $lte: EPS } }],
   };
   const debited = await User.findOneAndUpdate(
     cond,
@@ -297,10 +296,9 @@ export async function debitCryptoWithdrawal(args: DebitCryptoArgs): Promise<
     { new: true },
   );
   if (!debited) {
-    const exists = await User.findById(args.user._id).select('bonusRollover');
-    if (exists && (exists.bonusRollover ?? 0) > EPS) {
-      return { error: 'rollover_outstanding', rollover: exists.bonusRollover ?? 0 };
-    }
+    const exists = await User.findById(args.user._id).select('cryptoBalances');
+    const have = exists?.cryptoBalances ? (exists.cryptoBalances[args.currency] ?? 0) : 0;
+    if (have + EPS < args.amount) return { error: 'insufficient_funds' };
     return { error: 'insufficient_funds' };
   }
   await Transaction.create({
