@@ -11,11 +11,9 @@ import SportsHockeyIcon from '@mui/icons-material/SportsHockey';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import SearchIcon from '@mui/icons-material/Search';
 import { useNavigate } from 'react-router-dom';
-import { neonGreen, neonBlue, darkBorder, darkCard } from '../../theme';
+import { neonGreen, darkBorder, darkCard } from '../../theme';
 import { LEAGUES, COUNTRIES } from '../core/leagueDatabase';
 import type { SportKey } from '../core/types';
-import { useBetSlip } from '../core/BetSlipContext';
-import { formatMoney } from '../../utils/currency';
 
 interface LeftSportsPanelProps {
   activeSport: SportKey;
@@ -34,7 +32,6 @@ const SPORT_TABS: { key: SportKey; icon: React.ReactNode; label: string; path: s
 
 export default function LeftSportsPanel({ activeSport, activeLeagueId, onSelectLeague, onSelectSport }: LeftSportsPanelProps) {
   const navigate = useNavigate();
-  const slip = useBetSlip();
   const [favourites, setFavourites] = useState<Set<string>>(new Set(['epl', 'laliga']));
   const [filter, setFilter] = useState('');
 
