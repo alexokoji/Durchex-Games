@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import {
   Box, Typography, TextField, InputAdornment, IconButton, Alert,
   CircularProgress, Chip, Dialog, DialogTitle, DialogContent, Stack,
@@ -38,7 +38,7 @@ export default function AdminUsersPanel() {
     }
   }
 
-  async function search(e?: React.FormEvent) {
+  async function search(e?: FormEvent<HTMLFormElement>) {
     e?.preventDefault();
     if (q.trim().length < 2) {
       setError('Type at least 2 characters');
@@ -73,6 +73,60 @@ export default function AdminUsersPanel() {
     }
   }
 
+  const renderUserRow = (u: AdminUserSummary) => {
+    const currency = u.currency as AnyCurrency;
+
+    return (
+      <Box
+        key={u._id}
+        onClick={() => openDetail(u)}
+        sx={{
+          p: 1.5, borderRadius: 2, cursor: 'pointer',
+          background: darkCard,
+          border: `1px solid ${darkBorder}`,
+          display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
+          '&:hover': { borderColor: alpha(neonBlue, 0.5) },
+        }}
+      >
+        <Box sx={{ flex: 1, minWidth: 200 }}>
+          <Typography sx={{ fontWeight: 800 }}>
+            {u.username}
+            <Typography component="span" sx={{ ml: 0.75, fontSize: '0.78rem', color: 'text.secondary' }}>
+              · {u.email}
+            </Typography>
+          </Typography>
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+            Joined {new Date(u.createdAt).toLocaleDateString()}
+            {u.countryCode && ` · ${u.countryCode}`}
+          </Typography>
+        </Box>
+        <Chip
+          size="small"
+          label={formatAdminCurrency(u.balance, currency, displayCurrency)}
+          sx={{ background: alpha(neonGold, 0.15), color: neonGold, fontWeight: 700 }}
+        />
+        {u.bonusBalance > 0 && (
+          <Chip size="small" label={`+bonus ${u.bonusBalance.toFixed(2)}`} sx={{ background: alpha(neonBlue, 0.15), color: neonBlue }} />
+        )}
+        <Chip
+          size="small"
+          label={`wagered ${u.totalWagered.toFixed(0)}`}
+          variant="outlined"
+        />
+        {u.promoterStatus !== 'none' && (
+          <Chip
+            size="small"
+            label={`promoter: ${u.promoterStatus}`}
+            sx={{ background: alpha(neonGreen, 0.12), color: neonGreen, textTransform: 'capitalize' }}
+          />
+        )}
+        {u.referralAbuseFlag && (
+          <Chip size="small" label={`flag: ${u.referralAbuseFlag}`} sx={{ background: alpha('#ff6b7a', 0.15), color: '#ff6b7a' }} />
+        )}
+      </Box>
+    );
+  };
+
   return (
     <Box>
       <Box sx={{ display: 'flex', gap: 1, mb: 2, maxWidth: '100%', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -105,58 +159,12 @@ export default function AdminUsersPanel() {
       ) : users.length === 0 ? (
         <Alert severity="info">{mode === 'search' ? 'No users match your search.' : 'No users found.'}</Alert>
       ) : (
-        <Stack spacing={1}>
-          {users.map(u => (
-            <Box
-              key={u._id}
-              onClick={() => openDetail(u)}
-              sx={{
-                p: 1.5, borderRadius: 2, cursor: 'pointer',
-                background: darkCard,
-                border: `1px solid ${darkBorder}`,
-                display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
-                '&:hover': { borderColor: alpha(neonBlue, 0.5) },
-              }}>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <Typography sx={{ fontWeight: 800 }}>
-                  {u.username}
-                  <Typography component="span" sx={{ ml: 0.75, fontSize: '0.78rem', color: 'text.secondary' }}>
-                    · {u.email}
-                  </Typography>
-                </Typography>
-                <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
-                  Joined {new Date(u.createdAt).toLocaleDateString()}
-                  {u.countryCode && ` · ${u.countryCode}`}
-                </Typography>
-              </Box>
-              <Chip
-                size="small"
-                label={formatAdminCurrency(u.balance, u.currency as AnyCurrency, displayCurrency)}
-                sx={{ background: alpha(neonGold, 0.15), color: neonGold, fontWeight: 700 }}
-              />
-              {u.bonusBalance > 0 && (
-                <Chip size="small" label={`+bonus ${u.bonusBalance.toFixed(2)}`} sx={{ background: alpha(neonBlue, 0.15), color: neonBlue }} />
-              )}
-              <Chip
-                size="small"
-                label={`wagered ${u.totalWagered.toFixed(0)}`}
-                variant="outlined"
-              />
-              {u.promoterStatus !== 'none' && (
-                <Chip
-                  size="small"
-                  label={`promoter: ${u.promoterStatus}`}
-                  sx={{ background: alpha(neonGreen, 0.12), color: neonGreen, textTransform: 'capitalize' }}
-                />
-              )}
-              {u.referralAbuseFlag && (
-                <Chip size="small" label={`flag: ${u.referralAbuseFlag}`} sx={{ background: alpha('#ff6b7a', 0.15), color: '#ff6b7a' }} />
-              )}
-            </Box>
-          ))}
-        </Stack>
-        {mode === 'all' && totalPages > 1 && (
-          <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+        <Box>
+          <Stack spacing={1}>
+            {users.map(renderUserRow)}
+          </Stack>
+          {mode === 'all' && totalPages > 1 && (
+            <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
             <IconButton
               disabled={currentPage === 1}
               onClick={() => loadAllUsers(currentPage - 1)}
@@ -178,6 +186,7 @@ export default function AdminUsersPanel() {
             </IconButton>
           </Box>
         )}
+        </Box>
       )}
 
       <Dialog open={!!detail} onClose={() => setDetail(null)} maxWidth="md" fullWidth>

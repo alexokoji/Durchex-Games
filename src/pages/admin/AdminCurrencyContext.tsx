@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
-import { AnyCurrency, convert, formatMoney } from '../../utils/currency';
+import { formatMoney, toUsd, FIAT } from '../../utils/currency';
+import type { AnyCurrency } from '../../utils/currency';
 
 export type AdminDisplayCurrency = 'NGN' | 'USD';
 
@@ -27,8 +28,21 @@ export function useAdminCurrency(): AdminCurrencyContextValue {
   return ctx;
 }
 
+function convertForDisplay(amount: number, sourceCurrency: AnyCurrency, displayCurrency: AdminDisplayCurrency): number {
+  if (displayCurrency === 'USD') {
+    return toUsd(amount, sourceCurrency);
+  }
+
+  if (sourceCurrency === 'NGN') {
+    return amount;
+  }
+
+  const usd = toUsd(amount, sourceCurrency);
+  return usd / FIAT.NGN.usdPerUnit;
+}
+
 export function formatAdminCurrency(amount: number, sourceCurrency: AnyCurrency, displayCurrency: AdminDisplayCurrency): string {
-  const converted = convert(amount, sourceCurrency, displayCurrency);
+  const converted = convertForDisplay(amount, sourceCurrency, displayCurrency);
   const formatted = formatMoney(converted, displayCurrency);
 
   if (sourceCurrency === displayCurrency) {
@@ -36,7 +50,7 @@ export function formatAdminCurrency(amount: number, sourceCurrency: AnyCurrency,
   }
 
   const reverseCurrency = displayCurrency === 'NGN' ? 'USD' : 'NGN';
-  const reverseAmount = convert(amount, sourceCurrency, reverseCurrency);
+  const reverseAmount = convertForDisplay(amount, sourceCurrency, reverseCurrency);
   const reverseFormatted = formatMoney(reverseAmount, reverseCurrency);
 
   return `${formatted} ≈ ${reverseFormatted}`;
