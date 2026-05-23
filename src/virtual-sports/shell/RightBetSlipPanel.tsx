@@ -284,7 +284,7 @@ function BetSlipBody() {
       {/* Selections list */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <AnimatePresence initial={false}>
-          {selections.map((sel, index) => {
+          {selections.map(sel => {
             const state = deriveMatchState(sel);
             const weekText = state ? `Week ${state.week}` : 'Week ?';
             const timingText = state
