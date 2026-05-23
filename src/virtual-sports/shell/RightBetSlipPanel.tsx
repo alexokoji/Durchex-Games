@@ -31,6 +31,7 @@ import { deriveMatchState, type MatchStateForSelection } from '../core/matchStat
 import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
 import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes, type FiatCurrency } from '../../utils/currency';
+import BetPlacedModal from './BetPlacedModal';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
@@ -125,6 +126,14 @@ function BetSlipBody() {
   const [codeInput, setCodeInput] = useState('');
   const [mintedCode, setMintedCode] = useState<string | null>(null);
   const [codeStatus, setCodeStatus] = useState<{ kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }>({ kind: 'idle' });
+  
+  // Modal state for successful bet placement
+  const [showBetModal, setShowBetModal] = useState(false);
+  const [lastBetCode, setLastBetCode] = useState<string | null>(null);
+  const [lastBetStake, setLastBetStake] = useState(0);
+  const [lastBetPayout, setLastBetPayout] = useState(0);
+  const [lastBetSelections, setLastBetSelections] = useState(0);
+  const [lastBetMode, setLastBetMode] = useState<string>('multi');
 
   async function mintCode() {
     if (!isAuthenticated) { requireAuth(); return; }
@@ -447,6 +456,8 @@ function BetSlipBody() {
           // non-blocking and surfaced via the booking row UI / toast.
           const snapSelections = [...selections];
           const snapStake = stake;
+          const snapMode = mode;
+          const snapPayout = potentialPayout;
           void slip.placeBet().then(async ticket => {
               if (!ticket) return;
               toasts.success('Bet placed', `Stake ${formatMoney(totalStake, wallet.currency)} locked in.`);
@@ -462,6 +473,12 @@ function BetSlipBody() {
                   label: `${snapSelections.length}-leg slip`,
                 });
                 setMintedCode(r.code);
+                setLastBetCode(r.code);
+                setLastBetStake(totalStake);
+                setLastBetPayout(snapPayout);
+                setLastBetSelections(snapSelections.length);
+                setLastBetMode(snapMode);
+                setShowBetModal(true);
                 setCodeStatus({ kind: 'ok', message: `Code ${r.code} ready — copy & share` });
               } catch (err) {
                 setCodeStatus({ kind: 'error', message: err instanceof ApiError ? err.code : 'mint_failed' });
@@ -488,6 +505,18 @@ function BetSlipBody() {
               ? 'Insufficient balance'
               : 'Place Bet'}
       </Button>
+
+      {/* Bet placement success modal */}
+      <BetPlacedModal
+        open={showBetModal}
+        onClose={() => setShowBetModal(false)}
+        bookingCode={lastBetCode}
+        stake={lastBetStake}
+        payout={lastBetPayout}
+        currency={wallet.currency}
+        selections={lastBetSelections}
+        mode={lastBetMode}
+      />
     </Box>
   );
 }

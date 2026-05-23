@@ -10,10 +10,13 @@ import SportsBasketballIcon from '@mui/icons-material/SportsBasketball';
 import SportsHockeyIcon from '@mui/icons-material/SportsHockey';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import SearchIcon from '@mui/icons-material/Search';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useNavigate } from 'react-router-dom';
-import { neonGreen, darkBorder, darkCard } from '../../theme';
+import { neonGreen, neonBlue, darkBorder, darkCard } from '../../theme';
 import { LEAGUES, COUNTRIES } from '../core/leagueDatabase';
 import type { SportKey } from '../core/types';
+import { useBetSlip } from '../core/BetSlipContext';
+import { formatMoney } from '../../utils/currency';
 
 interface LeftSportsPanelProps {
   activeSport: SportKey;
@@ -32,6 +35,7 @@ const SPORT_TABS: { key: SportKey; icon: React.ReactNode; label: string; path: s
 
 export default function LeftSportsPanel({ activeSport, activeLeagueId, onSelectLeague, onSelectSport }: LeftSportsPanelProps) {
   const navigate = useNavigate();
+  const slip = useBetSlip();
   const [favourites, setFavourites] = useState<Set<string>>(new Set(['epl', 'laliga']));
   const [filter, setFilter] = useState('');
 
@@ -111,6 +115,56 @@ export default function LeftSportsPanel({ activeSport, activeLeagueId, onSelectL
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, maxHeight: { xs: 360, md: 'none' } }}>
+        {/* Open Bets */}
+        {slip.openTickets.length > 0 && (
+          <Box sx={{ px: 1.25, py: 1, borderBottom: `1px solid ${alpha(darkBorder, 0.5)}` }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+              <LockOpenIcon sx={{ fontSize: 14, color: neonBlue }} />
+              <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: neonBlue, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Open Bets
+              </Typography>
+              <Box sx={{ ml: 'auto', px: 0.75, py: 0.25, background: alpha(neonBlue, 0.2), borderRadius: 0.75, minWidth: 20 }}>
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: neonBlue, textAlign: 'center' }}>
+                  {slip.openTickets.length}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {slip.openTickets.slice(0, 3).map(t => (
+                <Box
+                  key={t.id}
+                  sx={{
+                    p: 0.75,
+                    borderRadius: 1,
+                    background: alpha(neonBlue, 0.08),
+                    border: `1px solid ${alpha(neonBlue, 0.25)}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { background: alpha(neonBlue, 0.15), borderColor: alpha(neonBlue, 0.4) },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: neonBlue }}>
+                      {t.selections.length}-leg
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: neonGreen }}>
+                      {formatMoney(t.potentialPayout, 'USD')}
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mt: 0.25 }}>
+                    Stake: {formatMoney(t.stake, 'USD')}
+                  </Typography>
+                </Box>
+              ))}
+              {slip.openTickets.length > 3 && (
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textAlign: 'center', py: 0.5 }}>
+                  +{slip.openTickets.length - 3} more
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+
         {/* Favourites */}
         {favLeagues.length > 0 && (
           <Box sx={{ px: 1.25, py: 1 }}>

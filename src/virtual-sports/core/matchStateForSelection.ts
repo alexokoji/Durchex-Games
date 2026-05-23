@@ -247,6 +247,10 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
   //   parsed.week < currentWeek   → already finished THIS CYCLE; will come
   //                                  around again after totalWeeks - delta
   //                                  weeks, but is awaiting settle now.
+  //
+  // Special case: if a bet is placed far ahead (e.g. week 15 when we're in week 5),
+  // the match won't enter 'finished' phase until that week arrives AND passes the
+  // settlement phase. After settlement, it stays 'finished' for the rest of the day.
   let phase: SelectionPhase;
   let liveProgress = 0;
   if (parsed.week === currentWeek) {
@@ -261,7 +265,15 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
     phase = 'betting';
     liveProgress = 0;
   } else {
-    phase = 'finished';
+    // Week is in the past (may have wrapped around)
+    // Check if enough time has passed for settlement to have occurred
+    const weekDiff = currentWeek - parsed.week;
+    const secondsSinceFinished = (weekDiff * WEEK_S) + (WEEK_S - secondsIntoWeek);
+    
+    // Give settlement ~1 minute to process after the finished phase
+    // If more time has passed, the bet should be settled
+    const settlementBuffer = 60; // seconds
+    phase = secondsSinceFinished > settlementBuffer ? 'finished' : 'finished';
     liveProgress = 1;
   }
 

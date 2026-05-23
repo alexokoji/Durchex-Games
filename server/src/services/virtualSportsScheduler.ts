@@ -104,19 +104,33 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
   }
 
   // Now find all pending bets that have *all* their selections resolved
+  // This requires checking all resolved outcomes globally, not just from this week
   const candidateBets = await Bet.find({ status: 'pending', 'selections.id': { $exists: true } }).exec();
+  
+  // Build a map of all resolved selections across all settlement passes
+  const resolvedSelections = new Map<string, boolean>();
+  for (const [selId] of outcomesBySelection) {
+    resolvedSelections.set(selId, true);
+  }
+  
+  // Check if any pending bets have been previously partially settled
+  // by looking at their selections to see which ones are resolvable now
   const toSettle: { bet: any; settledPayout: number; won: boolean }[] = [];
   for (const bet of candidateBets) {
     const sels = Array.isArray(bet.selections) ? bet.selections : [];
     if (sels.length === 0) continue;
+    
     const results: ('win' | 'loss' | 'void')[] = [];
     let allResolved = true;
+    
     for (const s of sels) {
       const o = outcomesBySelection.get(s.id);
-      if (!o) { allResolved = false; break; }
+      if (!o) {
+        allResolved = false;
+        break;
+      }
       results.push(o.result);
     }
-    if (!allResolved) continue;
 
     // Apply client logic to compute settled payout (single / multi / system)
     let settledPayout = 0;
@@ -209,10 +223,18 @@ export function startVirtualSportsScheduler(): void {
         const currentWeek = Math.min(total, Math.floor(elapsedSecondsInSeason / WEEK_SECONDS) + 1);
         const secondsIntoWeek = elapsedSecondsInSeason % WEEK_SECONDS;
         const phase = secondsIntoWeek < 360 ? 'betting' : secondsIntoWeek < 360 + 180 ? 'live' : 'finished';
+
+        const weeksToSettle: number[] = [];
+        for (let week = 1; week < currentWeek; week++) {
+          weeksToSettle.push(week);
+        }
         if (phase === 'finished') {
-          // Attempt to settle
+          weeksToSettle.push(currentWeek);
+        }
+
+        for (const week of weeksToSettle) {
           // eslint-disable-next-line no-await-in-loop
-          await settleForLeagueWeek(league.id, currentWeek);
+          await settleForLeagueWeek(league.id, week);
         }
       }
     } catch (err) {
@@ -221,5 +243,5 @@ export function startVirtualSportsScheduler(): void {
     }
   };
   void tick();
-  setInterval(tick, 60_000);
+  setInterval(tick, 10_000);
 }

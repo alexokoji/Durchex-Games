@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box, Typography, Chip, IconButton,
 } from '@mui/material';
@@ -35,6 +35,11 @@ export default function GameCard({ game }: GameCardProps) {
   const [fav, setFav] = useState(false);
   const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
+  
+  // Randomize player count on mount, max 500
+  const randomizedPlayers = useMemo(() => {
+    return Math.floor(Math.random() * 500) + 1;
+  }, []);
 
   function handlePlay() {
     if (game.path) navigate(game.path);
@@ -186,7 +191,7 @@ export default function GameCard({ game }: GameCardProps) {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <PeopleIcon sx={{ fontSize: 10, color: neonBlue }} />
               <Typography sx={{ fontSize: '0.65rem', color: neonBlue, fontWeight: 600 }}>
-                {game.players.toLocaleString()}
+                {randomizedPlayers.toLocaleString()}
               </Typography>
             </Box>
           </Box>
