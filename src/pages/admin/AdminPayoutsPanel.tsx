@@ -9,6 +9,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import { adminApi, type HousePayout } from '../../api/admin';
 import { ApiError } from '../../api/client';
+import { formatMoney, FIAT } from '../../utils/currency';
 import { useToasts } from '../../contexts/ToastContext';
 
 const STATUS_TONE: Record<HousePayout['status'], string> = {
@@ -119,8 +120,8 @@ export default function AdminPayoutsPanel() {
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                   <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', minWidth: 110 }}>
-                    ${p.amountUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </Typography>
+                      {formatMoney(Number.isFinite(p.amountUsd) ? p.amountUsd / FIAT.NGN.usdPerUnit : 0, 'NGN')}
+                    </Typography>
                   <Chip
                     size="small" label={p.status}
                     sx={{ background: alpha(tone, 0.15), color: tone, fontWeight: 700, textTransform: 'capitalize' }}

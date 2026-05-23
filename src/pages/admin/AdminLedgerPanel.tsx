@@ -5,9 +5,11 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { neonGreen, neonGold, darkBorder, darkCard } from '../../theme';
 import { adminApi, type LedgerRow } from '../../api/admin';
 import { ApiError } from '../../api/client';
+import { formatMoney, FIAT } from '../../utils/currency';
 
-function fmtUsd(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
+function fmtNgnFromUsd(n: number): string {
+  const ngn = Number.isFinite(n) ? n / FIAT.NGN.usdPerUnit : 0;
+  return formatMoney(ngn, 'NGN');
 }
 
 export default function AdminLedgerPanel() {
@@ -29,7 +31,7 @@ export default function AdminLedgerPanel() {
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 900 }}>Daily ledger</Typography>
           <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-            One row per UTC day. All amounts in USD-equivalent (FX from the static reference table).
+            One row per UTC day. Amounts shown in NGN-equivalent (FX from the static reference table).
           </Typography>
         </Box>
         <IconButton onClick={() => void load()}><RefreshIcon /></IconButton>
@@ -72,13 +74,13 @@ export default function AdminLedgerPanel() {
               }}>
                 <Box sx={{ fontWeight: 700, color: '#fff', fontFamily: 'monospace' }}>{r._id}</Box>
                 <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.betsCount.toLocaleString()}</Box>
-                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtUsd(r.totalStakeUsd)}</Box>
-                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtUsd(r.totalPayoutUsd)}</Box>
+                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtNgnFromUsd(r.totalStakeUsd)}</Box>
+                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtNgnFromUsd(r.totalPayoutUsd)}</Box>
                 <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: tone }}>
-                  {r.houseProfitUsd >= 0 ? '+' : ''}{fmtUsd(r.houseProfitUsd)}
+                  {r.houseProfitUsd >= 0 ? '+' : ''}{fmtNgnFromUsd(r.houseProfitUsd)}
                 </Box>
-                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: neonGreen }}>{fmtUsd(r.depositVolumeUsd)}</Box>
-                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: neonGold }}>{fmtUsd(r.withdrawVolumeUsd)}</Box>
+                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: neonGreen }}>{fmtNgnFromUsd(r.depositVolumeUsd)}</Box>
+                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: neonGold }}>{fmtNgnFromUsd(r.withdrawVolumeUsd)}</Box>
               </Box>
             );
           })}

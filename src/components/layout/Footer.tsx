@@ -7,16 +7,18 @@ import FacebookIcon from '@mui/icons-material/Facebook';
 import TelegramIcon from '@mui/icons-material/Telegram';
 import RedditIcon from '@mui/icons-material/Reddit';
 import YouTubeIcon from '@mui/icons-material/YouTube';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { neonGreen, darkBorder, darkSurface } from '../../theme';
 import DiGLogo from './DiGLogo';
 
 const SOCIALS: { label: string; href: string; icon: React.ReactNode }[] = [
-  { label: 'X / Twitter', href: 'https://x.com/duchexigames',        icon: <XIcon         sx={{ fontSize: 18 }} /> },
-  { label: 'Instagram',   href: 'https://instagram.com/duchexigames', icon: <InstagramIcon sx={{ fontSize: 18 }} /> },
-  { label: 'Facebook',    href: 'https://facebook.com/duchexigames',  icon: <FacebookIcon  sx={{ fontSize: 18 }} /> },
-  { label: 'Telegram',    href: 'https://t.me/duchexigames',          icon: <TelegramIcon  sx={{ fontSize: 18 }} /> },
-  { label: 'Reddit',      href: 'https://reddit.com/r/duchexigames',  icon: <RedditIcon    sx={{ fontSize: 18 }} /> },
-  { label: 'YouTube',     href: 'https://youtube.com/@duchexigames',  icon: <YouTubeIcon   sx={{ fontSize: 18 }} /> },
+  { label: 'X / Twitter', href: 'https://x.com/durchexigames',        icon: <XIcon         sx={{ fontSize: 18 }} /> },
+  { label: 'Instagram',   href: 'https://instagram.com/durchexigames', icon: <InstagramIcon sx={{ fontSize: 18 }} /> },
+  { label: 'Facebook',    href: 'https://facebook.com/durchexigames',  icon: <FacebookIcon  sx={{ fontSize: 18 }} /> },
+  { label: 'Telegram',    href: 'https://t.me/durchexigames',          icon: <TelegramIcon  sx={{ fontSize: 18 }} /> },
+  { label: 'Reddit',      href: 'https://reddit.com/r/durchexigames',  icon: <RedditIcon    sx={{ fontSize: 18 }} /> },
+  { label: 'YouTube',     href: 'https://youtube.com/@durchexigames',  icon: <YouTubeIcon   sx={{ fontSize: 18 }} /> },
+  { label: 'WhatsApp',    href: 'https://wa.me/durchexigames',          icon: <WhatsAppIcon  sx={{ fontSize: 18 }} /> },
 ];
 
 const LINK_GROUPS: { heading: string; links: { label: string; to: string }[] }[] = [

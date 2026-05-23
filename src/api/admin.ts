@@ -184,6 +184,8 @@ export const adminApi = {
   // Users
   searchUsers: (q: string) =>
     apiGet<{ users: AdminUserSummary[] }>(`/admin/users?q=${encodeURIComponent(q)}`),
+  getAllUsers: (page = 1, limit = 50) =>
+    apiGet<{ users: AdminUserSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/admin/users/all/paginated?page=${page}&limit=${limit}`),
   userDetail: (id: string) =>
     apiGet<{ user: AdminUserSummary & Record<string, unknown> }>(`/admin/users/${id}`),
 

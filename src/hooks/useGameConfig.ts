@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi, type PublicGameConfig } from '../api/admin';
+import { getChatSocket } from '../api/chat';
 
 /** Sensible defaults so games can render before the API call lands. */
 const FALLBACK: PublicGameConfig = {
@@ -31,6 +32,14 @@ export function useGameConfig(): PublicGameConfig {
   useEffect(() => {
     let cancelled = false;
     void loadOnce().then(c => { if (!cancelled) setCfg(c); });
+
+    // Listen for server broadcasts signalling config updates and reload.
+    const socket = getChatSocket();
+    function onUpdate() {
+      cached = null;
+      void loadOnce().then(c => { if (!cancelled) setCfg(c); });
+    }
+    socket.on('public-game-config:updated', onUpdate);
     return () => { cancelled = true; };
   }, []);
   return cfg;

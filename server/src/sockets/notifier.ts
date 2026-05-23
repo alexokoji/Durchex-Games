@@ -52,3 +52,9 @@ export function notifyWalletUpdate(userId: string, reason?: string): void {
     body: reason,
   });
 }
+
+/** Broadcast an arbitrary event to all connected sockets. */
+export function broadcast(event: string, payload?: unknown): void {
+  if (!io) return;
+  io.emit(event, payload ?? {});
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Alert, Button, Drawer, IconButton, useMediaQuery } from '@mui/material';
+import { Box, Typography, Alert, Button, Drawer, IconButton, useMediaQuery, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -29,6 +29,7 @@ import AdminJobsPanel       from './AdminJobsPanel';
 import AdminRiskPanel       from './AdminRiskPanel';
 import AdminUsersPanel      from './AdminUsersPanel';
 import AdminVirtualSportsPanel from './AdminVirtualSportsPanel';
+import { AdminCurrencyProvider, useAdminCurrency, type AdminDisplayCurrency } from './AdminCurrencyContext';
 
 type TabId =
   | 'overview' | 'payouts' | 'ledger' | 'reconcile'
@@ -60,12 +61,13 @@ const NAV: NavItem[] = [
 
 const SIDEBAR_WIDTH = 264;
 
-export default function AdminPage() {
+function AdminPageContent() {
   const { user, isAuthenticated, openAuthPrompt } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  const { displayCurrency, setDisplayCurrency } = useAdminCurrency();
 
   if (!isAuthenticated || !user) {
     return (
@@ -192,6 +194,24 @@ export default function AdminPage() {
             </Box>
           )}
           <Box sx={{ p: { xs: 1.5, md: 3 }, pb: { xs: 10, md: 4 }, maxWidth: 1280, mx: 'auto' }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 3 }}>
+              <Box>
+                <Typography sx={{ fontSize: '0.92rem', fontWeight: 700 }}>Admin currency display</Typography>
+                <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                  Toggle how currency amounts are rendered across admin reports.
+                </Typography>
+              </Box>
+              <ToggleButtonGroup
+                value={displayCurrency}
+                exclusive
+                onChange={(_, value) => { if (value) setDisplayCurrency(value as AdminDisplayCurrency); }}
+                size="small"
+                sx={{ background: darkSurface, border: `1px solid ${darkBorder}`, borderRadius: 2 }}
+              >
+                <ToggleButton value="NGN" sx={{ color: 'inherit' }}>NGN</ToggleButton>
+                <ToggleButton value="USD" sx={{ color: 'inherit' }}>USD</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
             {tab === 'overview'      && <AdminOverviewPanel onJumpToPayouts={() => setTab('payouts')} />}
             {tab === 'payouts'       && <AdminPayoutsPanel   />}
             {tab === 'ledger'        && <AdminLedgerPanel    />}
@@ -208,5 +228,13 @@ export default function AdminPage() {
         </Box>
       </Box>
     </AdminLayout>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <AdminCurrencyProvider>
+      <AdminPageContent />
+    </AdminCurrencyProvider>
   );
 }

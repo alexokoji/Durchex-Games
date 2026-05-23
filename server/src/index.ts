@@ -57,20 +57,54 @@ async function main(): Promise<void> {
   // the callback handler).
   app.use(passport.initialize());
 
-  // Light global throttle — bot floods get bounced.
+  // Enhanced rate limiting for bot protection
+  // Global throttle — 240 req/min (~4/sec) for legitimate users
   app.use('/api/', rateLimit({
     windowMs: 60_000,
     max: 240,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+      // Skip health check
+      if (req.path === '/api/health') return true;
+      return false;
+    },
   }));
 
-  // Stricter throttle on auth specifically.
+  // Stricter: Auth endpoints — account takeover protection
   app.use(['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password'], rateLimit({
     windowMs: 60_000,
     max: 20,
     standardHeaders: true,
     legacyHeaders: false,
+    message: 'Too many auth attempts. Try again in 1 minute.',
+  }));
+
+  // Strict: Wallet & payment endpoints — prevent fund drainage attacks
+  app.use(['/api/wallet/withdraw', '/api/wallet/deposit', '/api/payments'], rateLimit({
+    windowMs: 60_000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many wallet requests. Try again later.',
+  }));
+
+  // Strict: Betting endpoints — prevent bet loop exploits
+  app.use(['/api/bets/place', '/api/bets/settle'], rateLimit({
+    windowMs: 60_000,
+    max: 120, // 2/sec is reasonable for betting
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many bet requests. Try again later.',
+  }));
+
+  // Very strict: Admin endpoints — protect against privilege escalation
+  app.use('/api/admin', rateLimit({
+    windowMs: 60_000,
+    max: 50, // 0.8/sec for admin operations
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Admin rate limit exceeded.',
   }));
 
   app.get('/api/health', (_req, res) => res.json({

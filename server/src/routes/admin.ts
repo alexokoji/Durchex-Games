@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { requireAdmin } from '../middleware/admin';
 import { getRiskConfig, RiskConfig } from '../models/RiskConfig';
+import { broadcast } from '../sockets/notifier';
 import { currentRtp24h, liabilityByMarket, adjustedOverround } from '../services/risk';
 import { BookingCode, generateCode } from '../models/BookingCode';
 import { Promoter } from '../models/Promoter';
@@ -95,6 +96,8 @@ router.patch(
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
     await auditFromReq(req, 'risk.update', 'risk_config', 'singleton', { update: req.body });
+    // Notify connected clients (games) to refresh their public game config
+    try { broadcast('public-game-config:updated'); } catch (e) { /* ignore */ }
     res.json({ config: cfg });
   },
 );
@@ -427,6 +430,31 @@ router.get('/users', requireAdmin, async (req: Request, res: Response) => {
     .select('email username createdAt currency countryCode totalWagered totalWon balance bonusBalance promoterStatus referralAbuseFlag')
     .lean();
   res.json({ users });
+});
+
+// Fetch all users with pagination (no search needed)
+router.get('/users/all/paginated', requireAdmin, async (req: Request, res: Response) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, parseInt(req.query.limit as string) || 50);
+  const skip = (page - 1) * limit;
+
+  const total = await User.countDocuments();
+  const users = await User.find()
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .select('_id email username createdAt currency countryCode totalWagered totalWon balance bonusBalance promoterStatus referralAbuseFlag')
+    .lean();
+
+  res.json({
+    users,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  });
 });
 
 router.get(

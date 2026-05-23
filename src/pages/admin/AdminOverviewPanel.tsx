@@ -8,12 +8,21 @@ import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
 import { adminApi, type LedgerSummary } from '../../api/admin';
+import { formatMoney, FIAT, usdApprox } from '../../utils/currency';
 import { ApiError } from '../../api/client';
 import { useToasts } from '../../contexts/ToastContext';
 
-function fmtUsd(n: number, opts: { sign?: boolean } = {}): string {
-  const s = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
-  return opts.sign && n > 0 ? `+${s}` : s;
+function fmtNgnFromUsd(n: number, opts: { sign?: boolean } = {}): string {
+  // Convert USD-denominated amount to NGN using static reference rate and format
+  const ngn = Number.isFinite(n) ? n / FIAT.NGN.usdPerUnit : 0;
+  return formatMoney(ngn, 'NGN', { compact: false, sign: !!opts.sign });
+}
+
+function fmtNgnWithUsdSuffix(n: number, opts: { sign?: boolean } = {}): string {
+  const ngn = Number.isFinite(n) ? n / FIAT.NGN.usdPerUnit : 0;
+  const formatted = formatMoney(ngn, 'NGN', { compact: false, sign: !!opts.sign });
+  const approx = usdApprox(ngn, 'NGN');
+  return approx ? `${formatted} ${approx}` : formatted;
 }
 
 export default function AdminOverviewPanel({ onJumpToPayouts }: { onJumpToPayouts?: () => void }) {
@@ -56,7 +65,7 @@ export default function AdminOverviewPanel({ onJumpToPayouts }: { onJumpToPayout
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.1 }}>Dashboard</Typography>
           <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-            House P/L is denominated in USD-equivalent. Rates pull from the static FX table in `currencies.ts`.
+            House P/L is shown in NGN-equivalent. Rates pull from the static FX table in `currencies.ts`.
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -94,15 +103,15 @@ export default function AdminOverviewPanel({ onJumpToPayouts }: { onJumpToPayout
           Today's house P/L (so far)
         </Typography>
         <Typography sx={{ fontSize: '2.4rem', fontWeight: 900, color: profitColor, lineHeight: 1.05, mt: 0.5, fontVariantNumeric: 'tabular-nums' }}>
-          {fmtUsd(profit, { sign: true })}
+          {fmtNgnFromUsd(profit, { sign: true })}
         </Typography>
         <Box sx={{ display: 'flex', gap: 3, mt: 2, flexWrap: 'wrap' }}>
           <Stat label="Bets settled"    value={(data.today?.betsCount ?? 0).toLocaleString()} />
-          <Stat label="Total stakes"    value={fmtUsd(data.today?.totalStakeUsd ?? 0)} />
-          <Stat label="Total payouts"   value={fmtUsd(data.today?.totalPayoutUsd ?? 0)} />
-          <Stat label="Deposit vol."    value={fmtUsd(data.today?.depositVolumeUsd ?? 0)} color={neonGreen} />
-          <Stat label="Withdrawal vol." value={fmtUsd(data.today?.withdrawVolumeUsd ?? 0)} color={neonGold} />
-          <Stat label="Bonus credited"  value={fmtUsd(data.today?.bonusCreditedUsd ?? 0)} />
+          <Stat label="Total stakes"    value={fmtNgnFromUsd(data.today?.totalStakeUsd ?? 0)} />
+          <Stat label="Total payouts"   value={fmtNgnFromUsd(data.today?.totalPayoutUsd ?? 0)} />
+          <Stat label="Deposit vol."    value={fmtNgnFromUsd(data.today?.depositVolumeUsd ?? 0)} color={neonGreen} />
+          <Stat label="Withdrawal vol." value={fmtNgnFromUsd(data.today?.withdrawVolumeUsd ?? 0)} color={neonGold} />
+          <Stat label="Bonus credited"  value={fmtNgnFromUsd(data.today?.bonusCreditedUsd ?? 0)} />
         </Box>
       </Box>
 
@@ -150,7 +159,7 @@ export default function AdminOverviewPanel({ onJumpToPayouts }: { onJumpToPayout
                   background: alpha('#fff', 0.025),
                 }}>
                   <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', minWidth: 100 }}>
-                    {fmtUsd(p.amountUsd)}
+                    {fmtNgnWithUsdSuffix(p.amountUsd)}
                   </Typography>
                   <Chip
                     size="small"
@@ -198,13 +207,13 @@ function RollupCard({ title, data }: { title: string; data: LedgerSummary['last7
         <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>{data.days} active day{data.days === 1 ? '' : 's'}</Typography>
       </Box>
       <Typography sx={{ fontSize: '1.6rem', fontWeight: 900, color: tone, fontVariantNumeric: 'tabular-nums', mt: 0.5 }}>
-        {fmtUsd(data.houseProfitUsd, { sign: true })}
+        {fmtNgnWithUsdSuffix(data.houseProfitUsd, { sign: true })}
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1.5 }}>
-        <SmallRow label="Stakes"   value={fmtUsd(data.totalStakeUsd)} />
-        <SmallRow label="Payouts"  value={fmtUsd(data.totalPayoutUsd)} />
-        <SmallRow label="Deposits" value={fmtUsd(data.depositVolumeUsd)} color={neonGreen} />
-        <SmallRow label="Withdraws"value={fmtUsd(data.withdrawVolumeUsd)} color={neonGold} />
+        <SmallRow label="Stakes"   value={fmtNgnWithUsdSuffix(data.totalStakeUsd)} />
+        <SmallRow label="Payouts"  value={fmtNgnWithUsdSuffix(data.totalPayoutUsd)} />
+        <SmallRow label="Deposits" value={fmtNgnWithUsdSuffix(data.depositVolumeUsd)} color={neonGreen} />
+        <SmallRow label="Withdraws"value={fmtNgnWithUsdSuffix(data.withdrawVolumeUsd)} color={neonGold} />
       </Box>
     </Box>
   );
@@ -233,8 +242,8 @@ function SparkBars({ series }: { series: LedgerSummary['series'] }) {
         const pos = pct >= 0;
         return (
           <Box key={s._id} sx={{ flex: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <Box
-              title={`${s._id} · ${fmtUsd(s.houseProfitUsd, { sign: true })}`}
+              <Box
+              title={`${s._id} · ${fmtNgnWithUsdSuffix(s.houseProfitUsd, { sign: true })}`}
               sx={{
                 position: 'absolute',
                 top: pos ? `${50 - pct}%` : '50%',

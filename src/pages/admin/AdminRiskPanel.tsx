@@ -10,6 +10,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme
 import { adminApi, type RiskSnapshot, type RiskConfigDto } from '../../api/admin';
 import { ApiError } from '../../api/client';
 import { useToasts } from '../../contexts/ToastContext';
+import { formatMoney, FIAT, usdApprox } from '../../utils/currency';
 
 type Field = keyof RiskConfigDto;
 
@@ -331,7 +332,10 @@ export default function AdminRiskPanel() {
                     />
                   </Box>
                   <Typography sx={{ fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums', minWidth: 120, textAlign: 'right' }}>
-                    ${e.liabilityUsd.toFixed(2)}
+                    {(() => {
+                      const ngn = Number.isFinite(e.liabilityUsd) ? e.liabilityUsd / FIAT.NGN.usdPerUnit : 0;
+                      return `${formatMoney(ngn, 'NGN')} ${usdApprox(ngn, 'NGN')}`;
+                    })()}
                   </Typography>
                   <Chip size="small" label={`${e.count} bets`} variant="outlined" sx={{ fontSize: '0.7rem' }} />
                 </Box>
