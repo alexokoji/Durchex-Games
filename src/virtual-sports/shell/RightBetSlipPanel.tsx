@@ -284,50 +284,66 @@ function BetSlipBody() {
       {/* Selections list */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <AnimatePresence initial={false}>
-          {selections.map(sel => (
-            <motion.div
-              key={sel.id}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Box
-                sx={{
-                  p: 0.9, borderRadius: 1.5,
-                  background: alpha(neonGreen, 0.05),
-                  border: `1px solid ${alpha(neonGreen, 0.2)}`,
-                  position: 'relative',
-                }}
+          {selections.map((sel, index) => {
+            const state = deriveMatchState(sel);
+            const weekText = state ? `Week ${state.week}` : 'Week ?';
+            const timingText = state
+              ? state.phase === 'betting'
+                ? `starts in ${formatCountdown(state.secondsToLive)}`
+                : state.phase === 'live'
+                  ? 'Live now'
+                  : state.phase === 'finished'
+                    ? 'Finished'
+                    : 'Pending'
+              : 'Loading...';
+            return (
+              <motion.div
+                key={sel.id}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
               >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.3 }}>
-                  <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
-                    <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1 }}>
-                      {sel.marketLabel}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, color: neonGreen, lineHeight: 1.2 }}>
-                      {sel.optionLabel}
-                    </Typography>
+                <Box
+                  sx={{
+                    p: 0.9, borderRadius: 1.5,
+                    background: alpha(neonGreen, 0.05),
+                    border: `1px solid ${alpha(neonGreen, 0.2)}`,
+                    position: 'relative',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.3 }}>
+                    <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
+                      <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1 }}>
+                        {sel.marketLabel}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, color: neonGreen, lineHeight: 1.2 }}>
+                        {sel.optionLabel}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 900, color: neonGold, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatOdds(sel.odds, oddsFormat)}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => slip.removeSelection(sel.id)}
+                        sx={{ p: 0, color: 'text.disabled', '&:hover': { color: '#ff4757' } }}
+                      >
+                        <CloseIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 900, color: neonGold, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatOdds(sel.odds, oddsFormat)}
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() => slip.removeSelection(sel.id)}
-                      sx={{ p: 0, color: 'text.disabled', '&:hover': { color: '#ff4757' } }}
-                    >
-                      <CloseIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Box>
+                  <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {sel.homeTeam} vs {sel.awayTeam}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mt: 0.35, letterSpacing: '0.03em' }}>
+                    {weekText} · {timingText}
+                  </Typography>
                 </Box>
-                <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {sel.homeTeam} vs {sel.awayTeam}
-                </Typography>
-              </Box>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </Box>
 
