@@ -84,10 +84,9 @@ export default function Footer() {
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.82rem', lineHeight: 1.55, color: 'text.secondary', mb: 2 }}>
-              Premium crypto casino + virtual sportsbook. Provably-fair originals,
-              real-name sports leagues with realistic simulations, instant Flutterwave
-              deposits in your local currency, and rapid crypto pay-outs — all
-              wrapped in a single accumulator slip.
+              Premium Casino Games + virtual sportsbook. Provably-fair originals,
+              real-name sports leagues with realistic simulations, instant deposits
+              in your local currency.
             </Typography>
 
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>

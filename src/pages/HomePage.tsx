@@ -87,7 +87,27 @@ const GAMES: GameCardData[] = [
   },
 ];
 
-const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'];
+const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'] as const;
+
+type CategoryLabel = (typeof CATEGORIES)[number];
+
+function gameMatchesCategory(game: GameCardData, category: CategoryLabel) {
+  if (category === 'All') return true;
+  switch (category) {
+    case 'Originals':
+      return game.provider.includes('Nexus Originals');
+    case 'Slots':
+      return game.id === 'slots';
+    case 'Live':
+      return game.badge === 'LIVE';
+    case 'Table':
+      return ['blackjack', 'baccarat'].includes(game.id);
+    case 'Sports':
+      return game.path?.startsWith('/virtual/');
+    default:
+      return true;
+  }
+}
 
 function HeroBanner() {
   return (
@@ -252,7 +272,7 @@ export default function HomePage() {
 
       {/* Game grid */}
       <Grid container spacing={1.5} sx={{ mb: 4 }}>
-        {GAMES.map((game, i) => (
+        {GAMES.filter(game => gameMatchesCategory(game, CATEGORIES[category] as CategoryLabel)).map((game, i) => (
           <Grid key={game.id} size={{ xs: 6, sm: 4, md: 3, lg: 3 }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
