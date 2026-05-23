@@ -447,6 +447,19 @@ function BetSlipBody() {
             toasts.error('Insufficient balance', `Top up ${formatMoney(shortBy, wallet.currency)} to place this slip.`);
             return;
           }
+
+          const invalidSelections = selections.filter(sel => {
+            const state = deriveMatchState(sel);
+            return !state || state.phase === 'finished';
+          });
+          if (invalidSelections.length > 0) {
+            toasts.error(
+              'Bet blocked',
+              'One or more selections are already finished or unavailable. Remove them before placing this bet.',
+            );
+            return;
+          }
+
           // slip.placeBet is async — charges the wallet, then opens the ticket.
           // Fire-and-forget: the button stays in its disabled state until the
           // wallet round-trip completes (~200ms typical), then re-enables.
