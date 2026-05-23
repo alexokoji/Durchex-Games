@@ -44,6 +44,8 @@ export interface MatchStateForSelection {
   phase: SelectionPhase;
   /** Live progress 0..1 (only meaningful when phase === 'live'). */
   liveProgress: number;
+  /** Seconds until the match enters live phase. Zero once live/finished. */
+  secondsToLive: number;
   /** Final score from the simulation. */
   finalScore: { home: number; away: number };
   /** Live score derived from event log up to current progress (or final when finished). */
@@ -277,6 +279,12 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
     liveProgress = 1;
   }
 
+  const secondsToLive = parsed.week === currentWeek
+    ? Math.max(0, BETTING_S - secondsIntoWeek)
+    : parsed.week > currentWeek
+      ? (parsed.week - currentWeek) * WEEK_S + (BETTING_S - secondsIntoWeek)
+      : 0;
+
   const finalScore = cached.finalScore;
   const liveScore = liveScoreFromEvents(cached.events, finalScore, cached.sport, liveProgress);
   const finalResult = resolveFor(cached.sport, sel, finalScore);
@@ -287,6 +295,7 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
     week: parsed.week,
     phase,
     liveProgress,
+    secondsToLive,
     finalScore,
     liveScore,
     currentResult,

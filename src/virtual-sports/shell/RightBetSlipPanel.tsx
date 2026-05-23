@@ -700,13 +700,12 @@ function aggregatePhase(states: (MatchStateForSelection | null)[]): 'betting' | 
 /** Seconds until the earliest selection's match kicks off (live phase begins).
  *  Used for the "kicks off in X" countdown on the banner. Returns 0 if all
  *  matches have already started. */
-function secondsToFirstKickoff(states: (MatchStateForSelection | null)[]): number {
-  // We can't recover absolute startsAt from a state object, but we can
-  // approximate: every match has a 6 min betting window before kickoff. So
-  // when phase === 'betting' the matches start sometime in the next 6 min.
-  // Pulling the real seconds requires re-deriving from the matchId — out of
-  // scope; a coarse "kicks off soon" message is plenty for the open card.
-  return states.some(s => s?.phase === 'betting') ? -1 : 0;
+function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return 'now';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins >= 1) return `${mins}m${secs > 0 ? ` ${secs}s` : ''}`;
+  return `${secs}s`;
 }
 
 function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currency: FiatCurrency; tick: number }) {
@@ -718,6 +717,16 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
   const states = ticket.selections.map(s => deriveMatchState(s));
   const ticketPhase = aggregatePhase(states);
 
+  const weeks = Array.from(new Set(states.map(s => s?.week).filter((w): w is number => typeof w === 'number')));
+  const weekLabel = weeks.length === 1
+    ? `Week ${weeks[0]}`
+    : weeks.length > 1
+      ? `Weeks ${weeks.join(', ')}`
+      : 'Week ?';
+
+  const startSeconds = Math.min(...states.map(s => (s?.secondsToLive ?? Number.POSITIVE_INFINITY)));
+  const startsIn = startSeconds !== Number.POSITIVE_INFINITY && startSeconds > 0 ? formatCountdown(startSeconds) : null;
+
   // HARD RULE: the OPEN list NEVER reveals win/loss. It only mirrors the
   // live-games view — scores during live phase, time remaining, status
   // wording. Per-leg and total results only appear in HISTORY, after the
@@ -726,7 +735,6 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
   const tone = ticketPhase === 'live' ? '#ff4757'
     : ticketPhase === 'finished' ? neonGold
     : neonGold;
-  void secondsToFirstKickoff;
 
   // Collapsed-state header bits — purely descriptive. No outcome hints.
   const statusLabel = ticketPhase === 'finished'
@@ -771,21 +779,26 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
             background: alpha(neonBlue, 0.15), color: neonBlue,
           }}
         />
-        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {ticketPhase === 'live' && (
-            <FiberManualRecordIcon
-              sx={{
-                fontSize: 10, color: '#ff4757',
-                animation: 'pulse 1.4s ease-in-out infinite',
-                '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
-              }}
-            />
-          )}
-          <Typography sx={{
-            fontSize: '0.66rem', fontWeight: 800, color: tone,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {statusLabel}
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {ticketPhase === 'live' && (
+              <FiberManualRecordIcon
+                sx={{
+                  fontSize: 10, color: '#ff4757',
+                  animation: 'pulse 1.4s ease-in-out infinite',
+                  '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
+                }}
+              />
+            )}
+            <Typography sx={{
+              fontSize: '0.66rem', fontWeight: 800, color: tone,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {statusLabel}
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: '0.58rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {weekLabel}{startsIn ? ` · starts in ${startsIn}` : ''}
           </Typography>
         </Box>
         <Typography sx={{
