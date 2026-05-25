@@ -383,9 +383,9 @@ function loadTickets(key: string): BetTicket[] {
   }
 }
 
-function loadFormat(): OddsFormat {
+function loadFormat(key: string): OddsFormat {
   try {
-    const v = localStorage.getItem(STORAGE_KEY_FORMAT);
+    const v = localStorage.getItem(key);
     if (v === 'decimal' || v === 'fractional' || v === 'american') return v;
   } catch {}
   return 'decimal';
