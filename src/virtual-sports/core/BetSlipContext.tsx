@@ -9,11 +9,16 @@ import {
   calculateMultiOdds, calculatePayout, calculateSystemBet,
 } from './oddsEngine';
 import { useWallet } from '../../contexts/WalletContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { minVirtualBetFor } from '../../utils/currency';
 
-const STORAGE_KEY_TICKETS = 'vsb.openTickets.v1';
-const STORAGE_KEY_FORMAT = 'vsb.oddsFormat.v1';
-const STORAGE_KEY_HISTORY = 'vsb.history.v1';
+const STORAGE_KEY_TICKETS_BASE = 'vsb.openTickets.v1';
+const STORAGE_KEY_FORMAT_BASE = 'vsb.oddsFormat.v1';
+const STORAGE_KEY_HISTORY_BASE = 'vsb.history.v1';
+
+function storageKey(base: string, userId?: string | null): string {
+  return userId ? `${base}.${userId}` : `${base}.anon`;
+}
 
 export type SettlementOutcome = {
   selectionId: string;
@@ -78,7 +83,21 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   // automatically respect their localization. The wallet provider sits one
   // level up in the tree (see App.tsx), so this is always defined.
   const wallet = useWallet();
+  const { user } = useAuth();
   const initialStake = useMemo(() => minVirtualBetFor(wallet.currency), [wallet.currency]);
+
+  const storageKeyTickets = useMemo(
+    () => storageKey(STORAGE_KEY_TICKETS_BASE, user?.id),
+    [user?.id],
+  );
+  const storageKeyHistory = useMemo(
+    () => storageKey(STORAGE_KEY_HISTORY_BASE, user?.id),
+    [user?.id],
+  );
+  const storageKeyFormat = useMemo(
+    () => storageKey(STORAGE_KEY_FORMAT_BASE, user?.id),
+    [user?.id],
+  );
 
   const [selections, setSelections] = useState<BetSelection[]>([]);
   // Every slip is one ticket — all selections must win. Default to 'multi'; 'system' opt-in.
@@ -96,13 +115,19 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     const min = minVirtualBetFor(wallet.currency);
     setStake(prev => (prev < min ? min : prev));
   }, [wallet.currency]);
-  const [oddsFormat, setOddsFormat] = useState<OddsFormat>(() => loadFormat());
-  const [openTickets, setOpenTickets] = useState<BetTicket[]>(() => loadTickets(STORAGE_KEY_TICKETS));
-  const [history, setHistory] = useState<BetTicket[]>(() => loadTickets(STORAGE_KEY_HISTORY));
+  const [oddsFormat, setOddsFormat] = useState<OddsFormat>(() => loadFormat(storageKeyFormat));
+  const [openTickets, setOpenTickets] = useState<BetTicket[]>(() => loadTickets(storageKeyTickets));
+  const [history, setHistory] = useState<BetTicket[]>(() => loadTickets(storageKeyHistory));
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_TICKETS, JSON.stringify(openTickets)); }, [openTickets]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history.slice(0, 30))); }, [history]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_FORMAT, oddsFormat); }, [oddsFormat]);
+  useEffect(() => { localStorage.setItem(storageKeyTickets, JSON.stringify(openTickets)); }, [openTickets, storageKeyTickets]);
+  useEffect(() => { localStorage.setItem(storageKeyHistory, JSON.stringify(history.slice(0, 30))); }, [history, storageKeyHistory]);
+  useEffect(() => { localStorage.setItem(storageKeyFormat, oddsFormat); }, [oddsFormat, storageKeyFormat]);
+
+  useEffect(() => {
+    setOpenTickets(loadTickets(storageKeyTickets));
+    setHistory(loadTickets(storageKeyHistory));
+    setOddsFormat(loadFormat(storageKeyFormat));
+  }, [storageKeyTickets, storageKeyHistory, storageKeyFormat]);
 
   const addSelection = useCallback((sel: BetSelection) => {
     setSelections(prev => {

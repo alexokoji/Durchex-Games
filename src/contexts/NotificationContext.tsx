@@ -1,7 +1,8 @@
 import {
-  createContext, useCallback, useContext, useEffect, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useState,
   type ReactNode,
 } from 'react';
+import { useAuth } from './AuthContext';
 
 export type NotificationKind =
   | 'wallet:update'
@@ -32,11 +33,15 @@ interface NotificationContextValue {
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
-const STORAGE = 'duchex.notifications.v1';
+const STORAGE_PREFIX = 'duchex.notifications.v1';
 
-function loadCached(): AppNotification[] {
+function storageKey(userId?: string | null): string {
+  return userId ? `${STORAGE_PREFIX}.${userId}` : `${STORAGE_PREFIX}.anon`;
+}
+
+function loadCached(key: string): AppNotification[] {
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -44,12 +49,18 @@ function loadCached(): AppNotification[] {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<AppNotification[]>(loadCached);
+  const { user } = useAuth();
+  const storageKeyForUser = useMemo(() => storageKey(user?.id), [user?.id]);
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadCached(storageKeyForUser));
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE, JSON.stringify(notifications.slice(0, 50))); }
+    setNotifications(loadCached(storageKeyForUser));
+  }, [storageKeyForUser]);
+
+  useEffect(() => {
+    try { localStorage.setItem(storageKeyForUser, JSON.stringify(notifications.slice(0, 50))); }
     catch { /* quota */ }
-  }, [notifications]);
+  }, [notifications, storageKeyForUser]);
 
   const push = useCallback<NotificationContextValue['push']>(({ kind, title, body }) => {
     // wallet:update isn't user-facing — skip it in the bell.
