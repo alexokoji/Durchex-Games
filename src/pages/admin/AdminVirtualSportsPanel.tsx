@@ -135,9 +135,9 @@ export default function AdminVirtualSportsPanel() {
     if (totalWeeks === 0) return [];
 
     // We project up to 24h of upcoming weeks for the admin to choose from,
-    // but only surface ones that kick off ≥ MIN_LEAD_MS from now (1 hour).
+    // but only surface ones that kick off ≥ MIN_LEAD_MS from now (5 minutes).
     const maxLookSeconds = 24 * 60 * 60;
-    const maxLookWeeks = Math.min(totalWeeks, Math.ceil(maxLookSeconds / WEEK_SECONDS));
+    const maxLookWeeks = Math.ceil(maxLookSeconds / WEEK_SECONDS);
 
     const teamsById = new Map(teams.map(t => [t.id, t]));
     const out: PredictionRow[] = [];
