@@ -132,6 +132,9 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
       results.push(o.result);
     }
 
+    // Skip this bet if not all selections have been resolved yet
+    if (!allResolved) continue;
+
     // Apply client logic to compute settled payout (single / multi / system)
     let settledPayout = 0;
     let isWon = false;
