@@ -210,6 +210,16 @@ export function toUsd(amount: number, currency: AnyCurrency): number {
   return amount;
 }
 
+/** Convert across currencies (fiat ↔ fiat, fiat ↔ crypto). */
+export function convert(amount: number, from: AnyCurrency, to: AnyCurrency): number {
+  if (from === to) return amount;
+  const usd = toUsd(amount, from);
+  if (isFiat(to))   return usd / FIAT[to].usdPerUnit;
+  if (isCrypto(to)) return usd / CRYPTO[to].usdPerUnit;
+  return amount;
+}
+
+
 /**
  * Pretty-format a USD approximation suffix — "≈ $12.34". Returns the empty
  * string if the source currency *is* USD (no point duplicating it).

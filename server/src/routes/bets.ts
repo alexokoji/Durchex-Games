@@ -34,6 +34,18 @@ router.post(
     const user = req.user!;
     const { gameId, gameName, stake, details, selections, mode, systemK } = req.body;
 
+    console.log('[POST /bets] Received bet placement:', {
+      userId: user._id.toString(),
+      gameId,
+      gameName,
+      stake,
+      mode,
+      systemK,
+      selectionsCount: selections ? (Array.isArray(selections) ? selections.length : Object.keys(selections).length) : 0,
+      selectionsType: selections ? typeof selections : 'undefined',
+      selectionsValue: selections ? JSON.stringify(selections).substring(0, 200) : 'undefined',
+    });
+
     const result = await placeBetAtomic({
       userId: user._id,
       currency: user.currency,

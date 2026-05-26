@@ -38,6 +38,15 @@ export async function placeBetAtomic(args: PlaceBetArgs): Promise<
 > {
   if (args.stake <= 0) return { error: 'insufficient_funds' };
 
+  console.log('[placeBetAtomic] Called with:', {
+    userId: args.userId.toString(),
+    gameId: args.gameId,
+    mode: args.mode,
+    systemK: args.systemK,
+    selectionsCount: args.selections ? (Array.isArray(args.selections) ? args.selections.length : Object.keys(args.selections).length) : 0,
+    selectionsType: args.selections ? typeof args.selections : 'undefined',
+  });
+
   const user = await User.findById(args.userId).select('balance bonusBalance bonusRollover currency');
   if (!user) return { error: 'user_not_found' };
   if (user.currency !== args.currency) return { error: 'currency_mismatch' };
@@ -71,6 +80,15 @@ export async function placeBetAtomic(args: PlaceBetArgs): Promise<
   );
   if (!debited) return { error: 'insufficient_funds' };
 
+  console.log('[placeBetAtomic] Creating bet with:', {
+    userId: debited._id.toString(),
+    gameId: args.gameId,
+    mode: args.mode,
+    systemK: args.systemK,
+    selectionsCount: args.selections ? (Array.isArray(args.selections) ? args.selections.length : Object.keys(args.selections).length) : 0,
+    selections: args.selections ? JSON.stringify(args.selections).substring(0, 300) : 'undefined',
+  });
+
   const bet = await Bet.create({
     userId:   debited._id,
     gameId:   args.gameId,
@@ -84,6 +102,12 @@ export async function placeBetAtomic(args: PlaceBetArgs): Promise<
     details:  args.details,
     selections: args.selections,
     placedAt: new Date(),
+  });
+
+  console.log('[placeBetAtomic] Bet created:', {
+    betId: bet._id.toString(),
+    mode: bet.mode,
+    selectionsCount: bet.selections ? (Array.isArray(bet.selections) ? (bet.selections as any[]).length : Object.keys(bet.selections as any).length) : 0,
   });
 
   await Transaction.create({
@@ -122,26 +146,45 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
   | { bet: IBet; balance: number }
   | { error: 'bet_not_found' | 'bet_already_settled' }
 > {
-  const bet = await Bet.findOne({ _id: args.betId, userId: args.userId });
-  if (!bet) return { error: 'bet_not_found' };
-  if (bet.status !== 'pending') return { error: 'bet_already_settled' };
+  // Use a single atomic findOneAndUpdate that ONLY succeeds when status === 'pending'.
+  // This eliminates the race condition where two concurrent settlement paths
+  // (client route + server scheduler) both read 'pending' before either write,
+  // causing the balance to be credited twice.
+  const resolvedPayout = Math.max(0, args.payout);
+  const newStatus = args.won ? 'won' : 'lost';
 
-  bet.status     = args.won ? 'won' : 'lost';
-  bet.payout     = Math.max(0, args.payout);
-  // bet.multiplier = args.multiplier; // multiplier no longer used for payout calculations
-  bet.details    = args.details ?? bet.details;
-  bet.settledAt  = new Date();
-  await bet.save();
+  const $set: Record<string, unknown> = {
+    status:    newStatus,
+    payout:    resolvedPayout,
+    settledAt: new Date(),
+  };
+  if (args.details != null) $set.details = args.details;
+
+  const bet = await Bet.findOneAndUpdate(
+    { _id: args.betId, userId: args.userId, status: 'pending' },
+    { $set },
+    { new: true },
+  );
+
+  if (!bet) {
+    // Either bet doesn't exist or it was already settled by another concurrent call.
+    const existing = await Bet.findOne({ _id: args.betId, userId: args.userId }).select('status');
+    if (!existing) return { error: 'bet_not_found' };
+    return { error: 'bet_already_settled' };
+  }
 
   let newBalance: number;
   if (bet.payout > 0) {
+    const oddsFromDb = (bet.selections as any[])?.map((s: any) => ({ id: s.id, odds: s.odds })) || [];
     console.log('[settleBetAtomic] Crediting payout:', {
       betId: args.betId.toString(),
       userId: args.userId.toString(),
       betCurrency: bet.currency,
       betStake: bet.stake,
+      selectionsOdds: oddsFromDb,
       payoutAmount: bet.payout,
       expectedProfit: bet.payout - bet.stake,
+      expectedPayout: bet.stake * (oddsFromDb.length > 0 ? oddsFromDb[0].odds : 1),
     });
     const credited = await User.findByIdAndUpdate(
       args.userId,

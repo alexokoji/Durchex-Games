@@ -142,11 +142,28 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
     const isSingle = bet.mode === 'single';
     if (isSingle) {
       let payout = 0;
+      const oddsInfo: any[] = [];
       for (let i = 0; i < results.length; i++) {
         const r = results[i];
-        if (r === 'win') payout += calculatePayout(bet.stake, selsArr[i].odds);
-        else if (r === 'void') payout += bet.stake;
+        const sel = selsArr[i];
+        if (r === 'win') {
+          const selPayout = calculatePayout(bet.stake, sel.odds);
+          payout += selPayout;
+          oddsInfo.push({ i, odds: sel.odds, result: r, selPayout });
+        }
+        else if (r === 'void') {
+          payout += bet.stake;
+          oddsInfo.push({ i, odds: sel.odds, result: r, selPayout: bet.stake });
+        } else {
+          oddsInfo.push({ i, odds: sel.odds, result: r, selPayout: 0 });
+        }
       }
+      console.log('[virtualSportsScheduler] Single bet settlement:', {
+        betId: bet._id.toString(),
+        stake: bet.stake,
+        selections: oddsInfo,
+        totalPayout: payout,
+      });
       const allWon = results.every(r => r === 'win');
       const allLost = results.every(r => r === 'loss');
       settledPayout = payout;
@@ -161,8 +178,29 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
           settledPayout = 0;
           isWon = false;
         } else {
-          const oddsProd = selsArr.reduce((p: number, sel: any, i: number) => p * (results[i] === 'void' ? 1 : sel.odds), 1);
+          console.log('[virtualSportsScheduler] MULTI BET DEBUG:', {
+            betId: bet._id.toString(),
+            stake: bet.stake,
+            stakeType: typeof bet.stake,
+            selectionsCount: selsArr.length,
+            selectionsArr: JSON.stringify(selsArr.slice(0, 3)),
+          });
+
+          const oddsProd = selsArr.reduce((p: number, sel: any, i: number) => {
+            const selOdds = results[i] === 'void' ? 1 : sel.odds;
+            console.log(`  [${i}] odds=${sel.odds}, result=${results[i]}, useOdds=${selOdds}, product=${p} * ${selOdds} = ${p * selOdds}`);
+            return p * selOdds;
+          }, 1);
+
           settledPayout = bet.stake * oddsProd;
+          console.log('[virtualSportsScheduler] Multi bet settlement:', {
+            betId: bet._id.toString(),
+            stake: bet.stake,
+            selections: selsArr.map((s: any) => ({ odds: s.odds })),
+            oddsProd,
+            calculatedPayout: bet.stake * oddsProd,
+            settledPayout,
+          });
           isWon = settledPayout > 0;
         }
       } else {

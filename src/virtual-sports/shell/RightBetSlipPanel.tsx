@@ -30,7 +30,7 @@ import type { BetMode, OddsFormat, BetSelection, BetTicket } from '../core/types
 import { deriveMatchState, type MatchStateForSelection } from '../core/matchStateForSelection';
 import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
-import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes, type FiatCurrency } from '../../utils/currency';
+import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes, convert, type FiatCurrency, type AnyCurrency } from '../../utils/currency';
 import BetPlacedModal from './BetPlacedModal';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
@@ -143,7 +143,7 @@ function BetSlipBody() {
       const r = await bookingCodesApi.mint({
         selections,                    // captured BetSelection[] snapshot
         suggestedStake: stake,
-        currency: 'USD',
+        currency: wallet.currency,
         label: `${selections.length}-leg slip`,
       });
       setMintedCode(r.code);
@@ -168,7 +168,11 @@ function BetSlipBody() {
       const sels = (r.selections ?? []) as BetSelection[];
       slip.clearSlip();
       for (const sel of sels) slip.addSelection(sel);
-      if (typeof r.suggestedStake === 'number' && r.suggestedStake > 0) slip.setStake(r.suggestedStake);
+      if (typeof r.suggestedStake === 'number' && r.suggestedStake > 0) {
+        const fromCurrency = (r.currency || 'USD') as AnyCurrency;
+        const convertedStake = convert(r.suggestedStake, fromCurrency, wallet.currency);
+        slip.setStake(convertedStake);
+      }
       setCodeStatus({ kind: 'ok', message: `Loaded ${sels.length} selection${sels.length === 1 ? '' : 's'} from ${code}` });
       setCodeInput('');
     } catch (err) {
@@ -498,7 +502,7 @@ function BetSlipBody() {
                 const r = await bookingCodesApi.mint({
                   selections: snapSelections,
                   suggestedStake: snapStake,
-                  currency: 'USD',
+                  currency: wallet.currency,
                   label: `${snapSelections.length}-leg slip`,
                 });
                 setMintedCode(r.code);
