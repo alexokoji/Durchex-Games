@@ -225,9 +225,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Use payout as-is if provided (already calculated from odds).
     // Multiplier is passed through for logging/tracking but should not modify the calculated payout.
     const resolvedPayout = payout != null ? payout : won ? stake : 0;
+    console.log('[WalletContext.settleBet] Settlement:', {
+      betId,
+      stake,
+      payout,
+      won,
+      multiplier,
+      resolvedPayout,
+    });
     try {
       const { bet, balance: newBalance } = await betsApi.settle(betId, {
         won, payout: Math.max(0, resolvedPayout), multiplier, details,
+      });
+      console.log('[WalletContext.settleBet] Settlement result:', {
+        betId,
+        dbPayout: bet.payout,
+        newBalance,
       });
       const rec = toBetRecord(bet);
       setPendingBets(prev => prev.filter(b => b.id !== betId));

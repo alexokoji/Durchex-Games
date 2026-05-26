@@ -237,9 +237,17 @@ export function resolveSoccerSelection(
     case 'OVER_UNDER': {
       const line = extractLine(marketId) ?? 0;
       const total = h + a;
-      if (optionId === 'over')  return total > line ? 'win' : 'loss';
-      if (optionId === 'under') return total < line ? 'win' : 'loss';
-      return 'loss';
+      const result = (optionId === 'over') ? (total > line ? 'win' : 'loss') : 
+                     (optionId === 'under') ? (total < line ? 'win' : 'loss') : 'loss';
+      console.log('[resolveSoccerSelection] O/U resolution:', {
+        optionId,
+        marketId,
+        line,
+        finalScore: { h, a },
+        total,
+        result
+      });
+      return result;
     }
 
     case 'TEAM_TOTAL': {

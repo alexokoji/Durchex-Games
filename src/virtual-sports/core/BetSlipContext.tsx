@@ -280,6 +280,16 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
           if (!ticket.walletBetId) continue;
           const payout = ticket.settledPayout ?? 0;
           const won = payout > 0;
+          console.log('[BetSlipContext] Settling ticket:', {
+            walletBetId: ticket.walletBetId,
+            mode: ticket.mode,
+            stake: ticket.stake,
+            status: ticket.status,
+            selectionsCount: ticket.selections.length,
+            settlementResults: ticket.selectionResults?.map(r => ({ selectionId: r.selectionId, result: r.result })),
+            settledPayout: payout,
+            won,
+          });
           void wallet.settleBet(ticket.walletBetId, {
             won,
             payout,

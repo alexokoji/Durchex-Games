@@ -135,12 +135,25 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
 
   let newBalance: number;
   if (bet.payout > 0) {
+    console.log('[settleBetAtomic] Crediting payout:', {
+      betId: args.betId.toString(),
+      userId: args.userId.toString(),
+      betCurrency: bet.currency,
+      betStake: bet.stake,
+      payoutAmount: bet.payout,
+      expectedProfit: bet.payout - bet.stake,
+    });
     const credited = await User.findByIdAndUpdate(
       args.userId,
       { $inc: { balance: bet.payout, totalWon: Math.max(0, bet.payout - bet.stake) } },
       { new: true },
     );
     newBalance = credited?.balance ?? 0;
+    console.log('[settleBetAtomic] After credit:', {
+      betId: args.betId.toString(),
+      newBalance,
+      userCurrency: credited?.currency,
+    });
     await Transaction.create({
       userId:    args.userId,
       kind:      'bet_payout',

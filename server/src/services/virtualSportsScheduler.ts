@@ -190,6 +190,18 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
   // Execute settlements
   for (const s of toSettle) {
     try {
+      console.log('[virtualSportsScheduler] Settling bet:', {
+        betId: s.bet._id.toString(),
+        userId: s.bet.userId.toString(),
+        mode: s.bet.mode,
+        stake: s.bet.stake,
+        selections: s.bet.selections.map((sel: any) => ({
+          id: sel.id,
+          odds: sel.odds,
+        })),
+        settledPayout: s.settledPayout,
+        won: s.won,
+      });
       await settleBetAtomic({ userId: s.bet.userId, betId: s.bet._id, won: s.won, payout: s.settledPayout });
     } catch (err) {
       // ignore per-bet errors but log
