@@ -128,7 +128,7 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
 
   bet.status     = args.won ? 'won' : 'lost';
   bet.payout     = Math.max(0, args.payout);
-  bet.multiplier = args.multiplier;
+  // bet.multiplier = args.multiplier; // multiplier no longer used for payout calculations
   bet.details    = args.details ?? bet.details;
   bet.settledAt  = new Date();
   await bet.save();

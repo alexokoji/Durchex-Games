@@ -219,34 +219,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, requireAuth, balance, bonusBalance, currency, toasts]);
 
-  const settleBet = useCallback<WalletContextValue['settleBet']>(async (betId, { won, payout, multiplier, details }) => {
+  const settleBet = useCallback<WalletContextValue['settleBet']>(async (betId, { won, payout, details }) => {
     setLastError(null);
     const stake = pendingBets.find(b => b.id === betId)?.stake ?? 0;
     // Use payout as-is if provided (already calculated from odds).
-    // Multiplier is passed through for logging/tracking but should not modify the calculated payout.
+    // Multiplier is not applied here to avoid double multiplication.
     const resolvedPayout = payout != null ? payout : won ? stake : 0;
     console.log('[WalletContext.settleBet] Settlement:', {
       betId,
       stake,
       payout,
       won,
-      multiplier,
       resolvedPayout,
     });
     try {
       const { bet, balance: newBalance } = await betsApi.settle(betId, {
-        won, payout: Math.max(0, resolvedPayout), multiplier, details,
+        won,
+        payout: Math.max(0, resolvedPayout),
+        details,
       });
       console.log('[WalletContext.settleBet] Settlement result:', {
         betId,
         dbPayout: bet.payout,
         newBalance,
       });
-      const rec = toBetRecord(bet);
-      setPendingBets(prev => prev.filter(b => b.id !== betId));
-      setHistory(prev => [rec, ...prev].slice(0, 200));
       setBalance(newBalance);
-      void refreshMe();
+      // Update pending and history
+      setPendingBets(prev => prev.filter(b => b.id !== betId));
+      const rec = toBetRecord(bet);
+      setHistory(prev => [rec, ...prev].slice(0, 200));
     } catch (err) {
       setLastError(err instanceof ApiError ? err.code : 'settle_bet_failed');
     }
