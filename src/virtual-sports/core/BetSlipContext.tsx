@@ -170,9 +170,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const { totalStake, potentialPayout, systemLines } = useMemo(() => {
     if (selections.length === 0) return { totalStake: 0, potentialPayout: 0, systemLines: 0 };
     if (mode === 'single') {
-      const t = stake * selections.length;
-      const payout = selections.reduce((s, sel) => s + calculatePayout(stake, sel.odds), 0);
-      return { totalStake: t, potentialPayout: payout, systemLines: selections.length };
+      const perSelectionStake = stake / Math.max(1, selections.length);
+      const totalStake = perSelectionStake * selections.length; // equals original stake
+      const payout = selections.reduce((s, sel) => s + calculatePayout(perSelectionStake, sel.odds), 0);
+      return { totalStake, potentialPayout: payout, systemLines: selections.length };
     }
     if (mode === 'multi') {
       return {
@@ -321,11 +322,12 @@ export function useBetSlip(): BetSlipContextValue {
 
 function applyResults(t: BetTicket, results: ('win' | 'loss' | 'void')[]): BetTicket {
   if (t.mode === 'single') {
+    const perSelectionStake = t.stake / Math.max(1, t.selections.length);
     let payout = 0;
     for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r === 'win')  payout += calculatePayout(t.stake, t.selections[i].odds);
-      else if (r === 'void') payout += t.stake;
+        const r = results[i];
+        if (r === 'win') payout += calculatePayout(perSelectionStake, t.selections[i].odds);
+        else if (r === 'void') payout += perSelectionStake;
     }
     const allWon = results.every(r => r === 'win');
     const allLost = results.every(r => r === 'loss');

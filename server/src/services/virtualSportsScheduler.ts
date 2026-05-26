@@ -143,17 +143,18 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
     if (isSingle) {
       let payout = 0;
       const oddsInfo: any[] = [];
+      const perSelectionStake = bet.stake / (selsArr.length || 1);
       for (let i = 0; i < results.length; i++) {
         const r = results[i];
         const sel = selsArr[i];
         if (r === 'win') {
-          const selPayout = calculatePayout(bet.stake, sel.odds);
+          const selPayout = calculatePayout(perSelectionStake, sel.odds);
           payout += selPayout;
           oddsInfo.push({ i, odds: sel.odds, result: r, selPayout });
         }
         else if (r === 'void') {
-          payout += bet.stake;
-          oddsInfo.push({ i, odds: sel.odds, result: r, selPayout: bet.stake });
+          payout += perSelectionStake;
+          oddsInfo.push({ i, odds: sel.odds, result: r, selPayout: perSelectionStake });
         } else {
           oddsInfo.push({ i, odds: sel.odds, result: r, selPayout: 0 });
         }
@@ -161,6 +162,7 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
       console.log('[virtualSportsScheduler] Single bet settlement:', {
         betId: bet._id.toString(),
         stake: bet.stake,
+        perSelectionStake,
         selections: oddsInfo,
         totalPayout: payout,
       });
@@ -212,9 +214,10 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
           settledPayout = 0;
           isWon = false;
         } else {
+          const perLineStake = bet.stake / (combos.length || 1);
           const payout = winningCombos.reduce((sum, combo) => {
             const oddsProduct = combo.reduce((p, idx) => p * selsArr[idx].odds, 1);
-            return sum + bet.stake * oddsProduct;
+            return sum + perLineStake * oddsProduct;
           }, 0);
           const fullWin = winningCombos.length === combinations(n, systemK).length;
           settledPayout = payout;

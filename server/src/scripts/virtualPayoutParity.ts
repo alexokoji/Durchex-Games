@@ -55,10 +55,11 @@ function serverApplyResults(bet: any, results: ('win'|'loss'|'void')[]) {
   const isSingle = bet.mode === 'single';
   if (isSingle) {
     let payout = 0;
+    const perSelectionStake = bet.stake / (selsArr.length || 1);
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-      if (r === 'win') payout += calculatePayout(bet.stake, selsArr[i].odds);
-      else if (r === 'void') payout += bet.stake;
+      if (r === 'win') payout += calculatePayout(perSelectionStake, selsArr[i].odds);
+      else if (r === 'void') payout += perSelectionStake;
     }
     return { settledPayout: payout };
   }
@@ -73,9 +74,10 @@ function serverApplyResults(bet: any, results: ('win'|'loss'|'void')[]) {
   const combos = combinations(n, systemK);
   const winningCombos = combos.filter(combo => combo.every(i => results[i] === 'win'));
   if (winningCombos.length === 0) return { settledPayout: 0 };
+  const perLineStake = bet.stake / (combos.length || 1);
   const payout = winningCombos.reduce((sum, combo) => {
     const oddsProduct = combo.reduce((p, idx) => p * selsArr[idx].odds, 1);
-    return sum + bet.stake * oddsProduct;
+    return sum + perLineStake * oddsProduct;
   }, 0);
   return { settledPayout: payout };
 }
@@ -90,7 +92,19 @@ function runTests(iter = 200) {
     const mode = Math.random() < 0.6 ? (Math.random() < 0.2 ? 'single' : 'multi') : 'system';
     const systemK = mode === 'system' ? 2 + Math.floor(Math.random() * Math.min(3, n - 1)) : undefined;
     const selections = Array.from({ length: n }, (_, i) => ({ id: `s${i}`, odds: randomOdds() }));
-    const ticket = { mode, systemK, stake: 10, selections };
+    
+    // Per-line/selection stake is 10
+    const perLineStake = 10;
+    let totalStake = perLineStake;
+    if (mode === 'single') {
+      totalStake = perLineStake * n;
+    } else if (mode === 'system') {
+      totalStake = perLineStake * combinations(n, systemK!).length;
+    }
+    
+    const ticket = { mode, systemK, stake: perLineStake, selections };
+    const betInDb = { mode, systemK, stake: totalStake, selections };
+    
     const results: ('win'|'loss'|'void')[] = selections.map(() => {
       const r = Math.random();
       return r < 0.6 ? 'win' : r < 0.9 ? 'loss' : 'void';
@@ -98,7 +112,7 @@ function runTests(iter = 200) {
     // For single mode, client treats as single when ticket.mode === 'single'
     if (mode === 'single') ticket.mode = 'single';
     const client = clientApplyResults(ticket, results as any);
-    const server = serverApplyResults(ticket as any, results as any);
+    const server = serverApplyResults(betInDb as any, results as any);
     const cP = Math.round((client.settledPayout ?? 0) * 100) / 100;
     const sP = Math.round((server.settledPayout ?? 0) * 100) / 100;
     if (cP !== sP) {
