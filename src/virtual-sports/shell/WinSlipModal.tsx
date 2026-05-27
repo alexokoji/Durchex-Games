@@ -1,21 +1,18 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { toPng } from 'html-to-image';
 import {
-  Dialog, DialogContent, Box, Typography, Button, IconButton, Divider,
+  Dialog, DialogContent, Box, Typography, Button, IconButton,
   CircularProgress,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import ShareIcon from '@mui/icons-material/Share';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import type { BetTicket } from '../core/types';
 import type { FiatCurrency } from '../../utils/currency';
 import { formatMoney } from '../../utils/currency';
-import { neonGreen, neonBlue, neonGold, darkBorder, darkBg } from '../../theme';
+import { neonGreen, neonGold, darkBorder, darkBg } from '../../theme';
 
 interface WinSlipModalProps {
   ticket: BetTicket;
@@ -128,7 +125,6 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
   /* ─── Slip colour tokens (used inside the captured box) ─── */
   const G  = neonGreen;               // #00ff88
   const Au = neonGold;                // #ffd700
-  const Bl = neonBlue;                // #00d4ff
 
   return (
     <Dialog
