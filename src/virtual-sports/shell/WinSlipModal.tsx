@@ -80,10 +80,12 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
     // Give the DOM one frame to stabilise before snapshotting.
     await new Promise(r => setTimeout(r, 80));
     return toPng(slipRef.current, {
-      pixelRatio: 2,
+      // pixelRatio 3 on a 320 px-wide element → 960 px output: compact card
+      // but text is rendered at 3× density so it looks crisp on any display.
+      pixelRatio: 3,
       cacheBust: true,
       backgroundColor: darkBg,
-      // html-to-image needs to see the full height — no clipping.
+      // Lock the capture to the element's natural (constrained) dimensions.
       height: slipRef.current.scrollHeight,
       width:  slipRef.current.scrollWidth,
     });
@@ -163,6 +165,10 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
         <Box
           ref={slipRef}
           style={{
+            // Fixed 320 px width → output PNG is 960 px wide at 3× pixelRatio.
+            // Centred in the dialog so it still looks good on screen.
+            width: 320,
+            margin: '0 auto',
             background: 'linear-gradient(160deg, #0a0c10 0%, #0d1520 100%)',
             borderRadius: 12,
             overflow: 'hidden',
@@ -174,10 +180,10 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           <Box style={{
             background: `linear-gradient(90deg, rgba(255,215,0,0.12), rgba(0,255,136,0.06))`,
             borderBottom: `1px solid rgba(255,215,0,0.18)`,
-            padding: '12px 16px',
+            padding: '9px 13px',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: 10,
           }}>
             {/* Logo */}
             {logoUrl ? (
@@ -213,39 +219,39 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
 
           {/* ── Trophy + payout ── */}
           <Box style={{
-            padding: '20px 16px 14px',
+            padding: '14px 13px 10px',
             textAlign: 'center',
             background: 'radial-gradient(ellipse at 50% 0%, rgba(255,215,0,0.07) 0%, transparent 65%)',
           }}>
             {/* Trophy icon rendered as text emoji for reliable capture */}
             <Typography style={{
-              fontSize: 38, lineHeight: 1, margin: '0 0 4px',
+              fontSize: 32, lineHeight: 1, margin: '0 0 3px',
             }}>
               🏆
             </Typography>
             <Typography style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
               color: 'rgba(255,255,255,0.5)', marginBottom: 2, marginTop: 0,
             }}>
               YOU WON
             </Typography>
             <Typography style={{
-              fontSize: 36, fontWeight: 900, color: G,
-              filter: `drop-shadow(0 0 14px ${G})`,
+              fontSize: 30, fontWeight: 900, color: G,
+              filter: `drop-shadow(0 0 12px ${G})`,
               fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, margin: 0,
             }}>
               {formatMoney(payout, currency)}
             </Typography>
             {profit > 0 && (
               <Typography style={{
-                fontSize: 11, color: 'rgba(0,255,136,0.65)', fontWeight: 700,
-                marginTop: 3, marginBottom: 0,
+                fontSize: 10, color: 'rgba(0,255,136,0.65)', fontWeight: 700,
+                marginTop: 2, marginBottom: 0,
               }}>
                 +{formatMoney(profit, currency)} profit
               </Typography>
             )}
             <Typography style={{
-              fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 8, marginBottom: 0,
+              fontSize: 9, color: 'rgba(255,255,255,0.28)', marginTop: 6, marginBottom: 0,
             }}>
               {modeName} · {settledTime}
             </Typography>
@@ -255,7 +261,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           {ticket.mode !== 'single' && (
             <Box style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 16px 8px',
+              padding: '0 13px 7px',
             }}>
               <Box style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
               <Box style={{
@@ -275,7 +281,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           )}
 
           {/* ── Selections list ── */}
-          <Box style={{ padding: '0 12px 12px' }}>
+          <Box style={{ padding: '0 10px 10px' }}>
             {ticket.selections.map((s, i) => {
               const res   = resultMap.get(s.id);
               const win   = res?.result === 'win';
@@ -355,7 +361,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           <Box style={{
             borderTop: '1px solid rgba(255,215,0,0.12)',
             background: 'rgba(255,215,0,0.03)',
-            padding: '10px 16px',
+            padding: '8px 13px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'flex-end',
