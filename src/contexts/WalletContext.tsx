@@ -251,11 +251,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'settle_bet_failed';
       setLastError(code);
-      // If the server scheduler already settled this bet before the client
-      // call landed, the balance was credited on the server but the client
-      // never received the updated value (the error path skips setBalance).
-      // Refresh so the UI reflects the correct post-settlement balance.
-      if (code === 'bet_already_settled') void refresh();
+      // Always refresh on any settlement error. The server may have already
+      // credited the payout (e.g. bet_already_settled, race with a server-side
+      // scheduler) or the request may have failed mid-flight leaving the client
+      // balance stuck at B-stake. A refresh re-syncs the displayed balance from
+      // the server's source of truth regardless of the error type.
+      void refresh();
     }
   }, [pendingBets, refresh]);
 

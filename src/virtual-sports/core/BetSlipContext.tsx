@@ -257,14 +257,34 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   }, [selections, stake, mode, systemK, totalStake, potentialPayout, wallet]);
 
   const cancelTicket = useCallback((ticketId: string) => {
+    // Collect the wallet call args from inside the updater (mirrors the
+    // settleOutcomes pattern). Resetting to null at the top of each updater
+    // invocation handles React StrictMode double-invocation so that only the
+    // final (committed) run's values are used when firing the API call below.
+    let cancelledWalletBetId: string | null = null;
+    let cancelledTotalStake = 0;
+
     setOpenTickets(prev => {
+      cancelledWalletBetId = null; // reset per invocation
       const t = prev.find(x => x.id === ticketId);
       if (!t) return prev;
-      // Move to history as void
+      cancelledWalletBetId = t.walletBetId ?? null;
+      cancelledTotalStake  = t.totalStake;
+      // Move to history as cashout with stake returned
       setHistory(h => [{ ...t, status: 'cashout', settledPayout: t.totalStake, settledAt: Date.now() }, ...h]);
       return prev.filter(x => x.id !== ticketId);
     });
-  }, []);
+
+    // Return the stake by settling the wallet bet with won=true, payout=totalStake.
+    // This credits the stake back to the user's real balance.
+    if (cancelledWalletBetId) {
+      void wallet.settleBet(cancelledWalletBetId, {
+        won: true,
+        payout: cancelledTotalStake,
+        details: 'Virtual sports · cashout · ticket cancelled',
+      });
+    }
+  }, [wallet]);
 
 const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
     if (outcomes.length === 0) return;
