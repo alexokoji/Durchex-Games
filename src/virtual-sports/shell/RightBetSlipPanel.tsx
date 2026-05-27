@@ -750,8 +750,18 @@ function OpenTicketCard({ ticket, currency, tick }: { ticket: BetTicket; currenc
 
   // Derive aggregate result from all selections that have entered live/finished.
   // Used to colour the ticket header and report overall winning/losing position.
+  // Total-goal markets (O/U, Team Total) are excluded while still live —
+  // their result isn't locked until the final whistle so we don't spoil it.
   const activeResults = states
-    .filter((s): s is MatchStateForSelection => s != null && (s.phase === 'live' || s.phase === 'finished'))
+    .filter((s, i): s is MatchStateForSelection => {
+      if (s == null) return false;
+      if (s.phase !== 'live' && s.phase !== 'finished') return false;
+      if (s.phase === 'live') {
+        const cat = ticket.selections[i]?.marketCategory;
+        if (cat === 'OVER_UNDER' || cat === 'TEAM_TOTAL') return false;
+      }
+      return true;
+    })
     .map(s => s.currentResult);
   const aggResult: 'win' | 'loss' | null =
     activeResults.length > 0 && activeResults.every(r => r === 'win') ? 'win'
@@ -940,9 +950,13 @@ function OpenSelectionRow({ sel, state }: { sel: BetSelection; state: MatchState
     ? Math.max(0, sportSpan - elapsedMin)
     : 0;
 
-  // Show win/loss coloring during live and finished phases so players can
-  // immediately see whether their prediction is currently winning or losing.
-  const result = (phase === 'live' || phase === 'finished') ? (state?.currentResult ?? null) : null;
+  // Total-goal markets (O/U, Team Total) don't reveal win/loss during the live
+  // phase — the score can still change. Show result only once the match ends.
+  const maskResult = phase === 'live' &&
+    (sel.marketCategory === 'OVER_UNDER' || sel.marketCategory === 'TEAM_TOTAL');
+  const result = maskResult
+    ? null
+    : (phase === 'live' || phase === 'finished') ? (state?.currentResult ?? null) : null;
   const resultColor = result === 'win' ? neonGreen : result === 'loss' ? '#ff4757' : null;
   const phaseTone = resultColor ?? (phase === 'live' ? '#ff4757' : phase === 'finished' ? neonGold : 'text.disabled');
 
