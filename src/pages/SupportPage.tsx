@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Box, Typography, Button, Divider, Accordion, AccordionSummary,
-  AccordionDetails, Chip, Grid, Paper,
+  AccordionDetails, Chip, Paper,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -222,9 +222,9 @@ export default function SupportPage() {
         Other Ways to Reach Us
       </Typography>
 
-      <Grid container spacing={2} sx={{ mb: 4 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 4 }}>
         {CONTACT_CHANNELS.map((ch) => (
-          <Grid item xs={12} sm={4} key={ch.label}>
+          <Box key={ch.label} sx={{ flex: '1 1 220px', minWidth: 0 }}>
             <Paper
               sx={{
                 background: darkCard,
@@ -272,9 +272,9 @@ export default function SupportPage() {
                 {ch.buttonLabel}
               </Button>
             </Paper>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
 
       <Divider sx={{ mb: 3 }} />
 

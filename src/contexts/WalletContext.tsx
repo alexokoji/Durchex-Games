@@ -102,7 +102,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
 };
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, refreshMe, requireAuth } = useAuth();
+  const { user, isAuthenticated, requireAuth } = useAuth();
   const toasts = useToasts();
   const notif  = useNotifications();
 
