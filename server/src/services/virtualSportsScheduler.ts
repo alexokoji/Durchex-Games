@@ -54,8 +54,14 @@ function buildWeekMatches(leagueId: string, week: number, seasonSeed: number, fi
   return matches;
 }
 
-export async function settleForLeagueWeek(leagueId: string, currentWeek: number) {
-  const key = `${JOB_PREFIX}:${leagueId}:w${currentWeek}`;
+/**
+ * `absoluteWeekIndex` is the number of week-slots elapsed since UTC midnight.
+ * It uniquely identifies a week within a specific cycle of the season, so
+ * the JobState key is cycle-aware. Without this, week 5 of cycle 2 would be
+ * skipped because the key `w5` already exists from cycle 1.
+ */
+export async function settleForLeagueWeek(leagueId: string, currentWeek: number, absoluteWeekIndex: number) {
+  const key = `${JOB_PREFIX}:${leagueId}:abs${absoluteWeekIndex}`;
   const existing = await JobState.findById(key).exec();
   if (existing) return; // already settled
 
@@ -249,6 +255,29 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
   await JobState.create({ _id: key, lastRunAt: new Date(), lastRunCount: toSettle.length });
 }
 
+/**
+ * Compute the absolute week index (unique per cycle per league per UTC day)
+ * for the given league + week. Used by admin routes that manually trigger
+ * settlement so they get a cycle-aware key without duplicating the tick logic.
+ */
+export function computeAbsoluteWeekIndex(leagueId: string, week: number): number {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  const anchor = d.getTime();
+  const teams = teamsByLeague(leagueId);
+  const leagueMeta = getLeague(leagueId);
+  const seed = seasonSeedFor(leagueId);
+  const fixtures = leagueMeta?.tier === 'continental'
+    ? buildLeaguePhaseSchedule(teams.map((t: any) => t.id), seed, 8)
+    : buildSeasonSchedule(teams.map((t: any) => t.id), seed);
+  const total = fixtures.reduce((m: number, f: any) => Math.max(m, f.week), 0);
+  if (total === 0) return week - 1;
+  const totalSeasonSeconds = total * WEEK_SECONDS;
+  const elapsedFromAnchor = Math.max(0, Date.now() - anchor);
+  const cycleNum = Math.floor(elapsedFromAnchor / (totalSeasonSeconds * 1000));
+  return cycleNum * total + (week - 1);
+}
+
 export function startVirtualSportsScheduler(): void {
   // Run once at startup and then every minute
   const tick = async () => {
@@ -274,17 +303,23 @@ export function startVirtualSportsScheduler(): void {
         const secondsIntoWeek = elapsedSecondsInSeason % WEEK_SECONDS;
         const phase = secondsIntoWeek < 360 ? 'betting' : secondsIntoWeek < 360 + 180 ? 'live' : 'finished';
 
-        const weeksToSettle: number[] = [];
+        // Cycle number: how many full season loops have elapsed since midnight.
+        const cycleNum = Math.floor(elapsedFromAnchor / (totalSeasonSeconds * 1000));
+
+        // Collect (week, absoluteWeekIndex) pairs to settle. The absolute index
+        // makes the JobState key unique per cycle, so week 5 of cycle 2 gets
+        // its own settlement record instead of being blocked by cycle 1's entry.
+        const weeksToSettle: { week: number; absIdx: number }[] = [];
         for (let week = 1; week < currentWeek; week++) {
-          weeksToSettle.push(week);
+          weeksToSettle.push({ week, absIdx: cycleNum * total + (week - 1) });
         }
         if (phase === 'finished') {
-          weeksToSettle.push(currentWeek);
+          weeksToSettle.push({ week: currentWeek, absIdx: cycleNum * total + (currentWeek - 1) });
         }
 
-        for (const week of weeksToSettle) {
+        for (const { week, absIdx } of weeksToSettle) {
           // eslint-disable-next-line no-await-in-loop
-          await settleForLeagueWeek(league.id, week);
+          await settleForLeagueWeek(league.id, week, absIdx);
         }
       }
     } catch (err) {

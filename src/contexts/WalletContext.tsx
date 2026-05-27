@@ -249,9 +249,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const rec = toBetRecord(bet);
       setHistory(prev => [rec, ...prev].slice(0, 200));
     } catch (err) {
-      setLastError(err instanceof ApiError ? err.code : 'settle_bet_failed');
+      const code = err instanceof ApiError ? err.code : 'settle_bet_failed';
+      setLastError(code);
+      // If the server scheduler already settled this bet before the client
+      // call landed, the balance was credited on the server but the client
+      // never received the updated value (the error path skips setBalance).
+      // Refresh so the UI reflects the correct post-settlement balance.
+      if (code === 'bet_already_settled') void refresh();
     }
-  }, [pendingBets, refreshMe]);
+  }, [pendingBets, refresh]);
 
   const cancelBet = useCallback<WalletContextValue['cancelBet']>((betId) => {
     setPendingBets(prev => prev.filter(b => b.id !== betId));

@@ -165,11 +165,11 @@ export function resolveBasketballSelection(selection: BetSelection, match: Simul
       return 'loss';
     }
     case 'TEAM_TOTAL': {
-      const isHome = marketId.includes('home');
       const m = marketId.match(/tt-(home|away)-(-?\d+(?:\.\d+)?)/);
       if (!m) return 'void';
+      const side = m[1];
       const line = parseFloat(m[2]);
-      const score = isHome ? h : a;
+      const score = side === 'home' ? h : a;
       if (optionId === 'over')  return score > line ? 'win' : 'loss';
       if (optionId === 'under') return score < line ? 'win' : 'loss';
       return 'loss';

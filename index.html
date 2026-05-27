@@ -30,9 +30,12 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!--Start of Tawk.to Script-->
+    <!--Tawk.to — loaded globally for fast init but widget hidden by default.
+        The Support page shows it via Tawk_API.showWidget() on mount.-->
     <script type="text/javascript">
       var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+      // Hide the widget on every page except Support (SupportPage controls visibility).
+      Tawk_API.onLoad = function () { Tawk_API.hideWidget(); };
       (function () {
         var s1 = document.createElement('script'),
             s0 = document.getElementsByTagName('script')[0];
@@ -43,7 +46,6 @@
         s0.parentNode.insertBefore(s1, s0);
       })();
     </script>
-    <!--End of Tawk.to Script-->
 
     <script>
       // ─── Stale-SW recovery ────────────────────────────────────────────

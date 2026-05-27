@@ -26,6 +26,7 @@ import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import SupportPage from './pages/SupportPage';
 import VirtualSportsbook from './virtual-sports/VirtualSportsbook';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -115,6 +116,7 @@ function App() {
                   <Route path="/verify-email"    element={<VerifyEmailPage />} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route path="/reset-password"  element={<ResetPasswordPage />} />
+                  <Route path="/support"         element={<SupportPage />} />
                   <Route path="*" element={<HomePage />} />
                 </Routes>
               </MainLayout>} />

@@ -19,7 +19,7 @@ import { auditFromReq } from '../services/audit';
 import { sendMail } from '../services/email';
 import { Transaction } from '../models/Transaction';
 import { reconcileTransaction } from '../services/paymentReconcile';
-import { settleForLeagueWeek } from '../services/virtualSportsScheduler';
+import { settleForLeagueWeek, computeAbsoluteWeekIndex } from '../services/virtualSportsScheduler';
 
 const router = Router();
 
@@ -369,7 +369,8 @@ router.post(
       if (!validate(req, res)) return;
       const { leagueId, week } = req.body;
       try {
-        await settleForLeagueWeek(leagueId, Number(week));
+        const absIdx = computeAbsoluteWeekIndex(leagueId, Number(week));
+        await settleForLeagueWeek(leagueId, Number(week), absIdx);
         await auditFromReq(req, 'virtual_sports.settle', 'system', undefined, { leagueId, week });
         res.json({ ok: true, leagueId, week });
       } catch (err: any) {

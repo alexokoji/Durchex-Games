@@ -11,6 +11,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LoginIcon from '@mui/icons-material/Login';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
@@ -179,6 +180,7 @@ export default function ProfileMenu({
               { label: 'Rewards & VIP', icon: <EmojiEventsIcon sx={{ fontSize: 18 }} />,   path: '/rewards',  hl: neonGold },
               { label: 'Security',      icon: <SecurityIcon sx={{ fontSize: 18 }} />,      path: '/security' },
               { label: 'Settings',      icon: <SettingsIcon sx={{ fontSize: 18 }} />,      path: '/settings' },
+              { label: 'Support',       icon: <SupportAgentIcon sx={{ fontSize: 18 }} />,  path: '/support',  hl: neonBlue },
             ].map((item) => (
               <ListItemButton key={item.label} onClick={() => go(item.path)} sx={{ mx: 1, my: 0.25, borderRadius: 1 }}>
                 <ListItemIcon sx={{ minWidth: 32, color: item.hl ?? 'text.secondary' }}>
