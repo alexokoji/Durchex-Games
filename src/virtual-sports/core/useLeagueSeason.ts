@@ -208,43 +208,105 @@ export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagu
 
   // ─── Settle slip outcomes when the active week finishes ────────────────
   const settle = useCallback(() => {
-    if (phase !== 'finished') return;
-    const key = `${leagueId}-w${currentWeek}`;
-    if (settledWeeks.current.has(key)) return;
-    settledWeeks.current.add(key);
+    // ── Real-time settlement for the current week ────────────────────────
+    if (phase === 'finished') {
+      const key = `${leagueId}-w${currentWeek}`;
+      if (!settledWeeks.current.has(key)) {
+        settledWeeks.current.add(key);
 
-    const week = weeks.find(w => w.week === currentWeek);
-    if (!week) return;
-    const outcomes: SettlementOutcome[] = [];
-    const pending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
-    for (const sel of pending) {
-      const match = week.matches.find(m => m.id === sel.matchId);
-      if (!match) continue;
-      // Snapshot the final score onto the outcome so the bet slip can show
-      // settled details even after the season seed rotates (UTC midnight).
-      outcomes.push({
+        const week = weeks.find(w => w.week === currentWeek);
+        if (week) {
+          const outcomes: SettlementOutcome[] = [];
+          const pending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
+          for (const sel of pending) {
+            const match = week.matches.find(m => m.id === sel.matchId);
+            if (!match) continue;
+            // Snapshot the final score onto the outcome so the bet slip can show
+            // settled details even after the season seed rotates (UTC midnight).
+            outcomes.push({
+              selectionId: sel.id,
+              result: resolveSelection(sel, match.simulation),
+              finalScore: scoreOf(match.simulation),
+            });
+          }
+          if (outcomes.length > 0) slip.settleOutcomes(outcomes);
+
+          // Push results into the recent-results store.
+          const leagueName = leagueMeta?.shortName ?? leagueId.toUpperCase();
+          for (const m of week.matches) {
+            const { home: hs, away: as } = scoreOf(m.simulation);
+            pushRecentResult({
+              sport,
+              leagueId,
+              leagueName,
+              home: { id: m.home.id, name: m.home.shortName, abbr: m.home.abbr, score: hs },
+              away: { id: m.away.id, name: m.away.shortName, abbr: m.away.abbr, score: as },
+              finishedAt: Date.now(),
+              source: 'live',
+            });
+          }
+        }
+      }
+    }
+
+    // ── Catch-up settlement for open tickets from past weeks ─────────────
+    // The real-time path only covers the current week. If the user placed a
+    // bet then closed the browser (or navigated away from this league's page),
+    // the settler never ran for that week. This block replays the deterministic
+    // simulation for any finished week that still has open tickets, so those
+    // tickets get resolved the moment the user returns — even several weeks
+    // later or after a page reload.
+    if (total === 0) return;
+    const allPending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
+    if (allPending.length === 0) return;
+
+    const catchUpOutcomes: SettlementOutcome[] = [];
+
+    for (const sel of allPending) {
+      // Only handle selections that belong to THIS league.
+      const parts = sel.matchId.split('-');
+      if (parts.length !== 4) continue;
+      const [matchLeagueId, wk, homeId, awayId] = parts;
+      if (matchLeagueId !== leagueId) continue;
+      if (!wk.startsWith('w')) continue;
+      const selWeek = parseInt(wk.slice(1), 10);
+      if (!Number.isFinite(selWeek) || selWeek < 1 || selWeek > total) continue;
+
+      // Per-selection dedup key — prevents settling the same pick twice if
+      // settle() fires multiple times within a session (it runs every second).
+      const cuKey = `catchup-${sel.id}`;
+      if (settledWeeks.current.has(cuKey)) continue;
+
+      // Wrap-aware signed offset: negative = past week, 0 = current, positive = future.
+      let weeksOffset = selWeek - currentWeek;
+      if (weeksOffset < -(total / 2)) weeksOffset += total;
+      else if (weeksOffset > total / 2)  weeksOffset -= total;
+
+      // Only catch-up for strictly past weeks. The current week (offset 0) is
+      // handled above by the real-time settler; future weeks are still pending.
+      if (weeksOffset >= 0) continue;
+
+      const home = teamsById.get(homeId);
+      const away = teamsById.get(awayId);
+      if (!home || !away) continue;
+
+      // Deterministic simulation — identical seed formula to the week builder.
+      const seed = seasonSeed ^ (selWeek * 7919) ^ hashStr(home.id + away.id);
+      const simulation = simulate(home, away, seed);
+
+      settledWeeks.current.add(cuKey);
+      catchUpOutcomes.push({
         selectionId: sel.id,
-        result: resolveSelection(sel, match.simulation),
-        finalScore: scoreOf(match.simulation),
+        result: resolveSelection(sel, simulation),
+        finalScore: scoreOf(simulation),
       });
     }
-    if (outcomes.length > 0) slip.settleOutcomes(outcomes);
 
-    // Push results into the recent-results store.
-    const leagueName = leagueMeta?.shortName ?? leagueId.toUpperCase();
-    for (const m of week.matches) {
-      const { home: hs, away: as } = scoreOf(m.simulation);
-      pushRecentResult({
-        sport,
-        leagueId,
-        leagueName,
-        home: { id: m.home.id, name: m.home.shortName, abbr: m.home.abbr, score: hs },
-        away: { id: m.away.id, name: m.away.shortName, abbr: m.away.abbr, score: as },
-        finishedAt: Date.now(),
-        source: 'live',
-      });
-    }
-  }, [phase, leagueId, currentWeek, weeks, slip, resolveSelection, scoreOf, sport, leagueMeta]);
+    if (catchUpOutcomes.length > 0) slip.settleOutcomes(catchUpOutcomes);
+  }, [
+    phase, leagueId, currentWeek, weeks, total, teamsById, seasonSeed,
+    simulate, slip, resolveSelection, scoreOf, sport, leagueMeta,
+  ]);
 
   useEffect(() => {
     settle();
