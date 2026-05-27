@@ -64,7 +64,7 @@ export default function RightBetSlipPanel() {
         <TabBtn label="History" count={history.length} active={tab === 'history'} onClick={() => setTab('history')} icon={<HistoryIcon sx={{ fontSize: 14 }} />} />
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, maxHeight: { xs: 480, md: 'none' } }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {tab === 'slip' && <BetSlipBody />}
         {tab === 'open' && <OpenBetsBody />}
         {tab === 'history' && <HistoryBody />}

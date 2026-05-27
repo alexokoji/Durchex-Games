@@ -6,6 +6,25 @@ const HOME_ADVANTAGE = 0.35;
 const LEAGUE_AVG_GOALS = 2.7;
 const MAX_SCORE = 7;          // probability grid 0..7 per side
 
+// Lightweight seeded RNG for per-match odds perturbation.
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// DJB2-style hash used to derive a per-match seed from the market ID string.
+function hashMatchId(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
 export interface ExpectedGoals {
   home: number;
   away: number;
@@ -177,7 +196,19 @@ export function buildSoccerMarkets(matchId: string, home: Team, away: Team, over
   xg: ExpectedGoals;
   grid: ScoreGrid;
 } {
-  const xg = computeExpectedGoals(home, away);
+  // Derive a deterministic per-match RNG from the matchId so every game between
+  // the same teams produces slightly different odds (±10%), while remaining
+  // stable for the duration of a week (same seed → same odds on reload).
+  const matchRand = mulberry32(hashMatchId(matchId));
+  // Perturbation range: 0.90 – 1.10 (±10% on xG)
+  const perturbHome = 0.90 + matchRand() * 0.20;
+  const perturbAway = 0.90 + matchRand() * 0.20;
+
+  const baseXg = computeExpectedGoals(home, away);
+  const xg: ExpectedGoals = {
+    home: Math.max(0.15, baseXg.home * perturbHome),
+    away: Math.max(0.15, baseXg.away * perturbAway),
+  };
   const grid = buildScoreGrid(xg);
 
   const pHome = sumGrid(grid, (h, a) => h > a);

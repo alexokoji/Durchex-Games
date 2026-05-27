@@ -180,27 +180,21 @@ export async function settleForLeagueWeek(leagueId: string, currentWeek: number)
           settledPayout = 0;
           isWon = false;
         } else {
-          console.log('[virtualSportsScheduler] MULTI BET DEBUG:', {
-            betId: bet._id.toString(),
-            stake: bet.stake,
-            stakeType: typeof bet.stake,
-            selectionsCount: selsArr.length,
-            selectionsArr: JSON.stringify(selsArr.slice(0, 3)),
-          });
-
-          const oddsProd = selsArr.reduce((p: number, sel: any, i: number) => {
+          const MAX_MULTI_ODDS = 999; // must match MAX_ODDS in client oddsEngine
+          const rawOddsProd = selsArr.reduce((p: number, sel: any, i: number) => {
             const selOdds = results[i] === 'void' ? 1 : sel.odds;
-            console.log(`  [${i}] odds=${sel.odds}, result=${results[i]}, useOdds=${selOdds}, product=${p} * ${selOdds} = ${p * selOdds}`);
             return p * selOdds;
           }, 1);
+          // Cap at MAX_MULTI_ODDS so settled payout matches displayed potential payout
+          const oddsProd = Math.min(MAX_MULTI_ODDS, rawOddsProd);
 
           settledPayout = bet.stake * oddsProd;
           console.log('[virtualSportsScheduler] Multi bet settlement:', {
             betId: bet._id.toString(),
             stake: bet.stake,
             selections: selsArr.map((s: any) => ({ odds: s.odds })),
+            rawOddsProd,
             oddsProd,
-            calculatedPayout: bet.stake * oddsProd,
             settledPayout,
           });
           isWon = settledPayout > 0;

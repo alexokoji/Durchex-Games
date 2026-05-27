@@ -6,6 +6,16 @@ const BASE_TOTAL_POINTS = 220;       // mean points per game (both teams combine
 const POINT_DIFF_STD = 11;            // std-dev of margin
 const TOTAL_POINTS_STD = 13;
 
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hashMatchId(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
 export interface BasketballProjection {
   homeMean: number;
   awayMean: number;
@@ -49,7 +59,19 @@ function makeOptions(probs: { id: string; label: string; shortLabel?: string; p:
 }
 
 export function buildBasketballMarkets(matchId: string, home: Team, away: Team): { markets: Market[]; projection: BasketballProjection } {
-  const proj = projectBasketball(home, away);
+  // Per-match seed-based perturbation on the projected scoring totals (±8%)
+  // so the same matchup produces slightly different odds in different rounds.
+  const matchRand = mulberry32(hashMatchId(matchId));
+  const perturbTotal = 0.92 + matchRand() * 0.16;   // 0.92 – 1.08
+  const perturbDiff  = 0.85 + matchRand() * 0.30;   // 0.85 – 1.15 (wider range on spread)
+  const baseProj = projectBasketball(home, away);
+  const proj: BasketballProjection = {
+    ...baseProj,
+    totalMean: baseProj.totalMean * perturbTotal,
+    diffMean:  baseProj.diffMean  * perturbDiff,
+    homeMean:  (baseProj.totalMean * perturbTotal + baseProj.diffMean * perturbDiff) / 2,
+    awayMean:  (baseProj.totalMean * perturbTotal - baseProj.diffMean * perturbDiff) / 2,
+  };
 
   const pHomeWin = 1 - normalCdf(0, proj.diffMean, proj.diffStd);
   const pAwayWin = 1 - pHomeWin;

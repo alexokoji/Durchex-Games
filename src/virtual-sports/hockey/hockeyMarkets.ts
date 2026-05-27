@@ -6,6 +6,16 @@ const HOME_ADVANTAGE = 0.25;
 const LEAGUE_AVG_GOALS = 5.6;
 const MAX_GOALS = 9;
 
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hashMatchId(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
 export interface ExpectedGoals { home: number; away: number }
 
 export function computeHockeyExpectedGoals(home: Team, away: Team): ExpectedGoals {
@@ -60,7 +70,15 @@ function makeOptions(probs: { id: string; label: string; shortLabel?: string; p:
 }
 
 export function buildHockeyMarkets(matchId: string, home: Team, away: Team): { markets: Market[]; xg: ExpectedGoals; grid: ScoreGrid } {
-  const xg = computeHockeyExpectedGoals(home, away);
+  // Per-match seed-based xG perturbation (±10%) for varied odds each game.
+  const matchRand = mulberry32(hashMatchId(matchId));
+  const perturbHome = 0.90 + matchRand() * 0.20;
+  const perturbAway = 0.90 + matchRand() * 0.20;
+  const baseXg = computeHockeyExpectedGoals(home, away);
+  const xg: ExpectedGoals = {
+    home: Math.max(0.4, baseXg.home * perturbHome),
+    away: Math.max(0.4, baseXg.away * perturbAway),
+  };
   const grid = buildScoreGrid(xg);
 
   const pHome = sumGrid(grid, (h, a) => h > a);

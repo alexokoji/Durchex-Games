@@ -1,5 +1,5 @@
 import type { BetSelection, MatchEvent, Team } from '../core/types';
-import { buildScoreGrid, computeExpectedGoals, computeEventRates, extractLine, type ScoreGrid } from './soccerMarkets';
+import { buildScoreGrid, computeExpectedGoals, computeEventRates, type ScoreGrid } from './soccerMarkets';
 
 export interface SimulatedMatch {
   homeId: string;
@@ -235,24 +235,22 @@ export function resolveSoccerSelection(
       return (optionId === 'yes') === (h > 0 && a > 0) ? 'win' : 'loss';
 
     case 'OVER_UNDER': {
-      const line = extractLine(marketId) ?? 0;
+      // Use explicit 'ou-<line>' regex (same pattern as hockeySimulation) so
+      // we never fall back to 0 and misresolve under as always-loss.
+      const ouMatch = marketId.match(/ou-(-?\d+(?:\.\d+)?)/);
+      if (!ouMatch) return 'void';
+      const line = parseFloat(ouMatch[1]);
       const total = h + a;
-      const result = (optionId === 'over') ? (total > line ? 'win' : 'loss') : 
-                     (optionId === 'under') ? (total < line ? 'win' : 'loss') : 'loss';
-      console.log('[resolveSoccerSelection] O/U resolution:', {
-        optionId,
-        marketId,
-        line,
-        finalScore: { h, a },
-        total,
-        result
-      });
-      return result;
+      if (optionId === 'over')  return total > line ? 'win' : 'loss';
+      if (optionId === 'under') return total < line ? 'win' : 'loss';
+      return 'loss';
     }
 
     case 'TEAM_TOTAL': {
-      const line = extractLine(marketId) ?? 0;
-      const side = marketId.includes('home') ? 'home' : 'away';
+      const ttMatch = marketId.match(/tt-(home|away)-(-?\d+(?:\.\d+)?)/);
+      if (!ttMatch) return 'void';
+      const side  = ttMatch[1];
+      const line  = parseFloat(ttMatch[2]);
       const goals = side === 'home' ? h : a;
       if (optionId === 'over')  return goals > line ? 'win' : 'loss';
       if (optionId === 'under') return goals < line ? 'win' : 'loss';
@@ -260,7 +258,9 @@ export function resolveSoccerSelection(
     }
 
     case 'HANDICAP': {
-      const line = extractLine(marketId) ?? 0;
+      const ahMatch = marketId.match(/ah-(-?\d+(?:\.\d+)?)/);
+      if (!ahMatch) return 'void';
+      const line = parseFloat(ahMatch[1]);
       const adjusted = h + line;
       if (optionId === 'home') {
         if (adjusted === a) return 'void';

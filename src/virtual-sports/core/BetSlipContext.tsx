@@ -6,7 +6,7 @@ import type {
   BetSelection, BetTicket, BetMode, OddsFormat,
 } from './types';
 import {
-  calculateMultiOdds, calculatePayout, calculateSystemBet,
+  calculateMultiOdds, calculatePayout, calculateSystemBet, MAX_ODDS,
 } from './oddsEngine';
 import { useWallet } from '../../contexts/WalletContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -119,10 +119,33 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const [openTickets, setOpenTickets] = useState<BetTicket[]>(() => loadTickets(storageKeyTickets));
   const [history, setHistory] = useState<BetTicket[]>(() => loadTickets(storageKeyHistory));
 
-  useEffect(() => { localStorage.setItem(storageKeyTickets, JSON.stringify(openTickets)); }, [openTickets, storageKeyTickets]);
-  useEffect(() => { localStorage.setItem(storageKeyHistory, JSON.stringify(history.slice(0, 30))); }, [history, storageKeyHistory]);
-  useEffect(() => { localStorage.setItem(storageKeyFormat, oddsFormat); }, [oddsFormat, storageKeyFormat]);
+  // Hold the *current* storage key in refs so the save effects always write to
+  // the right key without depending on the key in their dep arrays.
+  //
+  // The bug without refs:
+  //   When auth restores (anon → userId), React re-runs ALL effects that depend
+  //   on the changed key — SAVE first (writes empty [] to the new key), then
+  //   LOAD (reads back []). Saved tickets are destroyed.
+  //
+  // With refs: save effects only depend on DATA, never on the key.
+  // The load effect still depends on the key, so it fires on key change and
+  // correctly loads whatever was already saved under the new key.
+  const ticketsKeyRef = useRef(storageKeyTickets);
+  const historyKeyRef = useRef(storageKeyHistory);
+  const formatKeyRef  = useRef(storageKeyFormat);
+  ticketsKeyRef.current = storageKeyTickets;
+  historyKeyRef.current = storageKeyHistory;
+  formatKeyRef.current  = storageKeyFormat;
 
+  // Save effects — depend only on data, use refs for the key.
+  useEffect(() => { localStorage.setItem(ticketsKeyRef.current, JSON.stringify(openTickets)); }, [openTickets]);
+  useEffect(() => { localStorage.setItem(historyKeyRef.current, JSON.stringify(history.slice(0, 30))); }, [history]);
+  useEffect(() => { localStorage.setItem(formatKeyRef.current, oddsFormat); }, [oddsFormat]);
+
+  // Load effect — fires when the storage key changes (auth state restores).
+  // By the time this runs, the save effects above have NOT fired for the new
+  // key yet (refs updated synchronously, but effects are async), so the data
+  // stored under the new key is whatever was previously saved for this user.
   useEffect(() => {
     setOpenTickets(loadTickets(storageKeyTickets));
     setHistory(loadTickets(storageKeyHistory));
@@ -246,7 +269,21 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
 const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
     if (outcomes.length === 0) return;
     const outcomeBySel = new Map(outcomes.map(o => [o.selectionId, o]));
+
+    // Collect wallet settlement work to fire AFTER the state updater.
+    // State updater functions must be pure; async side-effects (API calls)
+    // must live outside them. toSettle.length = 0 in the updater ensures
+    // only the final invocation's tickets are processed (handles StrictMode
+    // double-invocation where the first run is discarded).
+    const toSettle: Array<{
+      walletBetId: string;
+      payout: number;
+      status: BetTicket['status'];
+      count: number;
+    }> = [];
+
     setOpenTickets(prev => {
+      toSettle.length = 0; // reset on each invocation so StrictMode re-runs don't double-fire
       const stillOpen: BetTicket[] = [];
       const settled: BetTicket[] = [];
       for (const t of prev) {
@@ -269,37 +306,39 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
         });
         const ticket = applyResults({ ...t, selectionResults }, results);
         settled.push(ticket);
-      }
-      if (settled.length > 0) {
-        setHistory(h => [...settled, ...h].slice(0, 50));
-        // Settle each ticket's wallet bet. A losing ticket settles with
-        // payout=0 (stake stays gone); a winning ticket settles with the
-        // computed payout (stake + winnings credited to the real balance).
-        // Done outside the React state update so settleBet doesn't fight
-        // the render — fire-and-forget per ticket.
-        for (const ticket of settled) {
-          if (!ticket.walletBetId) continue;
-          const payout = ticket.settledPayout ?? 0;
-          const won = payout > 0;
-          console.log('[BetSlipContext] Settling ticket:', {
+        if (ticket.walletBetId) {
+          toSettle.push({
             walletBetId: ticket.walletBetId,
-            mode: ticket.mode,
-            stake: ticket.stake,
+            payout: ticket.settledPayout ?? 0,
             status: ticket.status,
-            selectionsCount: ticket.selections.length,
-            settlementResults: ticket.selectionResults?.map(r => ({ selectionId: r.selectionId, result: r.result })),
-            settledPayout: payout,
-            won,
-          });
-          void wallet.settleBet(ticket.walletBetId, {
-            won,
-            payout,
-            details: `Virtual sports · ${ticket.status} · ${ticket.selections.length} pick${ticket.selections.length === 1 ? '' : 's'}`,
+            count: ticket.selections.length,
           });
         }
       }
+      if (settled.length > 0) {
+        setHistory(h => [...settled, ...h].slice(0, 50));
+      }
       return stillOpen;
     });
+
+    // Fire wallet API calls after the state updater has completed.
+    // A losing ticket settles with payout=0; a winning ticket settles with
+    // the computed payout (stake + winnings credited to the real balance).
+    for (const s of toSettle) {
+      const won = s.payout > 0;
+      console.log('[BetSlipContext] Settling ticket:', {
+        walletBetId: s.walletBetId,
+        status: s.status,
+        selectionsCount: s.count,
+        settledPayout: s.payout,
+        won,
+      });
+      void wallet.settleBet(s.walletBetId, {
+        won,
+        payout: s.payout,
+        details: `Virtual sports · ${s.status} · ${s.count} pick${s.count === 1 ? '' : 's'}`,
+      });
+    }
   }, [wallet]);
 
   const value: BetSlipContextValue = {
@@ -342,8 +381,10 @@ function applyResults(t: BetTicket, results: ('win' | 'loss' | 'void')[]): BetTi
     if (results.some(r => r === 'loss')) {
       return { ...t, status: 'lost', settledPayout: 0, settledAt: Date.now() };
     }
-    // void selections collapse to 1.0 in the parlay
-    const odds = t.selections.reduce((p, sel, i) => p * (results[i] === 'void' ? 1 : sel.odds), 1);
+    // void selections collapse to 1.0 in the parlay; cap at MAX_ODDS so the
+    // settled payout matches what was shown as potential payout in the slip.
+    const rawOdds = t.selections.reduce((p, sel, i) => p * (results[i] === 'void' ? 1 : sel.odds), 1);
+    const odds = Math.min(MAX_ODDS, rawOdds);
     return { ...t, status: 'won', settledPayout: t.stake * odds, settledAt: Date.now() };
   }
   // system

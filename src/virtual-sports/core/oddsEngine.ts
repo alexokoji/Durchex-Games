@@ -1,6 +1,6 @@
 import type { OddsFormat, BetSelection } from './types';
 
-export const DEFAULT_OVERROUND = 1.06;
+export const DEFAULT_OVERROUND = 1.10;
 export const MIN_ODDS = 1.01;
 export const MAX_ODDS = 999;
 
