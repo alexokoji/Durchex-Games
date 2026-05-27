@@ -32,6 +32,7 @@ import { bookingCodesApi } from '../../api/bookingCodes';
 import { ApiError } from '../../api/client';
 import { formatMoney, usdApprox, minVirtualBetFor, virtualQuickStakes, convert, type FiatCurrency, type AnyCurrency } from '../../utils/currency';
 import BetPlacedModal from './BetPlacedModal';
+import WinSlipModal from './WinSlipModal';
 
 interface CodeStatus { kind: 'idle' | 'minting' | 'redeeming' | 'error' | 'ok'; message?: string }
 
@@ -1078,6 +1079,7 @@ function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: 
   // History entries stack up fast — start collapsed and let the user expand
   // to see per-leg detail.
   const [expanded, setExpanded] = useState(false);
+  const [slipOpen, setSlipOpen]  = useState(false);
 
   const won  = ticket.status === 'won' || (ticket.status === 'partial' && (ticket.settledPayout ?? 0) > 0);
   const lost = ticket.status === 'lost';
@@ -1136,6 +1138,20 @@ function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: 
             ? `+${formatMoney((ticket.settledPayout ?? 0) - ticket.totalStake, currency)}`
             : `${profit >= 0 ? '+' : ''}${formatMoney(profit, currency)}`}
         </Typography>
+        {won && (
+          <IconButton
+            size="small"
+            title="Share win slip"
+            onClick={(e) => { e.stopPropagation(); setSlipOpen(true); }}
+            sx={{
+              p: 0.3,
+              color: neonGold,
+              '&:hover': { color: '#fff', background: alpha(neonGold, 0.12) },
+            }}
+          >
+            <ShareIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        )}
         <IconButton size="small" sx={{ p: 0, color: 'text.secondary' }}>
           {expanded ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
         </IconButton>
@@ -1227,7 +1243,45 @@ function HistoryTicketCard({ ticket, currency }: { ticket: BetTicket; currency: 
               </Typography>
             </Box>
           </Box>
+
+          {/* Share button inside expanded body — more prominent */}
+          {won && (
+            <Box sx={{ mt: 1.5 }}>
+              <Button
+                fullWidth
+                size="small"
+                startIcon={<ShareIcon sx={{ fontSize: 15 }} />}
+                onClick={() => setSlipOpen(true)}
+                sx={{
+                  background: alpha(neonGold, 0.1),
+                  border: `1px solid ${alpha(neonGold, 0.3)}`,
+                  color: neonGold,
+                  fontWeight: 800,
+                  fontSize: '0.75rem',
+                  py: 0.6,
+                  borderRadius: 1.5,
+                  '&:hover': {
+                    background: alpha(neonGold, 0.18),
+                    borderColor: neonGold,
+                    boxShadow: `0 0 14px ${alpha(neonGold, 0.3)}`,
+                  },
+                }}
+              >
+                Share Win Slip
+              </Button>
+            </Box>
+          )}
         </Box>
+      )}
+
+      {/* Win slip modal — rendered outside the collapsible so it's always available */}
+      {won && slipOpen && (
+        <WinSlipModal
+          ticket={ticket}
+          currency={currency}
+          open={slipOpen}
+          onClose={() => setSlipOpen(false)}
+        />
       )}
     </Box>
   );

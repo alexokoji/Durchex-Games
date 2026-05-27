@@ -118,14 +118,14 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
               ref={balanceAnchor}
               onClick={() => setBalanceOpen(true)}
               sx={{
-                display: { xs: 'none', sm: 'flex' },
+                display: 'flex',
                 alignItems: 'center',
                 background: alpha('#fff', 0.04),
                 border: `1px solid ${balanceOpen ? alpha(neonGold, 0.4) : darkBorder}`,
                 borderRadius: 2,
-                px: 1.5,
+                px: { xs: 0.75, sm: 1.5 },
                 py: 0.8,
-                gap: 1,
+                gap: { xs: 0.5, sm: 1 },
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 '&:hover': { borderColor: alpha(neonGold, 0.4) },
@@ -136,6 +136,7 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                   width: 20, height: 20, borderRadius: '50%',
                   background: `linear-gradient(135deg, ${neonGold}, #cc8800)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <Typography sx={{ fontSize: '0.62rem', fontWeight: 900, color: '#000' }}>
@@ -147,7 +148,7 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                   {formatMoney(balance, currency)}
                 </Typography>
                 {currency !== 'USD' && (
-                  <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontVariantNumeric: 'tabular-nums', mt: 0.15 }}>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontVariantNumeric: 'tabular-nums', mt: 0.15, display: { xs: 'none', sm: 'block' } }}>
                     {usdApprox(balance, currency)}
                   </Typography>
                 )}
@@ -157,18 +158,21 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                   fontSize: 16, color: 'text.secondary',
                   transition: 'transform 0.2s',
                   transform: balanceOpen ? 'rotate(180deg)' : 'rotate(0)',
+                  display: { xs: 'none', sm: 'block' },
                 }}
               />
             </Box>
           )}
 
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            {/* Desktop: icon + label */}
             <Button
               variant="contained"
               size="small"
               startIcon={<AccountBalanceWalletIcon sx={{ fontSize: 16 }} />}
               onClick={handleDepositClick}
               sx={{
+                display: { xs: 'none', sm: 'flex' },
                 background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
                 color: '#000',
                 fontWeight: 800,
@@ -181,6 +185,24 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
             >
               Deposit
             </Button>
+            {/* Mobile: icon only */}
+            <IconButton
+              onClick={handleDepositClick}
+              sx={{
+                display: { xs: 'flex', sm: 'none' },
+                background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
+                color: '#000',
+                width: 36,
+                height: 36,
+                boxShadow: `0 0 16px ${alpha(neonGreen, 0.4)}`,
+                '&:hover': {
+                  background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`,
+                  boxShadow: `0 0 24px ${alpha(neonGreen, 0.6)}`,
+                },
+              }}
+            >
+              <AccountBalanceWalletIcon sx={{ fontSize: 18 }} />
+            </IconButton>
           </motion.div>
 
           {isAuthenticated && (
