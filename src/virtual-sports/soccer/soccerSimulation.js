@@ -218,7 +218,9 @@ function resolveSoccerSelection(selection, match) {
         case 'BTTS':
             return (optionId === 'yes') === (h > 0 && a > 0) ? 'win' : 'loss';
         case 'OVER_UNDER': {
-            const line = (0, soccerMarkets_1.extractLine)(marketId) ?? 0;
+            const ouMatch = marketId.match(/ou-(-?\d+(?:\.\d+)?)/);
+            if (!ouMatch) return 'void';
+            const line = parseFloat(ouMatch[1]);
             const total = h + a;
             if (optionId === 'over')
                 return total > line ? 'win' : 'loss';
@@ -227,8 +229,10 @@ function resolveSoccerSelection(selection, match) {
             return 'loss';
         }
         case 'TEAM_TOTAL': {
-            const line = (0, soccerMarkets_1.extractLine)(marketId) ?? 0;
-            const side = marketId.includes('home') ? 'home' : 'away';
+            const ttMatch = marketId.match(/tt-(home|away)-(-?\d+(?:\.\d+)?)/);
+            if (!ttMatch) return 'void';
+            const side = ttMatch[1];
+            const line = parseFloat(ttMatch[2]);
             const goals = side === 'home' ? h : a;
             if (optionId === 'over')
                 return goals > line ? 'win' : 'loss';
@@ -237,7 +241,9 @@ function resolveSoccerSelection(selection, match) {
             return 'loss';
         }
         case 'HANDICAP': {
-            const line = (0, soccerMarkets_1.extractLine)(marketId) ?? 0;
+            const ahMatch = marketId.match(/ah-(-?\d+(?:\.\d+)?)/);
+            if (!ahMatch) return 'void';
+            const line = parseFloat(ahMatch[1]);
             const adjusted = h + line;
             if (optionId === 'home') {
                 if (adjusted === a)

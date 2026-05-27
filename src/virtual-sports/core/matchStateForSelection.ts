@@ -121,7 +121,7 @@ function liveScoreFromEvents(
   let home = 0, away = 0;
   for (const e of events) {
     if (e.minute > minute) break;
-    if (e.type !== 'goal') continue;
+    if (e.type !== 'goal' && e.type !== 'penalty') continue;
     if (e.team === 'home') home++;
     else if (e.team === 'away') away++;
   }

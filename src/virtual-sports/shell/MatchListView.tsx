@@ -110,11 +110,10 @@ function deriveScore(m: ListMatch, sport: SportKey, liveProgress: number): { hom
   }
   const fullSpan = spanForSport(sport);
   const minute = Math.floor(Math.min(fullSpan, Math.max(0, liveProgress) * fullSpan));
-  const goalType: 'goal' = 'goal';
   let home = 0, away = 0;
   for (const e of m.events) {
     if (e.minute > minute) break;
-    if (e.type !== goalType) continue;
+    if (e.type !== 'goal' && e.type !== 'penalty') continue;
     if (e.team === 'home') home++;
     else if (e.team === 'away') away++;
   }
