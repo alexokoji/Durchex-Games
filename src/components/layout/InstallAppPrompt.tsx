@@ -168,7 +168,7 @@ export default function InstallAppPrompt() {
               <>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography sx={{ fontSize: '0.88rem', fontWeight: 800 }}>
-                    Install DurchexiGames
+                    Install DURCHEXiGAMES
                   </Typography>
                   <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', lineHeight: 1.3 }}>
                     One-tap launch, full-screen, no browser bars.
@@ -202,7 +202,7 @@ export default function InstallAppPrompt() {
             {mode === 'android-fallback' && (
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 800 }}>
-                  Install DurchexiGames
+                  Install DURCHEXiGAMES
                 </Typography>
                 <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', lineHeight: 1.35 }}>
                   Tap <MoreVertIcon sx={{ fontSize: 14, verticalAlign: 'text-bottom', mx: 0.25 }} /> in Chrome →

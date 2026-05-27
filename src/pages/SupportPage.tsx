@@ -70,19 +70,19 @@ const CONTACT_CHANNELS = [
   {
     icon: <TelegramIcon sx={{ fontSize: 28 }} />,
     label: 'Telegram',
-    value: '@DurchexiGames',
+    value: '@DURCHEXiGAMES',
     description: 'Fastest response · usually < 1 hour',
     color: '#26a5e4',
-    href: 'https://t.me/DurchexiGames',
+    href: 'https://t.me/DURCHEXiGAMES',
     buttonLabel: 'Open Telegram',
   },
   {
     icon: <TwitterIcon sx={{ fontSize: 28 }} />,
     label: 'X (Twitter)',
-    value: '@DurchexiGames',
+    value: '@DURCHEXiGAMES',
     description: 'News, updates, and support',
     color: '#1d9bf0',
-    href: 'https://twitter.com/DurchexiGames',
+    href: 'https://twitter.com/DURCHEXiGAMES',
     buttonLabel: 'Follow & DM',
   },
 ];
