@@ -242,20 +242,24 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
   const currentWeek = Math.min(totalWeeks, Math.floor(elapsedSecondsInSeason / WEEK_S) + 1);
   const secondsIntoWeek = elapsedSecondsInSeason % WEEK_S;
 
-  // Distance (in weeks) between this match's encoded week and the current
-  // active week, treating it as the live week.
-  //   parsed.week === currentWeek → the match is the current week.
-  //   parsed.week > currentWeek   → upcoming (still in pre-booking).
-  //   parsed.week < currentWeek   → already finished THIS CYCLE; will come
-  //                                  around again after totalWeeks - delta
-  //                                  weeks, but is awaiting settle now.
+  // Compute the signed week offset from currentWeek to parsed.week, taking
+  // season wrap-around into account so a wrapped upcoming week (e.g. week 1
+  // when currentWeek=17 in a 19-week season) is correctly treated as future
+  // rather than past.
   //
-  // Special case: if a bet is placed far ahead (e.g. week 15 when we're in week 5),
-  // the match won't enter 'finished' phase until that week arrives AND passes the
-  // settlement phase. After settlement, it stays 'finished' for the rest of the day.
+  //   weeksOffset > 0  → upcoming week (betting phase)
+  //   weeksOffset === 0 → current week (determine phase from secondsIntoWeek)
+  //   weeksOffset < 0  → past week (finished)
+  let weeksOffset = parsed.week - currentWeek;
+  // Adjust for wrap-around: if the raw offset is more negative than half the
+  // season length, the week is actually in the upcoming cycle (closer going
+  // forward than backward). Likewise cap the forward direction.
+  if (weeksOffset < -(totalWeeks / 2)) weeksOffset += totalWeeks;
+  else if (weeksOffset > totalWeeks / 2) weeksOffset -= totalWeeks;
+
   let phase: SelectionPhase;
   let liveProgress = 0;
-  if (parsed.week === currentWeek) {
+  if (weeksOffset === 0) {
     phase = secondsIntoWeek < BETTING_S ? 'betting'
           : secondsIntoWeek < BETTING_S + LIVE_S ? 'live'
           : 'finished';
@@ -263,26 +267,20 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
       ? Math.max(0, Math.min(1, (secondsIntoWeek - BETTING_S) / LIVE_S))
       : phase === 'finished' ? 1
       : 0;
-  } else if (parsed.week > currentWeek) {
+  } else if (weeksOffset > 0) {
+    // Upcoming week in the lookahead — always open for betting.
     phase = 'betting';
     liveProgress = 0;
   } else {
-    // Week is in the past (may have wrapped around)
-    // Check if enough time has passed for settlement to have occurred
-    const weekDiff = currentWeek - parsed.week;
-    const secondsSinceFinished = (weekDiff * WEEK_S) + (WEEK_S - secondsIntoWeek);
-    
-    // Give settlement ~1 minute to process after the finished phase
-    // If more time has passed, the bet should be settled
-    const settlementBuffer = 60; // seconds
-    phase = secondsSinceFinished > settlementBuffer ? 'finished' : 'finished';
+    // Past week — already settled.
+    phase = 'finished';
     liveProgress = 1;
   }
 
-  const secondsToLive = parsed.week === currentWeek
+  const secondsToLive = weeksOffset === 0
     ? Math.max(0, BETTING_S - secondsIntoWeek)
-    : parsed.week > currentWeek
-      ? (parsed.week - currentWeek) * WEEK_S + (BETTING_S - secondsIntoWeek)
+    : weeksOffset > 0
+      ? weeksOffset * WEEK_S + (BETTING_S - secondsIntoWeek)
       : 0;
 
   const finalScore = cached.finalScore;
