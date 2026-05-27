@@ -76,7 +76,7 @@ export default function PromoterDashboardPage() {
     if (!referralLink) return;
     if (navigator.share) {
       navigator.share({
-        title: 'Join me on DUCHEXiGAMES',
+        title: 'Join me on DurchexiGames',
         text:  'Use my link to claim your welcome bonus.',
         url:   referralLink,
       }).catch(() => copyLink());

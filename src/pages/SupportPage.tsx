@@ -61,28 +61,28 @@ const CONTACT_CHANNELS = [
   {
     icon: <EmailIcon sx={{ fontSize: 28 }} />,
     label: 'Email Support',
-    value: 'support@duchexigames.com',
+    value: 'support@durchexigames.com',
     description: 'Typical response within 24 hours',
     color: neonGreen,
-    href: 'mailto:support@duchexigames.com',
+    href: 'mailto:support@durchexigames.com',
     buttonLabel: 'Send Email',
   },
   {
     icon: <TelegramIcon sx={{ fontSize: 28 }} />,
     label: 'Telegram',
-    value: '@DuchexiGames',
+    value: '@DurchexiGames',
     description: 'Fastest response · usually < 1 hour',
     color: '#26a5e4',
-    href: 'https://t.me/DuchexiGames',
+    href: 'https://t.me/DurchexiGames',
     buttonLabel: 'Open Telegram',
   },
   {
     icon: <TwitterIcon sx={{ fontSize: 28 }} />,
     label: 'X (Twitter)',
-    value: '@DuchexiGames',
+    value: '@DurchexiGames',
     description: 'News, updates, and support',
     color: '#1d9bf0',
-    href: 'https://twitter.com/DuchexiGames',
+    href: 'https://twitter.com/DurchexiGames',
     buttonLabel: 'Follow & DM',
   },
 ];
@@ -354,10 +354,10 @@ export default function SupportPage() {
           {' '}or email us at{' '}
           <Box
             component="a"
-            href="mailto:support@duchexigames.com"
+            href="mailto:support@durchexigames.com"
             sx={{ color: neonGreen, fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
           >
-            support@duchexigames.com
+            support@durchexigames.com
           </Box>
         </Typography>
       </Box>

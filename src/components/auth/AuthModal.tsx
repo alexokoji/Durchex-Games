@@ -191,7 +191,7 @@ export default function AuthModal({ open, onClose, initialMode = 'signin', initi
             background: `linear-gradient(90deg, ${neonGreen}, ${neonBlue})`,
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
-            DUCHEXiGAMES
+            DurchexiGames
           </Typography>
         </Box>
         <Typography variant="h5" sx={{ fontWeight: 800, mt: 1 }}>

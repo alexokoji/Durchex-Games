@@ -161,7 +161,7 @@ export default function Footer() {
           gap: 1.5,
         }}>
           <Typography sx={{ fontSize: '0.72rem', color: 'text.disabled' }}>
-            © {new Date().getFullYear()} DUCHEXiGAMES. Play responsibly · 18+ · Gambling can be addictive.
+            © {new Date().getFullYear()} DurchexiGames. Play responsibly · 18+ · Gambling can be addictive.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Link
