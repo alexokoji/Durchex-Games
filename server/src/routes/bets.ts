@@ -76,13 +76,14 @@ router.post(
   body('payout').isFloat({ min: 0 }),
   body('multiplier').optional().isFloat({ min: 0 }),
   body('details').optional().isString().isLength({ max: 240 }),
+  body('selectionResults').optional(),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
-    const { won, payout, multiplier, details } = req.body;
+    const { won, payout, multiplier, details, selectionResults } = req.body;
     const result = await settleBetAtomic({
       userId: req.userId!,
       betId:  req.params.id,
-      won, payout, multiplier, details,
+      won, payout, multiplier, details, selectionResults,
     });
     if ('error' in result) {
       res.status(404).json({ error: result.error });

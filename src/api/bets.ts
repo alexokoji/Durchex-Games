@@ -11,10 +11,14 @@ export interface ApiBet {
   stake: number;
   payout: number;
   multiplier?: number;
+  mode?: string;
+  systemK?: number;
   currency: AnyCurrency;
   status: ApiBetStatus;
   details?: string;
   selections?: unknown;
+  /** Per-selection outcome snapshots — present on settled virtual-sports bets. */
+  selectionResults?: unknown;
   placedAt: string;
   settledAt?: string;
 }
@@ -34,6 +38,7 @@ export interface SettleBetBody {
   payout: number;
   multiplier?: number;
   details?: string;
+  selectionResults?: unknown;
 }
 
 export const betsApi = {

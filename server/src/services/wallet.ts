@@ -133,6 +133,9 @@ export interface SettleBetArgs {
   payout: number;
   multiplier?: number;
   details?: string;
+  /** Per-selection outcome snapshots (passed from client at settle time so the
+   *  history view can show each leg's result on any device). */
+  selectionResults?: unknown;
 }
 
 /**
@@ -158,7 +161,8 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
     payout:    resolvedPayout,
     settledAt: new Date(),
   };
-  if (args.details != null) $set.details = args.details;
+  if (args.details          != null) $set.details          = args.details;
+  if (args.selectionResults != null) $set.selectionResults = args.selectionResults;
 
   const bet = await Bet.findOneAndUpdate(
     { _id: args.betId, userId: args.userId, status: 'pending' },

@@ -54,7 +54,7 @@ interface WalletContextValue {
 
   placeBet: (args: { gameId: string; gameName: string; stake: number; details?: string; selections?: unknown; mode?: 'single' | 'multi' | 'system'; systemK?: number }) =>
     Promise<BetRecord | null>;
-  settleBet: (betId: string, opts: { won: boolean; payout?: number; multiplier?: number; details?: string }) =>
+  settleBet: (betId: string, opts: { won: boolean; payout?: number; multiplier?: number; details?: string; selectionResults?: unknown }) =>
     Promise<void>;
   cancelBet: (betId: string) => void;
 
@@ -219,7 +219,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, requireAuth, balance, bonusBalance, currency, toasts]);
 
-  const settleBet = useCallback<WalletContextValue['settleBet']>(async (betId, { won, payout, details }) => {
+  const settleBet = useCallback<WalletContextValue['settleBet']>(async (betId, { won, payout, details, selectionResults }) => {
     setLastError(null);
     const stake = pendingBets.find(b => b.id === betId)?.stake ?? 0;
     // Use payout as-is if provided (already calculated from odds).
@@ -237,6 +237,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         won,
         payout: Math.max(0, resolvedPayout),
         details,
+        selectionResults,
       });
       console.log('[WalletContext.settleBet] Settlement result:', {
         betId,

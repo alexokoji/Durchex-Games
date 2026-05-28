@@ -11,6 +11,7 @@ import {
 import { useWallet } from '../../contexts/WalletContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { minVirtualBetFor } from '../../utils/currency';
+import { betsApi, type ApiBet } from '../../api/bets';
 
 const STORAGE_KEY_TICKETS_BASE = 'vsb.openTickets.v1';
 const STORAGE_KEY_FORMAT_BASE = 'vsb.oddsFormat.v1';
@@ -116,6 +117,9 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     setStake(prev => (prev < min ? min : prev));
   }, [wallet.currency]);
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>(() => loadFormat(storageKeyFormat));
+  // Initialise from localStorage for instant display on the same device.
+  // A server-sync effect below overwrites this with authoritative data so that
+  // tickets placed on any device are visible after login.
   const [openTickets, setOpenTickets] = useState<BetTicket[]>(() => loadTickets(storageKeyTickets));
   const [history, setHistory] = useState<BetTicket[]>(() => loadTickets(storageKeyHistory));
 
@@ -151,6 +155,41 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     setHistory(loadTickets(storageKeyHistory));
     setOddsFormat(loadFormat(storageKeyFormat));
   }, [storageKeyTickets, storageKeyHistory, storageKeyFormat]);
+
+  // Server-sync effect — fires once per login. Fetches the authoritative list
+  // of virtual-sports open tickets and history from the server so that bets
+  // placed on another device are visible immediately after sign-in. The
+  // localStorage snapshot above provides instant display while this loads;
+  // the server data replaces it once the fetch resolves. On sign-out we clear
+  // both lists rather than leaving the previous user's tickets visible.
+  useEffect(() => {
+    if (!user) {
+      setOpenTickets([]);
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    async function syncFromServer() {
+      try {
+        const [pendingResp, histResp] = await Promise.all([
+          betsApi.pending(),
+          betsApi.history({ limit: 50, gameId: 'virtual_sports' }),
+        ]);
+        if (cancelled) return;
+        setOpenTickets(
+          pendingResp.bets
+            .filter(b => b.gameId === 'virtual_sports')
+            .map(betTicketFromApiBet),
+        );
+        setHistory(histResp.bets.map(betTicketFromApiBet));
+      } catch {
+        // Server unreachable — keep the localStorage snapshot already displayed.
+      }
+    }
+    void syncFromServer();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const addSelection = useCallback((sel: BetSelection) => {
     setSelections(prev => {
@@ -300,6 +339,7 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
       payout: number;
       status: BetTicket['status'];
       count: number;
+      selectionResults: BetTicket['selectionResults'];
     }> = [];
 
     setOpenTickets(prev => {
@@ -332,6 +372,7 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
             payout: ticket.settledPayout ?? 0,
             status: ticket.status,
             count: ticket.selections.length,
+            selectionResults: ticket.selectionResults,
           });
         }
       }
@@ -357,6 +398,7 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
         won,
         payout: s.payout,
         details: `Virtual sports · ${s.status} · ${s.count} pick${s.count === 1 ? '' : 's'}`,
+        selectionResults: s.selectionResults,
       });
     }
   }, [wallet]);
@@ -442,6 +484,73 @@ function combinations(n: number, k: number): number[][] {
     for (let j = i + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
   }
   return out;
+}
+
+// ─── Server → BetTicket reconstruction ──────────────────────────────────────
+
+/** C(n, k) without factorial overflow — used to recover per-combo stake for
+ *  system bets loaded from the server (where only the total stake is stored). */
+function combinationCount(n: number, k: number): number {
+  if (k <= 0 || k > n) return 0;
+  let num = 1, den = 1;
+  for (let i = 0; i < k; i++) { num *= (n - i); den *= (i + 1); }
+  return Math.round(num / den);
+}
+
+/**
+ * Convert a server `ApiBet` record back into a `BetTicket` that the bet-slip
+ * UI can render. The server stores `selections`, `mode`, and `systemK` when
+ * a virtual-sports bet is placed, so everything needed to display and settle
+ * the ticket is available without any client-side state.
+ */
+function betTicketFromApiBet(b: ApiBet): BetTicket {
+  const sels  = Array.isArray(b.selections) ? (b.selections as BetSelection[]) : [];
+  const mode  = (b.mode as BetMode | undefined) ?? 'multi';
+  const k     = b.systemK ?? 2;
+  const totalStake = b.stake;
+
+  // For system bets, `b.stake` is the TOTAL charged amount (per-combo × combos).
+  // `applyResults` needs the per-combo stake, so we recover it here.
+  const numCombos    = mode === 'system' ? combinationCount(sels.length, k) : 1;
+  const perComboStake = mode === 'system' && numCombos > 0
+    ? totalStake / numCombos
+    : totalStake;
+
+  // Recompute the potential payout from stored selections/mode.
+  let potentialPayout = 0;
+  if (sels.length > 0) {
+    if (mode === 'single') {
+      const perSel = totalStake / Math.max(1, sels.length);
+      potentialPayout = sels.reduce((s, sel) => s + calculatePayout(perSel, sel.odds), 0);
+    } else if (mode === 'multi') {
+      potentialPayout = calculatePayout(totalStake, calculateMultiOdds(sels));
+    } else {
+      potentialPayout = calculateSystemBet(sels, k, perComboStake).maxPayout;
+    }
+  }
+
+  const status: BetTicket['status'] =
+    b.status === 'cashout' ? 'cashout' :
+    b.status === 'won'     ? 'won'     :
+    b.status === 'lost'    ? 'lost'    :
+    b.status === 'push'    ? 'won'     :   // push → treat as won (payout > 0)
+    'pending';
+
+  return {
+    id:              b._id,
+    walletBetId:     b._id,
+    mode,
+    selections:      sels,
+    stake:           perComboStake,   // per-combo for system; equals totalStake for single/multi
+    totalStake,
+    systemK:         mode === 'system' ? k : undefined,
+    placedAt:        new Date(b.placedAt).getTime(),
+    status,
+    potentialPayout,
+    settledPayout:   b.status !== 'pending' ? b.payout : undefined,
+    settledAt:       b.settledAt ? new Date(b.settledAt).getTime() : undefined,
+    selectionResults: b.selectionResults as BetTicket['selectionResults'],
+  };
 }
 
 function loadTickets(key: string): BetTicket[] {

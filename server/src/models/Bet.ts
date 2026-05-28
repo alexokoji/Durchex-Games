@@ -21,6 +21,9 @@ export interface IBet extends Document {
   status: BetStatus;
   details?: string;
   selections?: unknown;
+  /** Per-selection outcome snapshots written at settle time. Lets any device
+   *  reconstruct the per-leg win/loss display for settled tickets. */
+  selectionResults?: unknown;
 
   placedAt: Date;
   settledAt?: Date;
@@ -38,9 +41,10 @@ const betSchema = new Schema<IBet>({
   systemK:   { type: Number },
   currency:  { type: String, required: true },
   status:    { type: String, enum: ['pending','won','lost','push','cashout'], default: 'pending', index: true },
-  details:   { type: String },
-  selections:{ type: Schema.Types.Mixed },
-  placedAt:  { type: Date, default: Date.now, index: true },
+  details:          { type: String },
+  selections:       { type: Schema.Types.Mixed },
+  selectionResults: { type: Schema.Types.Mixed },
+  placedAt:         { type: Date, default: Date.now, index: true },
   settledAt: { type: Date },
 }, { timestamps: false });
 
