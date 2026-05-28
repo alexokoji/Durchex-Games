@@ -179,8 +179,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true as const, currency: r.currency };
   }, [user]);
 
-  // Auto-sync after sign-in if user is on default USD but we detected otherwise.
-  useEffect(() => { void syncCurrencyFromGeo(); }, [user?.id, syncCurrencyFromGeo]);
+  // Auto-sync once per sign-in (when user.id first appears) if the account is still
+  // on the default USD but geolocation says otherwise.  We intentionally exclude
+  // syncCurrencyFromGeo from deps so a manual currency change (which updates user.currency
+  // and therefore the callback ref) does NOT re-trigger this effect and overwrite the
+  // user's choice with the geo-detected value.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void syncCurrencyFromGeo(); }, [user?.id]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     setIsSubmitting(true); setAuthError(null);
