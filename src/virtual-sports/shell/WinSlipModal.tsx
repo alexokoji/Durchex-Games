@@ -80,9 +80,9 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
     // Give the DOM one frame to stabilise before snapshotting.
     await new Promise(r => setTimeout(r, 80));
     return toPng(slipRef.current, {
-      // pixelRatio 3 on a 320 px-wide element → 960 px output: compact card
-      // but text is rendered at 3× density so it looks crisp on any display.
-      pixelRatio: 3,
+      // 240 px DOM element × pixelRatio 1 → 240 px output (4× smaller than
+      // the previous 960 px capture).
+      pixelRatio: 1,
       cacheBust: true,
       backgroundColor: darkBg,
       // Lock the capture to the element's natural (constrained) dimensions.
@@ -165,9 +165,9 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
         <Box
           ref={slipRef}
           style={{
-            // Fixed 320 px width → output PNG is 960 px wide at 3× pixelRatio.
+            // Fixed 240 px width → output PNG is 240 px wide at 1× pixelRatio.
             // Centred in the dialog so it still looks good on screen.
-            width: 320,
+            width: 240,
             margin: '0 auto',
             background: 'linear-gradient(160deg, #0a0c10 0%, #0d1520 100%)',
             borderRadius: 12,
@@ -180,38 +180,38 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           <Box style={{
             background: `linear-gradient(90deg, rgba(255,215,0,0.12), rgba(0,255,136,0.06))`,
             borderBottom: `1px solid rgba(255,215,0,0.18)`,
-            padding: '9px 13px',
+            padding: '7px 10px',
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 7,
           }}>
             {/* Logo */}
             {logoUrl ? (
-              <img src={logoUrl} width={36} height={36} alt="logo"
+              <img src={logoUrl} width={27} height={27} alt="logo"
                 style={{ objectFit: 'contain', display: 'block', flexShrink: 0 }} />
             ) : (
               <Box style={{
-                width: 36, height: 36, borderRadius: 18,
+                width: 27, height: 27, borderRadius: 14,
                 background: 'rgba(255,215,0,0.15)',
                 flexShrink: 0,
               }} />
             )}
             {/* Brand */}
             <Box style={{ flex: 1 }}>
-              <Typography style={{ fontWeight: 900, fontSize: 15, color: '#fff', lineHeight: 1.15, margin: 0 }}>
+              <Typography style={{ fontWeight: 900, fontSize: 11, color: '#fff', lineHeight: 1.15, margin: 0 }}>
                 DURCHEXiGAMES
               </Typography>
-              <Typography style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', margin: 0 }}>
+              <Typography style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', margin: 0 }}>
                 VIRTUAL SPORTS BETTING
               </Typography>
             </Box>
             {/* WINNER badge */}
             <Box style={{
-              padding: '3px 9px', borderRadius: 6,
+              padding: '2px 7px', borderRadius: 5,
               background: 'rgba(255,215,0,0.14)',
               border: '1px solid rgba(255,215,0,0.35)',
             }}>
-              <Typography style={{ fontSize: 9, color: Au, fontWeight: 800, letterSpacing: '0.08em', margin: 0 }}>
+              <Typography style={{ fontSize: 7, color: Au, fontWeight: 800, letterSpacing: '0.08em', margin: 0 }}>
                 WINNER
               </Typography>
             </Box>
@@ -219,39 +219,39 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
 
           {/* ── Trophy + payout ── */}
           <Box style={{
-            padding: '14px 13px 10px',
+            padding: '10px 10px 8px',
             textAlign: 'center',
             background: 'radial-gradient(ellipse at 50% 0%, rgba(255,215,0,0.07) 0%, transparent 65%)',
           }}>
             {/* Trophy icon rendered as text emoji for reliable capture */}
             <Typography style={{
-              fontSize: 32, lineHeight: 1, margin: '0 0 3px',
+              fontSize: 24, lineHeight: 1, margin: '0 0 2px',
             }}>
               🏆
             </Typography>
             <Typography style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
+              fontSize: 7, fontWeight: 700, letterSpacing: '0.14em',
               color: 'rgba(255,255,255,0.5)', marginBottom: 2, marginTop: 0,
             }}>
               YOU WON
             </Typography>
             <Typography style={{
-              fontSize: 30, fontWeight: 900, color: G,
-              filter: `drop-shadow(0 0 12px ${G})`,
+              fontSize: 22, fontWeight: 900, color: G,
+              filter: `drop-shadow(0 0 9px ${G})`,
               fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, margin: 0,
             }}>
               {formatMoney(payout, currency)}
             </Typography>
             {profit > 0 && (
               <Typography style={{
-                fontSize: 10, color: 'rgba(0,255,136,0.65)', fontWeight: 700,
+                fontSize: 8, color: 'rgba(0,255,136,0.65)', fontWeight: 700,
                 marginTop: 2, marginBottom: 0,
               }}>
                 +{formatMoney(profit, currency)} profit
               </Typography>
             )}
             <Typography style={{
-              fontSize: 9, color: 'rgba(255,255,255,0.28)', marginTop: 6, marginBottom: 0,
+              fontSize: 7, color: 'rgba(255,255,255,0.28)', marginTop: 5, marginBottom: 0,
             }}>
               {modeName} · {settledTime}
             </Typography>
@@ -260,17 +260,17 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           {/* ── Divider with total odds pill (multi/system) ── */}
           {ticket.mode !== 'single' && (
             <Box style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 13px 7px',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '0 10px 5px',
             }}>
               <Box style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
               <Box style={{
-                padding: '2px 10px', borderRadius: 10,
+                padding: '2px 8px', borderRadius: 8,
                 background: 'rgba(255,215,0,0.1)',
                 border: '1px solid rgba(255,215,0,0.22)',
               }}>
                 <Typography style={{
-                  fontSize: 10, color: Au, fontWeight: 800, margin: 0,
+                  fontSize: 8, color: Au, fontWeight: 800, margin: 0,
                   fontVariantNumeric: 'tabular-nums',
                 }}>
                   {totalOdds.toFixed(2)}× odds
@@ -281,7 +281,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           )}
 
           {/* ── Selections list ── */}
-          <Box style={{ padding: '0 10px 10px' }}>
+          <Box style={{ padding: '0 8px 8px' }}>
             {ticket.selections.map((s, i) => {
               const res   = resultMap.get(s.id);
               const win   = res?.result === 'win';
@@ -292,13 +292,13 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
               return (
                 <Box key={s.id}>
                   {i > 0 && (
-                    <Box style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '8px 0' }} />
+                    <Box style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '6px 0' }} />
                   )}
-                  <Box style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <Box style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                     {/* Result icon */}
-                    <Box style={{ paddingTop: 3, flexShrink: 0 }}>
+                    <Box style={{ paddingTop: 2, flexShrink: 0 }}>
                       <Typography style={{
-                        fontSize: 13, lineHeight: 1, margin: 0,
+                        fontSize: 10, lineHeight: 1, margin: 0,
                         color: selColor,
                       }}>
                         {win ? '✓' : loss ? '✗' : '○'}
@@ -308,28 +308,28 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
                     {/* Match + pick info */}
                     <Box style={{ flex: 1, minWidth: 0 }}>
                       <Typography style={{
-                        fontSize: 9, color: 'rgba(255,255,255,0.35)',
+                        fontSize: 7, color: 'rgba(255,255,255,0.35)',
                         textTransform: 'uppercase', letterSpacing: '0.05em',
                         margin: '0 0 2px',
                       }}>
                         {s.sport} · {s.marketLabel}
                       </Typography>
                       <Typography style={{
-                        fontSize: 12, fontWeight: 700, color: '#fff',
+                        fontSize: 9, fontWeight: 700, color: '#fff',
                         margin: '0 0 2px', lineHeight: 1.25,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {s.homeTeam} vs {s.awayTeam}
                       </Typography>
-                      <Box style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Box style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Typography style={{
-                          fontSize: 11, fontWeight: 700, color: selColor, margin: 0,
+                          fontSize: 8, fontWeight: 700, color: selColor, margin: 0,
                         }}>
                           {s.optionLabel}
                         </Typography>
                         {score && (
                           <Typography style={{
-                            fontSize: 10, color: 'rgba(255,255,255,0.4)',
+                            fontSize: 8, color: 'rgba(255,255,255,0.4)',
                             fontVariantNumeric: 'tabular-nums', margin: 0,
                           }}>
                             ({score.home}–{score.away})
@@ -340,12 +340,12 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
 
                     {/* Odds badge */}
                     <Box style={{
-                      padding: '3px 8px', borderRadius: 5, flexShrink: 0,
+                      padding: '2px 6px', borderRadius: 4, flexShrink: 0,
                       background: 'rgba(255,215,0,0.09)',
                       border: '1px solid rgba(255,215,0,0.2)',
                     }}>
                       <Typography style={{
-                        fontSize: 11, fontWeight: 900, color: Au,
+                        fontSize: 8, fontWeight: 900, color: Au,
                         fontVariantNumeric: 'tabular-nums', margin: 0,
                       }}>
                         {s.odds.toFixed(2)}
@@ -361,17 +361,17 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           <Box style={{
             borderTop: '1px solid rgba(255,215,0,0.12)',
             background: 'rgba(255,215,0,0.03)',
-            padding: '8px 13px',
+            padding: '6px 10px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'flex-end',
           }}>
             <Box>
-              <Typography style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
+              <Typography style={{ fontSize: 6, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
                 STAKE
               </Typography>
               <Typography style={{
-                fontSize: 14, fontWeight: 800, color: '#fff',
+                fontSize: 11, fontWeight: 800, color: '#fff',
                 fontVariantNumeric: 'tabular-nums', margin: 0,
               }}>
                 {formatMoney(ticket.totalStake, currency)}
@@ -380,11 +380,11 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
 
             {ticket.mode !== 'single' && ticket.selections.length > 1 && (
               <Box style={{ textAlign: 'center' }}>
-                <Typography style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
+                <Typography style={{ fontSize: 6, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
                   TOTAL ODDS
                 </Typography>
                 <Typography style={{
-                  fontSize: 14, fontWeight: 800, color: Au,
+                  fontSize: 11, fontWeight: 800, color: Au,
                   fontVariantNumeric: 'tabular-nums', margin: 0,
                 }}>
                   {totalOdds.toFixed(2)}
@@ -393,11 +393,11 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
             )}
 
             <Box style={{ textAlign: 'right' }}>
-              <Typography style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
+              <Typography style={{ fontSize: 6, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', margin: '0 0 2px' }}>
                 TOTAL PAYOUT
               </Typography>
               <Typography style={{
-                fontSize: 14, fontWeight: 900, color: G,
+                fontSize: 11, fontWeight: 900, color: G,
                 fontVariantNumeric: 'tabular-nums', margin: 0,
               }}>
                 {formatMoney(payout, currency)}
@@ -407,13 +407,13 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
 
           {/* ── Watermark strip ── */}
           <Box style={{
-            padding: '5px 0',
+            padding: '4px 0',
             textAlign: 'center',
             background: 'rgba(0,0,0,0.35)',
             borderTop: '1px solid rgba(255,255,255,0.03)',
           }}>
             <Typography style={{
-              fontSize: 8, color: 'rgba(255,255,255,0.15)',
+              fontSize: 6, color: 'rgba(255,255,255,0.15)',
               letterSpacing: '0.12em', margin: 0,
             }}>
               DURCHEXiGAMES · PLAY RESPONSIBLY
