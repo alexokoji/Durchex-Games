@@ -80,9 +80,8 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
     // Give the DOM one frame to stabilise before snapshotting.
     await new Promise(r => setTimeout(r, 80));
     return toPng(slipRef.current, {
-      // 240 px DOM element × pixelRatio 1 → 240 px output (4× smaller than
-      // the previous 960 px capture).
-      pixelRatio: 1,
+      // 240 px DOM element × pixelRatio 2 → 480 px output.
+      pixelRatio: 2,
       cacheBust: true,
       backgroundColor: darkBg,
       // Lock the capture to the element's natural (constrained) dimensions.
