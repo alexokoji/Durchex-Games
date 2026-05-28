@@ -88,9 +88,9 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
       pixelRatio: 1.5,
       cacheBust: true,
       backgroundColor: darkBg,
-      // Hard-code the element's designed width so the canvas is always exactly
-      // 320 × 1.5 = 480 px, regardless of what the DOM measures after layout.
-      width:  320,
+      // Use the actual rendered width (≤ 320 px) so the canvas matches exactly
+      // what is displayed — no content cut on narrow phones.
+      width:  slipRef.current.offsetWidth,
       height: slipRef.current.offsetHeight,
     });
   }, []);
@@ -144,6 +144,9 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           border: `1px solid ${alpha(Au, 0.35)}`,
           borderRadius: 3,
           overflow: 'hidden',
+          // Reduce side margins so narrow phones (360 px) have enough room
+          // for the 320 px slip. Default MUI margin is 32 px each side.
+          mx: 1,
         },
       }}
     >
@@ -163,16 +166,18 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
         </IconButton>
       </Box>
 
-      <DialogContent sx={{ p: 2 }}>
+      <DialogContent sx={{ p: 1.5 }}>
 
         {/* ── Capturable slip ─────────────────────────────────────────────── */}
         <Box
           ref={slipRef}
           style={{
-            // Fixed 320 px width → output PNG is 480 px wide at 1.5× pixelRatio.
-            // Centred in the dialog so it still looks good on screen.
-            width: 320,
+            // Fill the available dialog width up to 320 px so the slip never
+            // overflows on narrow phones. margin:auto centres it when wider.
+            width: '100%',
+            maxWidth: 320,
             margin: '0 auto',
+            boxSizing: 'border-box',
             background: 'linear-gradient(160deg, #0a0c10 0%, #0d1520 100%)',
             borderRadius: 12,
             overflow: 'hidden',
