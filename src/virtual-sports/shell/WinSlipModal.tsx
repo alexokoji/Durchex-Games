@@ -84,9 +84,11 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
       pixelRatio: 2,
       cacheBust: true,
       backgroundColor: darkBg,
-      // Lock the capture to the element's natural (constrained) dimensions.
-      height: slipRef.current.scrollHeight,
-      width:  slipRef.current.scrollWidth,
+      // Use offsetWidth/offsetHeight (layout dimensions, 240 px as styled)
+      // rather than scrollWidth/scrollHeight which include overflow content
+      // and would widen the capture beyond the container boundary.
+      height: slipRef.current.offsetHeight,
+      width:  slipRef.current.offsetWidth,
     });
   }, []);
 
@@ -310,6 +312,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
                         fontSize: 7, color: 'rgba(255,255,255,0.35)',
                         textTransform: 'uppercase', letterSpacing: '0.05em',
                         margin: '0 0 2px',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {s.sport} · {s.marketLabel}
                       </Typography>
