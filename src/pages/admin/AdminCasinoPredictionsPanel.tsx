@@ -43,11 +43,6 @@ function midnightMs(): number {
   return d.getTime();
 }
 
-/** Start time (ms) of a given round. */
-function roundStartMs(round: number, intervalSeconds: number): number {
-  return midnightMs() + round * intervalSeconds * 1000;
-}
-
 /** Format a UTC-ms timestamp as local HH:MM:SS. */
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString([], {
