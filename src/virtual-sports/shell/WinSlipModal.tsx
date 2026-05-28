@@ -144,9 +144,10 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
           border: `1px solid ${alpha(Au, 0.35)}`,
           borderRadius: 3,
           overflow: 'hidden',
-          // Reduce side margins so narrow phones (360 px) have enough room
-          // for the 320 px slip. Default MUI margin is 32 px each side.
-          mx: 1,
+          // Zero side margins so the dialog (and slip inside it) fills the
+          // full screen width with no gaps.
+          mx: 0,
+          width: '100%',
         },
       }}
     >
@@ -166,20 +167,19 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
         </IconButton>
       </Box>
 
-      <DialogContent sx={{ p: 1.5 }}>
+      {/* Zero padding so the slip bleeds edge-to-edge inside the dialog.
+           The action buttons below get their own padding box. */}
+      <DialogContent sx={{ p: 0 }}>
 
         {/* ── Capturable slip ─────────────────────────────────────────────── */}
         <Box
           ref={slipRef}
           style={{
-            // Fill the available dialog width up to 320 px so the slip never
-            // overflows on narrow phones. margin:auto centres it when wider.
+            // Full dialog width, no margins — fills the image container
+            // completely so the captured PNG has no side gaps.
             width: '100%',
-            maxWidth: 320,
-            margin: '0 auto',
             boxSizing: 'border-box',
             background: 'linear-gradient(160deg, #0a0c10 0%, #0d1520 100%)',
-            borderRadius: 12,
             overflow: 'hidden',
             fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
             WebkitFontSmoothing: 'antialiased',
@@ -448,7 +448,8 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
         {/* end capturable slip */}
 
         {/* ── Action buttons ── */}
-        <Box sx={{ display: 'flex', gap: 1.5, mt: 2 }}>
+        <Box sx={{ px: 2, pt: 2, pb: 0.5 }}>
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
           <Button
             fullWidth
             variant="outlined"
@@ -489,6 +490,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
             ? 'Share directly to WhatsApp, Twitter, and more'
             : 'Save the image and share it anywhere'}
         </Typography>
+        </Box>{/* end action-buttons padding wrapper */}
       </DialogContent>
     </Dialog>
   );
