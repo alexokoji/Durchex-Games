@@ -14,6 +14,7 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import HistoryIcon from '@mui/icons-material/History';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import CasinoIcon from '@mui/icons-material/Casino';
 import { useAuth } from '../../contexts/AuthContext';
 import { neonGreen, darkBorder, darkSurface } from '../../theme';
 import AdminLayout         from './AdminLayout';
@@ -28,13 +29,14 @@ import AdminAuditPanel      from './AdminAuditPanel';
 import AdminJobsPanel       from './AdminJobsPanel';
 import AdminRiskPanel       from './AdminRiskPanel';
 import AdminUsersPanel      from './AdminUsersPanel';
-import AdminVirtualSportsPanel from './AdminVirtualSportsPanel';
+import AdminVirtualSportsPanel    from './AdminVirtualSportsPanel';
+import AdminCasinoPredictionsPanel from './AdminCasinoPredictionsPanel';
 import { AdminCurrencyProvider, useAdminCurrency, type AdminDisplayCurrency } from './AdminCurrencyContext';
 
 type TabId =
   | 'overview' | 'payouts' | 'ledger' | 'reconcile'
   | 'users' | 'promoters' | 'codes' | 'flagged'
-  | 'risk' | 'jobs' | 'audit' | 'virtualsports';
+  | 'risk' | 'jobs' | 'audit' | 'virtualsports' | 'casinopredictions';
 
 interface NavItem {
   id: TabId;
@@ -54,7 +56,8 @@ const NAV: NavItem[] = [
   { id: 'codes',         label: 'Promo codes', description: 'Bonuses, referral & promo codes', icon: <LocalOfferIcon fontSize="small" />,        group: 'People' },
   { id: 'flagged',  label: 'Flagged',  description: 'Suspicious accounts & bets',           icon: <FlagIcon fontSize="small" />,            group: 'Safety' },
   { id: 'risk',     label: 'Risk',     description: 'Per-game win/loss tuning (advanced)',  icon: <ShieldIcon fontSize="small" />,          group: 'Safety' },
-  { id: 'virtualsports', label: 'Virtual Sports', description: 'Generate accurate predictions for upcoming kickoffs', icon: <SportsSoccerIcon fontSize="small" />, group: 'Games' },
+  { id: 'virtualsports',      label: 'Virtual Sports',  description: 'Accurate predictions for all upcoming kickoffs',   icon: <SportsSoccerIcon fontSize="small" />, group: 'Games' },
+  { id: 'casinopredictions', label: 'Casino Predictions', description: 'Crash, Dice, Mines, Roulette, Plinko, Slots tips', icon: <CasinoIcon fontSize="small" />,        group: 'Games' },
   { id: 'jobs',     label: 'Jobs',     description: 'Background workers & schedules',       icon: <EventNoteIcon fontSize="small" />,       group: 'System' },
   { id: 'audit',    label: 'Audit log', description: 'Every admin action, who did what',    icon: <HistoryIcon fontSize="small" />,         group: 'System' },
 ];
@@ -221,7 +224,8 @@ function AdminPageContent() {
             {tab === 'codes'         && <AdminPromoCodesPanel />}
             {tab === 'flagged'       && <AdminFlaggedPanel    />}
             {tab === 'risk'          && <AdminRiskPanel       />}
-            {tab === 'virtualsports' && <AdminVirtualSportsPanel />}
+            {tab === 'virtualsports'      && <AdminVirtualSportsPanel />}
+            {tab === 'casinopredictions' && <AdminCasinoPredictionsPanel />}
             {tab === 'jobs'          && <AdminJobsPanel       />}
             {tab === 'audit'         && <AdminAuditPanel      />}
           </Box>

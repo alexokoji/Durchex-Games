@@ -6,7 +6,9 @@
       "PowerShell(Set-Location server; npm install --no-audit --no-fund --silent 2>&1 | Select-Object -Last 30; \"EXIT: $LASTEXITCODE\")",
       "PowerShell(Set-Location server; $out = npm run typecheck 2>&1; \"EXIT: $LASTEXITCODE\"; $out | Select-Object -Last 40 | Out-String)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\" -Recurse -Directory -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { $_.FullName })",
-      "Bash(findstr /i \"html2canvas\")"
+      "Bash(findstr /i \"html2canvas\")",
+      "Bash(node -e \"try { require\\('@mui/icons-material/IceSkating'\\); console.log\\('IceSkating ok'\\); } catch\\(e\\) { console.log\\('IceSkating missing'\\); }\")",
+      "Bash(node -e \"try { require\\('@mui/icons-material/Casino'\\); console.log\\('Casino ok'\\); } catch\\(e\\) { console.log\\('Casino missing'\\); }\")"
     ]
   }
 }
