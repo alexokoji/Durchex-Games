@@ -57,6 +57,9 @@ interface WalletContextValue {
   settleBet: (betId: string, opts: { won: boolean; payout?: number; multiplier?: number; details?: string; selectionResults?: unknown }) =>
     Promise<void>;
   cancelBet: (betId: string) => void;
+  /** Change the account currency. Converts the balance at reference FX rates.
+   *  Rejects (ok: false) if there are pending bets that haven't settled yet. */
+  changeCurrency: (currency: FiatCurrency) => Promise<{ ok: true } | { ok: false; error: string; pendingCount?: number }>;
 
   initDeposit: (body: DepositInitBody) => Promise<{ paymentLink: string; reference: string } | null>;
   requestWithdrawal: (body: WithdrawBody) => Promise<boolean>;
@@ -102,7 +105,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
 };
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, requireAuth } = useAuth();
+  const { user, isAuthenticated, requireAuth, refreshMe } = useAuth();
   const toasts = useToasts();
   const notif  = useNotifications();
 
@@ -159,6 +162,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     function onNotification(n: { kind: string; title: string; body?: string }) {
       // Anything wallet-relevant → refetch.
       if (n.kind === 'wallet:update' ||
+          n.kind === 'currency_changed' ||
           n.kind === 'deposit:completed' ||
           n.kind === 'withdraw:completed' ||
           n.kind === 'bet:settled') {
@@ -297,6 +301,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, requireAuth, refresh, toasts, currency]);
 
+  const changeCurrency = useCallback(async (newCurrency: FiatCurrency): Promise<{ ok: true } | { ok: false; error: string; pendingCount?: number }> => {
+    if (!isAuthenticated) { requireAuth(); return { ok: false, error: 'not_authenticated' }; }
+    try {
+      await walletApi.setCurrency(newCurrency);
+      // Pull fresh wallet + user state after conversion.
+      await Promise.all([refresh(), refreshMe()]);
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const pendingCount = (err.details as { pendingCount?: number } | undefined)?.pendingCount;
+        return { ok: false, error: err.code, pendingCount };
+      }
+      return { ok: false, error: 'currency_change_failed' };
+    }
+  }, [isAuthenticated, requireAuth, refresh, refreshMe]);
+
   const { totalWagered, totalWon, totalLost, netProfit } = useMemo(() => {
     let wagered = 0, won = 0, lost = 0;
     for (const b of history) {
@@ -313,6 +333,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       history, pendingBets, transactions,
       isLoading, lastError,
       placeBet, settleBet, cancelBet,
+      changeCurrency,
       initDeposit, requestWithdrawal, refresh,
       totalWagered, totalWon, totalLost, netProfit,
     }}>

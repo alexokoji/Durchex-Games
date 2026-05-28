@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Switch, TextField, Select, MenuItem, Chip } from '@mui/material';
+import { Box, Typography, Button, Switch, TextField, Select, MenuItem, Chip, Alert, CircularProgress, FormControl, InputLabel } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
 import { useBetSlip } from '../virtual-sports/core/BetSlipContext';
 import { useToasts } from '../contexts/ToastContext';
 import type { OddsFormat } from '../virtual-sports/core/types';
+import { FIAT, ALL_FIAT_CODES, type FiatCurrency } from '../utils/currency';
 import { darkBorder, darkCard, neonBlue, neonGreen } from '../theme';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import SaveIcon from '@mui/icons-material/Save';
 
 export default function SettingsPage() {
   const { isAuthenticated, openAuthPrompt, user, redetectCurrency } = useAuth();
+  const wallet = useWallet();
   const slip = useBetSlip();
   const toasts = useToasts();
   const [username, setUsername] = useState(user?.username ?? '');
@@ -17,12 +21,43 @@ export default function SettingsPage() {
   const [animations, setAnimations] = useState(true);
   const [detecting, setDetecting] = useState(false);
 
+  // Currency selector state — seeded from current wallet currency.
+  const [selectedCurrency, setSelectedCurrency] = useState<FiatCurrency>(wallet.currency);
+  const [savingCurrency, setSavingCurrency] = useState(false);
+  const currencyChanged = selectedCurrency !== wallet.currency;
+
   async function handleRedetect() {
     setDetecting(true);
     const r = await redetectCurrency();
     setDetecting(false);
-    if (r.ok) toasts.success('Currency updated', `Set to ${r.currency} based on your location.`);
-    else      toasts.error('Detection failed', r.error.replace(/_/g, ' '));
+    if (r.ok) {
+      setSelectedCurrency(r.currency);
+      toasts.success('Currency updated', `Set to ${r.currency} based on your location.`);
+    } else {
+      toasts.error('Detection failed', r.error.replace(/_/g, ' '));
+    }
+  }
+
+  async function handleSaveCurrency() {
+    if (!currencyChanged) return;
+    setSavingCurrency(true);
+    const result = await wallet.changeCurrency(selectedCurrency);
+    setSavingCurrency(false);
+    if (result.ok) {
+      toasts.success(
+        'Currency changed',
+        `Your account is now in ${selectedCurrency}. Balance converted at reference rates.`,
+      );
+    } else if (result.error === 'currency_change_blocked_pending_bets') {
+      toasts.error(
+        'Cannot change currency',
+        `You have ${result.pendingCount ?? 'open'} unsettled bet${(result.pendingCount ?? 2) > 1 ? 's' : ''}. Wait for them to settle first.`,
+      );
+      setSelectedCurrency(wallet.currency);   // revert selector
+    } else {
+      toasts.error('Currency change failed', result.error.replace(/_/g, ' '));
+      setSelectedCurrency(wallet.currency);
+    }
   }
 
   if (!isAuthenticated || !user) {
@@ -50,24 +85,69 @@ export default function SettingsPage() {
         </FieldRow>
         <FieldRow label="Currency">
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Chip
-              label={user.currency}
-              size="small"
-              sx={{ background: neonBlue + '22', color: neonBlue, fontWeight: 800 }}
-            />
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Currency</InputLabel>
+              <Select
+                value={selectedCurrency}
+                label="Currency"
+                onChange={e => setSelectedCurrency(e.target.value as FiatCurrency)}
+              >
+                {ALL_FIAT_CODES.map(code => {
+                  const m = FIAT[code];
+                  return (
+                    <MenuItem key={code} value={code}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography sx={{ fontWeight: 700, minWidth: 42 }}>{code}</Typography>
+                        <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                          {m.symbol} · {m.name}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
+              </Select>
+            </FormControl>
             <Button
               size="small"
               variant="outlined"
-              startIcon={<MyLocationIcon sx={{ fontSize: 16 }} />}
+              startIcon={detecting ? <CircularProgress size={13} /> : <MyLocationIcon sx={{ fontSize: 16 }} />}
               onClick={handleRedetect}
               disabled={detecting}
-              sx={{ borderColor: neonGreen, color: neonGreen, textTransform: 'none' }}
+              sx={{ borderColor: neonGreen, color: neonGreen, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
-              {detecting ? 'Detecting…' : 'Detect from location'}
+              {detecting ? 'Detecting…' : 'Auto-detect'}
             </Button>
           </Box>
         </FieldRow>
-        <Button variant="contained" sx={{ mt: 1 }} disabled>Save changes (backend pending)</Button>
+
+        {currencyChanged && (
+          <Alert severity="warning" sx={{ mt: 1, mb: 0.5, fontSize: '0.78rem', py: 0.5 }}>
+            Your balance will be converted to <strong>{selectedCurrency}</strong> at reference exchange rates.
+            Any unsettled bets must be settled first.
+          </Alert>
+        )}
+
+        <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            size="small"
+            disabled={!currencyChanged || savingCurrency}
+            startIcon={savingCurrency ? <CircularProgress size={13} color="inherit" /> : <SaveIcon sx={{ fontSize: 16 }} />}
+            onClick={handleSaveCurrency}
+            sx={{ textTransform: 'none' }}
+          >
+            {savingCurrency ? 'Saving…' : 'Save currency'}
+          </Button>
+          {currencyChanged && (
+            <Button
+              size="small" variant="text"
+              onClick={() => setSelectedCurrency(wallet.currency)}
+              sx={{ textTransform: 'none', color: 'text.secondary' }}
+            >
+              Cancel
+            </Button>
+          )}
+        </Box>
       </SectionCard>
 
       <SectionCard title="Betting">
