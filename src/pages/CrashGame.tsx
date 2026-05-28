@@ -13,6 +13,7 @@ import { useWallet, type BetRecord } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
 import { useGameConfig } from '../hooks/useGameConfig';
+import { roundRandFor, CRASH_INTERVAL_S, generateCrashMultiplier } from '../utils/seededGameRng';
 
 type GameState = 'waiting' | 'running' | 'crashed';
 
@@ -82,22 +83,15 @@ export default function CrashGame() {
    *     uniform U ∈ [0, 1) clipped by the house-edge cut.
    */
   function generateCrash(): number {
+    // Use the seeded RNG so this round's outcome matches the admin prediction
+    // panel.  Admin-configurable knobs still influence the probability shape.
     const knobs = crashKnobsRef.current;
-    const r = Math.random();
-    if (r < knobs.instaBustRate) {
-      return 1.0 + Math.random() * 0.1;
-    }
-    if (r < knobs.instaBustRate + knobs.moonshotRate) {
-      return 10 + Math.random() * 20;
-    }
-    // Long-tail sampler with house-edge baked in.
-    //   U ~ uniform(0, 1−houseEdge), bust = 1 / (1−U)
-    //   E[bust] = 1 / houseEdge × houseEdge = 1, so the cap gives the edge.
-    const u = Math.random() * (1 - knobs.houseEdge);
-    const bust = 1 / (1 - u);
-    // Clamp so we don't accidentally hand out astronomical multipliers from
-    // floating-point edge cases.
-    return Math.max(1.0, Math.min(50, bust));
+    const rand  = roundRandFor('crash', CRASH_INTERVAL_S);
+    return generateCrashMultiplier(rand, {
+      houseEdge:     knobs.houseEdge,
+      instaBustRate: knobs.instaBustRate,
+      moonshotRate:  knobs.moonshotRate,
+    });
   }
 
   function generatePlayers(): Player[] {

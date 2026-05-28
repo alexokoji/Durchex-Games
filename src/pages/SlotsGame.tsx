@@ -11,6 +11,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { roundRandFor, SLOTS_INTERVAL_S, generateSlotsGrid } from '../utils/seededGameRng';
 
 const SYMBOLS = ['7️⃣', '🍒', '🍋', '🍊', '🍇', '💎', '⭐', '🔔'];
 const SYMBOL_MULTIPLIERS: Record<string, number> = {
@@ -101,6 +102,10 @@ export default function SlotsGame() {
       });
       if (!placed) return resolve(null);
 
+      // Capture seeded outcome immediately after bet placement so it matches
+      // the admin prediction panel's round number for this spin.
+      const seededFinalGrid = generateSlotsGrid(roundRandFor('slots', SLOTS_INTERVAL_S));
+
       setSpinning(true);
       setWins([]);
       setTotalWin(null);
@@ -113,7 +118,7 @@ export default function SlotsGame() {
         setGrid(tempGrids[frame % tempGrids.length]);
         if (frame >= 16) {
           if (intervalRef.current) clearInterval(intervalRef.current);
-          const finalGrid = generateGrid();
+          const finalGrid = seededFinalGrid;
           setGrid(finalGrid);
           setReelOffsets([0, 0, 0, 0, 0]);
           const winLines = evaluateWins(finalGrid);

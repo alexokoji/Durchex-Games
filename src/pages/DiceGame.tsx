@@ -11,6 +11,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { roundRandFor, DICE_INTERVAL_S } from '../utils/seededGameRng';
 
 type DiceResult = 'win' | 'lose' | null;
 
@@ -78,13 +79,17 @@ export default function DiceGame() {
 
       setRolling(true);
       setLastResult(null);
+      // Capture the seeded outcome now (at bet time) so it matches the admin
+      // prediction panel's round number. The animation still uses Math.random()
+      // for the dice face flips — only the final result is seeded.
+      const seededRoll = parseFloat((roundRandFor('dice', DICE_INTERVAL_S)() * 100).toFixed(2));
       let flips = 0;
       intervalRef.current = setInterval(() => {
         setDiceFace(Math.floor(Math.random() * 6));
         flips++;
         if (flips > 12) {
           if (intervalRef.current) clearInterval(intervalRef.current);
-          const r = parseFloat((Math.random() * 100).toFixed(2));
+          const r = seededRoll;
           const win = isOver ? r > target : r < target;
           setRoll(r);
           setLastResult(win ? 'win' : 'lose');

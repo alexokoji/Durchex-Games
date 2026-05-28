@@ -21,57 +21,40 @@ import LockIcon from '@mui/icons-material/Lock';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import { neonGreen, neonGold, neonBlue, darkBorder, darkCard } from '../../theme';
 import { useToasts } from '../../contexts/ToastContext';
-
-// ─── Seeded RNG (mulberry32 — same algorithm as virtual-sports sims) ──────────
-
-function mulberry32(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** djb2 hash — same function used by virtual sports. */
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return h >>> 0;
-}
-
-/** Daily seed keyed by UTC date + game name. Rolls over at midnight UTC. */
-function dailySeedFor(game: string): number {
-  const d = new Date();
-  const key = `${game}${d.getUTCFullYear()}${d.getUTCMonth()}${d.getUTCDate()}`;
-  return hashStr(key);
-}
-
-/** Round number based on elapsed seconds from UTC midnight ÷ round interval. */
-function currentRound(intervalSeconds: number): number {
-  const midnight = new Date();
-  midnight.setUTCHours(0, 0, 0, 0);
-  return Math.floor((Date.now() - midnight.getTime()) / (intervalSeconds * 1000));
-}
+import {
+  mulberry32,
+  dailySeedFor, currentRound,
+  CRASH_INTERVAL_S, generateCrashMultiplier,
+  DICE_INTERVAL_S,
+  MINES_INTERVAL_S, generateSeededMines,
+  ROULETTE_INTERVAL_S,
+  PLINKO_INTERVAL_S, seededPlinkoBucket,
+  SLOTS_INTERVAL_S, generateSlotsGrid,
+} from '../../utils/seededGameRng';
 
 // ─── Crash ────────────────────────────────────────────────────────────────────
 
-const CRASH_INTERVAL_S = 25; // approx seconds per round
-const CRASH_HOUSE_EDGE = 0.04;
-const CRASH_INSTA_BUST = 0.08;
-const CRASH_MOONSHOT   = 0.04;
+const PLINKO_MULTS: Record<string, number[]> = {
+  Low:    [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
+  Medium: [13,  3,   1.3, 0.7, 0.4, 0.7, 1.3, 3,   13 ],
+  High:   [29,  4,   1.5, 0.3, 0.2, 0.3, 1.5, 4,   29 ],
+};
+
+const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+
+const SYM_MULT: Record<string, number> = {
+  '7️⃣': 50, '💎': 20, '⭐': 10, '🔔': 5, '🍇': 3, '🍊': 2, '🍋': 1.5, '🍒': 1,
+};
 
 interface CrashRound { round: number; multiplier: number; label: string; tier: 'bust' | 'low' | 'mid' | 'high' | 'moon' }
-
-function generateCrashMultiplier(rand: () => number): number {
-  const r = rand();
-  if (r < CRASH_INSTA_BUST) return 1.0 + rand() * 0.1;
-  if (r < CRASH_INSTA_BUST + CRASH_MOONSHOT) return 10 + rand() * 20;
-  const u = rand() * (1 - CRASH_HOUSE_EDGE);
-  return Math.max(1.0, Math.min(50, 1 / (1 - u)));
+interface DiceRound   { round: number; roll: number; over50: boolean; over75: boolean; under25: boolean }
+interface MinesRound  { round: number; mineCount: number; minePositions: number[]; safePositions: number[] }
+interface RouletteRound {
+  round: number; number: number; color: 'red' | 'black' | 'green';
+  odd: boolean | null; dozen: '1st' | '2nd' | '3rd' | null; half: '1-18' | '19-36' | null;
 }
+interface PlinkoRound { round: number; bucket: number; multiplier: number; risk: string }
+interface SlotsRound  { round: number; grid: string[][]; topLine: string[]; topWin: { symbol: string; count: number; mult: number } | null; bigWin: boolean }
 
 function crashTier(m: number): CrashRound['tier'] {
   if (m < 1.3) return 'bust';
@@ -92,22 +75,14 @@ function crashColor(tier: CrashRound['tier']): string {
 function buildCrashPredictions(count = 20): CrashRound[] {
   const seed  = dailySeedFor('crash');
   const start = currentRound(CRASH_INTERVAL_S);
-  const rows: CrashRound[] = [];
-  for (let i = 0; i < count; i++) {
+  return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
     const m     = generateCrashMultiplier(rand);
     const tier  = crashTier(m);
-    rows.push({ round, multiplier: m, label: m.toFixed(2) + 'x', tier });
-  }
-  return rows;
+    return { round, multiplier: m, label: m.toFixed(2) + 'x', tier };
+  });
 }
-
-// ─── Dice ─────────────────────────────────────────────────────────────────────
-
-const DICE_INTERVAL_S = 10;
-
-interface DiceRound { round: number; roll: number; over50: boolean; over75: boolean; under25: boolean }
 
 function buildDicePredictions(count = 20): DiceRound[] {
   const seed  = dailySeedFor('dice');
@@ -115,22 +90,12 @@ function buildDicePredictions(count = 20): DiceRound[] {
   return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
-    const roll  = Math.round(rand() * 10000) / 100;   // 0.00 – 100.00
+    const roll  = Math.round(rand() * 10000) / 100;
     return { round, roll, over50: roll > 50, over75: roll > 75, under25: roll < 25 };
   });
 }
 
-// ─── Mines ────────────────────────────────────────────────────────────────────
-
-const MINES_INTERVAL_S = 20;
 const GRID_SIZE = 25;
-
-interface MinesRound {
-  round: number;
-  mineCount: number;
-  minePositions: number[];   // 0-based cell indices
-  safePositions: number[];   // first 5 safe cells (good bet positions)
-}
 
 function buildMinesPredictions(mineCount: number, count = 15): MinesRound[] {
   const seed  = dailySeedFor(`mines_${mineCount}`);
@@ -138,30 +103,14 @@ function buildMinesPredictions(mineCount: number, count = 15): MinesRound[] {
   return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
-    // Fisher-Yates to place mines
-    const cells = Array.from({ length: GRID_SIZE }, (_, j) => j);
-    for (let j = GRID_SIZE - 1; j > 0; j--) {
-      const k = Math.floor(rand() * (j + 1));
-      [cells[j], cells[k]] = [cells[k], cells[j]];
+    const mines = generateSeededMines(GRID_SIZE, mineCount, rand);
+    const minePositions = mines.map((v, idx) => v ? idx : -1).filter(v => v >= 0).sort((a, b) => a - b);
+    const safePositions: number[] = [];
+    for (let idx = 0; idx < GRID_SIZE && safePositions.length < 5; idx++) {
+      if (!mines[idx]) safePositions.push(idx);
     }
-    const minePositions = cells.slice(0, mineCount).sort((a, b) => a - b);
-    const safePositions = cells.slice(mineCount, mineCount + 5);
     return { round, mineCount, minePositions, safePositions };
   });
-}
-
-// ─── Roulette ─────────────────────────────────────────────────────────────────
-
-const ROULETTE_INTERVAL_S = 30;
-const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-
-interface RouletteRound {
-  round: number;
-  number: number;
-  color: 'red' | 'black' | 'green';
-  odd: boolean | null;
-  dozen: '1st' | '2nd' | '3rd' | null;
-  half: '1-18' | '19-36' | null;
 }
 
 function buildRoulettePredictions(count = 20): RouletteRound[] {
@@ -170,26 +119,14 @@ function buildRoulettePredictions(count = 20): RouletteRound[] {
   return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
-    const n     = Math.floor(rand() * 37);  // 0-36
+    const n     = Math.floor(rand() * 37);
     const color: RouletteRound['color'] = n === 0 ? 'green' : RED_NUMBERS.includes(n) ? 'red' : 'black';
-    const odd: boolean | null = n === 0 ? null : n % 2 !== 0;
+    const odd: boolean | null   = n === 0 ? null : n % 2 !== 0;
     const dozen: RouletteRound['dozen'] = n === 0 ? null : n <= 12 ? '1st' : n <= 24 ? '2nd' : '3rd';
-    const half: RouletteRound['half']  = n === 0 ? null : n <= 18 ? '1-18' : '19-36';
+    const half: RouletteRound['half']   = n === 0 ? null : n <= 18 ? '1-18' : '19-36';
     return { round, number: n, color, odd, dozen, half };
   });
 }
-
-// ─── Plinko ───────────────────────────────────────────────────────────────────
-
-const PLINKO_INTERVAL_S = 8;
-const PLINKO_ROWS = 12;
-const PLINKO_MULTS: Record<string, number[]> = {
-  Low:    [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
-  Medium: [13,  3,   1.3, 0.7, 0.4, 0.7, 1.3, 3,   13 ],
-  High:   [29,  4,   1.5, 0.3, 0.2, 0.3, 1.5, 4,   29 ],
-};
-
-interface PlinkoRound { round: number; bucket: number; multiplier: number; risk: string }
 
 function buildPlinkoPredictions(risk: string, count = 20): PlinkoRound[] {
   const seed  = dailySeedFor(`plinko_${risk}`);
@@ -198,37 +135,9 @@ function buildPlinkoPredictions(risk: string, count = 20): PlinkoRound[] {
   return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
-    let bucket  = 0;
-    for (let row = 0; row < PLINKO_ROWS; row++) {
-      if (rand() < 0.5) bucket++;
-    }
-    bucket = Math.min(bucket, mults.length - 1);
+    const bucket = seededPlinkoBucket(rand, mults.length - 1);
     return { round, bucket, multiplier: mults[bucket], risk };
   });
-}
-
-// ─── Slots ────────────────────────────────────────────────────────────────────
-
-const SLOTS_INTERVAL_S = 12;
-const SYMBOLS = ['7️⃣', '💎', '⭐', '🔔', '🍇', '🍊', '🍋', '🍒'];
-const WEIGHTS  = [2, 4, 6, 7, 8, 10, 10, 8];
-const SYM_MULT: Record<string, number> = {
-  '7️⃣': 50, '💎': 20, '⭐': 10, '🔔': 5, '🍇': 3, '🍊': 2, '🍋': 1.5, '🍒': 1,
-};
-const TOTAL_W = WEIGHTS.reduce((a, b) => a + b, 0);
-
-function pickSymbol(rand: () => number): string {
-  let r = rand() * TOTAL_W;
-  for (let i = 0; i < SYMBOLS.length; i++) { r -= WEIGHTS[i]; if (r <= 0) return SYMBOLS[i]; }
-  return SYMBOLS[SYMBOLS.length - 1];
-}
-
-interface SlotsRound {
-  round: number;
-  grid: string[][];      // 3 rows × 5 cols
-  topLine: string[];
-  topWin: { symbol: string; count: number; mult: number } | null;
-  bigWin: boolean;
 }
 
 function evalLine(row: string[]): { symbol: string; count: number; mult: number } | null {
@@ -245,9 +154,9 @@ function buildSlotsPredictions(count = 15): SlotsRound[] {
   return Array.from({ length: count }, (_, i) => {
     const round = start + i;
     const rand  = mulberry32(seed ^ (round * 2654435761));
-    const grid: string[][] = Array.from({ length: 3 }, () =>
-      Array.from({ length: 5 }, () => pickSymbol(rand))
-    );
+    // generateSlotsGrid uses the canonical SLOTS_SYMBOLS / SLOTS_WEIGHTS from
+    // seededGameRng.ts — identical to SlotsGame.tsx — so predictions match.
+    const grid    = generateSlotsGrid(rand);
     const topLine = grid[0];
     const topWin  = evalLine(topLine);
     const bigWin  = grid.some(row => evalLine(row)?.symbol === '7️⃣' || evalLine(row)?.symbol === '💎');

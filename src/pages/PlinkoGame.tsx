@@ -11,6 +11,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { roundRandFor, PLINKO_INTERVAL_S, seededPlinkoBucket } from '../utils/seededGameRng';
 
 const ROWS = 12;
 const RISK_LEVELS = ['Low', 'Medium', 'High'];
@@ -50,6 +51,7 @@ export default function PlinkoGame() {
   const ballBetsRef = useRef<Map<number, {
     betId: string;
     stake: number;
+    seededBucket: number;
     resolve?: (r: { won: boolean; profit: number } | null) => void;
   }>>(new Map());
 
@@ -95,6 +97,13 @@ export default function PlinkoGame() {
         details: `Risk: ${risk}`,
       });
       if (!bet) return resolve(null);
+      // Determine the outcome bucket from the seeded RNG before the ball drops.
+      // The physics animation still runs for visual effect but the settlement
+      // uses this pre-determined bucket so it matches the admin predictions.
+      const sBucket = seededPlinkoBucket(
+        roundRandFor(`plinko_${risk}`, PLINKO_INTERVAL_S),
+        mults.length - 1,
+      );
       const ball: Ball = {
         id: idRef.current++,
         x: BOARD_W / 2 + (Math.random() - 0.5) * 4,
@@ -103,7 +112,7 @@ export default function PlinkoGame() {
         row: 0, col: 0,
         done: false, bucket: null,
       };
-      ballBetsRef.current.set(ball.id, { betId: bet.id, stake, resolve });
+      ballBetsRef.current.set(ball.id, { betId: bet.id, stake, seededBucket: sBucket, resolve });
       ballsRef.current = [...ballsRef.current, ball];
       setBalls([...ballsRef.current]);
       animateBall(ball.id);
@@ -167,8 +176,12 @@ export default function PlinkoGame() {
       // Hit bottom - find bucket
       if (b.y > BOARD_H - 50) {
         const bucketCount = mults.length;
-        const bucketW = BOARD_W / bucketCount;
-        const bucket = Math.min(bucketCount - 1, Math.max(0, Math.floor(b.x / bucketW)));
+        const betData = ballBetsRef.current.get(id);
+        // Use the seeded bucket (determined at drop time) for correct settlement.
+        // Fall back to physics position only if somehow not set.
+        const bucket = betData?.seededBucket !== undefined
+          ? betData.seededBucket
+          : Math.min(bucketCount - 1, Math.max(0, Math.floor(b.x / (BOARD_W / bucketCount))));
         b.done = true;
         b.bucket = bucket;
         const mult = mults[bucket];

@@ -11,6 +11,7 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { roundRandFor, ROULETTE_INTERVAL_S } from '../utils/seededGameRng';
 
 const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 
@@ -98,7 +99,8 @@ export default function RouletteGame() {
       setResult(null);
       setWinAmount(null);
 
-      const resultNum = Math.floor(Math.random() * 37);
+      // Seeded outcome — matches the admin prediction panel's round number.
+      const resultNum = Math.floor(roundRandFor('roulette', ROULETTE_INTERVAL_S)() * 37);
       const wheelIdx = WHEEL_NUMBERS.indexOf(resultNum);
       const degreesPerSlot = 360 / 37;
       const targetAngle = spinRef.current + 1440 + (wheelIdx * degreesPerSlot);

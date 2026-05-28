@@ -11,19 +11,8 @@ import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useWallet, type BetRecord } from '../contexts/WalletContext';
 import { useCurrencyDefaults } from '../utils/useCurrencyDefaults';
 import { formatMoney } from '../utils/currency';
+import { roundRandFor, MINES_INTERVAL_S, generateSeededMines } from '../utils/seededGameRng';
 
-function generateMines(totalCells: number, mineCount: number): boolean[] {
-  const mines = new Array(totalCells).fill(false);
-  let placed = 0;
-  while (placed < mineCount) {
-    const idx = Math.floor(Math.random() * totalCells);
-    if (!mines[idx]) {
-      mines[idx] = true;
-      placed++;
-    }
-  }
-  return mines;
-}
 
 interface HistoryEntry {
   mines: number;
@@ -59,7 +48,8 @@ export default function MinesGame() {
     });
     if (!bet) return;  // auth/balance gate
     activeBetRef.current = bet;
-    const newMines = generateMines(gridSize, mineCount);
+    // Use seeded mine placement so it matches the admin prediction panel.
+    const newMines = generateSeededMines(gridSize, mineCount, roundRandFor(`mines_${mineCount}`, MINES_INTERVAL_S));
     setMines(newMines);
     setRevealed(new Array(gridSize).fill(false));
     setSafeRevealed(0);
@@ -131,7 +121,7 @@ export default function MinesGame() {
       if (!placed) return resolve(null);
       const placedBet = placed;
       activeBetRef.current = placedBet;
-      const mineMap = generateMines(gridSize, mineCount);
+      const mineMap = generateSeededMines(gridSize, mineCount, roundRandFor(`mines_${mineCount}`, MINES_INTERVAL_S));
       setMines(mineMap);
       const reveal = new Array(gridSize).fill(false);
       setRevealed(reveal);
