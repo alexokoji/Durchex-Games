@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Switch, TextField, Select, MenuItem, Chip, Alert, CircularProgress, FormControl, InputLabel } from '@mui/material';
+import { Box, Typography, Button, Switch, TextField, Select, MenuItem, Alert, CircularProgress, FormControl, InputLabel } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useBetSlip } from '../virtual-sports/core/BetSlipContext';
