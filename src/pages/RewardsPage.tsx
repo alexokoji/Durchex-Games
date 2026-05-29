@@ -6,20 +6,27 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import { neonGreen, neonGold, neonBlue, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 
+/** Format a number as a compact USD string (e.g. $1,000). */
+function fmtUsd(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+/**
+ * VIP tier ladder — thresholds are USD-equivalent lifetime wager,
+ * matching server/src/services/vip.ts and VIPPage.tsx exactly.
+ */
 const TIERS = [
-  { level: 1, name: 'Bronze',    color: '#cd7f32', threshold: 0 },
-  { level: 2, name: 'Silver',    color: '#c0c0c0', threshold: 1 },
-  { level: 3, name: 'Gold',      color: '#ffd700', threshold: 5 },
-  { level: 4, name: 'Platinum',  color: '#8e8e93', threshold: 25 },
-  { level: 5, name: 'Diamond',   color: '#b9f2ff', threshold: 100 },
-  { level: 6, name: 'Mythic',    color: '#a855f7', threshold: 500 },
+  { level: 0, name: 'Starter',  color: '#888888', threshold: 0 },
+  { level: 1, name: 'Bronze',   color: '#cd7f32', threshold: 100 },
+  { level: 2, name: 'Silver',   color: '#c0c0c0', threshold: 300 },
+  { level: 3, name: 'Gold',     color: '#ffd700', threshold: 500 },
+  { level: 4, name: 'Platinum', color: '#8b00ff', threshold: 750 },
+  { level: 5, name: 'Diamond',  color: '#00bcd4', threshold: 1000 },
 ];
 
 export default function RewardsPage() {
-  const { isAuthenticated, openAuthPrompt } = useAuth();
-  const wallet = useWallet();
+  const { isAuthenticated, openAuthPrompt, user } = useAuth();
   const navigate = useNavigate();
 
   if (!isAuthenticated) {
@@ -32,7 +39,9 @@ export default function RewardsPage() {
     );
   }
 
-  const wagered = wallet.totalWagered;
+  // Use server-computed USD-equivalent lifetime wager so the progress bar
+  // is currency-agnostic and always consistent with the VIP system.
+  const wagered = user?.vipWageredUsd ?? 0;
   const currentTier = [...TIERS].reverse().find(t => wagered >= t.threshold) ?? TIERS[0];
   const nextTier = TIERS.find(t => t.threshold > wagered);
   const progress = nextTier
@@ -71,7 +80,7 @@ export default function RewardsPage() {
                 Progress to {nextTier.name}
               </Typography>
               <Typography sx={{ color: nextTier.color, fontWeight: 700, fontSize: '0.78rem' }}>
-                {wagered.toFixed(2)} / {nextTier.threshold} BTC wagered
+                {fmtUsd(wagered)} / {fmtUsd(nextTier.threshold)} wagered
               </Typography>
             </Box>
             <LinearProgress
@@ -142,7 +151,7 @@ export default function RewardsPage() {
                 {t.name}
               </Typography>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                {t.threshold} BTC wagered
+                {t.threshold === 0 ? 'Starting tier' : `${fmtUsd(t.threshold)} wagered`}
               </Typography>
               <Chip
                 label={active ? 'Current' : reached ? 'Reached' : 'Locked'}

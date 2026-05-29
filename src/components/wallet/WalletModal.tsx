@@ -32,6 +32,36 @@ const WITHDRAW_METHODS: { id: WithdrawMethod; label: string; sub: string }[] = [
   { id: 'crypto',      label: 'Crypto',         sub: 'BTC / USDT / USDC — manual review' },
 ];
 
+/** Nigerian banks — label shown to the user, code sent to the API. */
+const NG_BANKS: { name: string; code: string }[] = [
+  { name: 'Access Bank',          code: '044' },
+  { name: 'Access Bank (Diamond)', code: '063' },
+  { name: 'Citibank Nigeria',     code: '023' },
+  { name: 'Ecobank Nigeria',      code: '050' },
+  { name: 'Fidelity Bank',        code: '070' },
+  { name: 'First Bank of Nigeria', code: '011' },
+  { name: 'First City Monument Bank (FCMB)', code: '214' },
+  { name: 'Guaranty Trust Bank (GTBank)', code: '058' },
+  { name: 'Heritage Bank',        code: '030' },
+  { name: 'Keystone Bank',        code: '082' },
+  { name: 'Kuda Bank',            code: '090267' },
+  { name: 'Moniepoint Microfinance Bank', code: '50515' },
+  { name: 'OPay (One Finance)',   code: '100004' },
+  { name: 'PalmPay',              code: '100033' },
+  { name: 'Polaris Bank',         code: '076' },
+  { name: 'Providus Bank',        code: '101' },
+  { name: 'Stanbic IBTC Bank',    code: '221' },
+  { name: 'Standard Chartered',   code: '068' },
+  { name: 'Sterling Bank',        code: '232' },
+  { name: 'Titan Trust Bank',     code: '102' },
+  { name: 'UBA (United Bank for Africa)', code: '033' },
+  { name: 'Union Bank of Nigeria', code: '032' },
+  { name: 'Unity Bank',           code: '215' },
+  { name: 'VFD Microfinance Bank', code: '566' },
+  { name: 'Wema Bank',            code: '035' },
+  { name: 'Zenith Bank',          code: '057' },
+];
+
 interface WalletModalProps {
   open: boolean;
   onClose: () => void;
@@ -278,7 +308,7 @@ function WithdrawPanel({ onClose }: { onClose: () => void }) {
     if (!Number.isFinite(amt) || amt <= 0) { setError('Enter a valid amount.'); setBusy(false); return; }
     if (amt > fiatBal) { setError('Insufficient balance.'); setBusy(false); return; }
     if (!accountBank.trim() || !accountNumber.trim() || !beneficiaryName.trim()) {
-      setError('Bank code, account number, and beneficiary name are required.');
+      setError('Bank name, account number, and beneficiary name are required.');
       setBusy(false); return;
     }
     const ok = await wallet.requestWithdrawal({
@@ -357,10 +387,22 @@ function WithdrawPanel({ onClose }: { onClose: () => void }) {
             onChange={e => setAmountFiat(e.target.value)}
             helperText={`Available: ${formatMoney(fiatBal, wallet.currency)}`}
           />
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField label="Bank code" size="small" fullWidth value={accountBank}    onChange={e => setAccountBank(e.target.value)} placeholder="044, 058 …" />
-            <TextField label="Account number" size="small" fullWidth value={accountNumber} onChange={e => setAccountNumber(e.target.value)} />
-          </Box>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Bank name</InputLabel>
+            <Select
+              label="Bank name"
+              value={accountBank}
+              onChange={e => setAccountBank(e.target.value)}
+              displayEmpty
+            >
+              {NG_BANKS.map(b => (
+                <MenuItem key={b.code} value={b.code}>
+                  {b.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField label="Account number" size="small" fullWidth value={accountNumber} onChange={e => setAccountNumber(e.target.value)} />
           <TextField label="Beneficiary name" size="small" fullWidth value={beneficiaryName} onChange={e => setBeneficiaryName(e.target.value)} />
         </>
       )}

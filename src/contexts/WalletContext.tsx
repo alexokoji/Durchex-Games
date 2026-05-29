@@ -9,7 +9,7 @@ import { paymentsApi, type DepositInitBody, type WithdrawBody } from '../api/pay
 import { ApiError } from '../api/client';
 import { getChatSocket } from '../api/chat';
 import type { FiatCurrency, CryptoCurrency, AnyCurrency } from '../utils/currency';
-import { minBetFor, formatMoney, usdApprox } from '../utils/currency';
+import { minBetFor, formatMoney, usdApprox, convert } from '../utils/currency';
 import { useToasts } from './ToastContext';
 import { useNotifications } from './NotificationContext';
 
@@ -320,12 +320,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { totalWagered, totalWon, totalLost, netProfit } = useMemo(() => {
     let wagered = 0, won = 0, lost = 0;
     for (const b of history) {
-      wagered += b.stake;
-      if (b.result === 'win') won += Math.max(0, b.payout - b.stake);
-      else if (b.result === 'loss') lost += b.stake;
+      // Convert each bet's amounts into the wallet's current display currency
+      // so totals stay coherent when the user switches currency mid-session.
+      const stake  = convert(b.stake,  b.currency, currency);
+      const payout = convert(b.payout, b.currency, currency);
+      wagered += stake;
+      if (b.result === 'win') won += Math.max(0, payout - stake);
+      else if (b.result === 'loss') lost += stake;
     }
     return { totalWagered: wagered, totalWon: won, totalLost: lost, netProfit: won - lost };
-  }, [history]);
+  }, [history, currency]);
 
   return (
     <WalletContext.Provider value={{

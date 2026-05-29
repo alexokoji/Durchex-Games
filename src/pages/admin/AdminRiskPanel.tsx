@@ -111,7 +111,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'other-games',
-    title: 'Other casino games',
+    title: 'Other games',
     blurb: 'House edge dial for each game. Lower = more generous, higher = more profitable. Industry typical: 1–3%.',
     fields: [
       {

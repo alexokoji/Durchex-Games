@@ -194,7 +194,7 @@ export default function PaymentReturnPage() {
         sub: confirmError
           ? `${confirmError} — please contact support with the reference below if your balance doesn\'t update soon.`
           : 'Flutterwave is finalising the transfer. It usually shows up in a couple of minutes — refresh your wallet later if you don\'t see it yet.',
-        primaryLabel: 'Back to casino',
+        primaryLabel: 'Back to Games',
         primaryAction: () => navigate('/'),
       };
     }

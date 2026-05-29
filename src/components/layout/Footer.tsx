@@ -23,7 +23,7 @@ const SOCIALS: { label: string; href: string; icon: React.ReactNode }[] = [
 
 const LINK_GROUPS: { heading: string; links: { label: string; to: string }[] }[] = [
   {
-    heading: 'Casino',
+    heading: 'Games',
     links: [
       { label: 'Crash',      to: '/crash' },
       { label: 'Dice',       to: '/dice' },
@@ -86,7 +86,7 @@ export default function Footer() {
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.82rem', lineHeight: 1.55, color: 'text.secondary', mb: 2 }}>
-              Premium Casino Games + virtual sportsbook. Provably-fair originals,
+              Premium Games + virtual sportsbook. Provably-fair originals,
               real-name sports leagues with realistic simulations, instant deposits
               in your local currency.
             </Typography>

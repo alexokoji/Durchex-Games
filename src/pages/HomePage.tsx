@@ -174,7 +174,7 @@ function HeroBanner() {
               fontSize: { xs: '2rem', md: '2.8rem' },
             }}
           >
-            The Future of<br />Crypto Casino
+            The Future of<br />Crypto Gaming
           </Typography>
           <Typography sx={{ color: 'text.secondary', mb: 3, fontSize: '0.9rem', maxWidth: 380 }}>
             Provably fair games with instant payouts. Deposits and withdrawals in your local currency

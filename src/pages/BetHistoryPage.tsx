@@ -41,7 +41,7 @@ export default function BetHistoryPage() {
     <Box sx={{ p: { xs: 1.5, md: 3 }, pb: { xs: 10, md: 3 }, maxWidth: 980, mx: 'auto' }}>
       <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5 }}>Bet History</Typography>
       <Typography sx={{ color: 'text.secondary', mb: 3, fontSize: '0.9rem' }}>
-        Every bet you've placed across casino and virtual sports.
+        Every bet you've placed across games and virtual sports.
       </Typography>
 
       {/* Headline stats */}
@@ -133,7 +133,7 @@ export default function BetHistoryPage() {
                   )}
                 </Box>
                 <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                  Stake {formatMoney(b.stake, wallet.currency)}
+                  Stake {formatMoney(b.stake, b.currency)}
                 </Typography>
                 <Chip
                   label={b.result.toUpperCase()}
@@ -149,7 +149,7 @@ export default function BetHistoryPage() {
                   color: b.result === 'win' ? neonGreen : '#ff6b7a',
                   fontVariantNumeric: 'tabular-nums', textAlign: 'right', minWidth: 90,
                 }}>
-                  {b.result === 'win' ? '+' : '-'}{formatMoney(Math.abs(b.payout - b.stake), wallet.currency)}
+                  {b.result === 'win' ? '+' : '-'}{formatMoney(Math.abs(b.payout - b.stake), b.currency)}
                 </Typography>
               </Box>
             ))}
