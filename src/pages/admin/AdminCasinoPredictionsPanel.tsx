@@ -223,10 +223,11 @@ export default function AdminCasinoPredictionsPanel() {
   const [mineCount, setMineCount] = useState(3);
   const [plinkoRisk, setPlinkoRisk] = useState('Medium');
 
-  // Live clock — ticks every second so countdown labels stay current.
+  // Live clock — ticks every 2 s (accurate enough for 8–30 s round windows,
+  // halves the re-render rate vs a 1 s tick).
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    const t = setInterval(() => setNowMs(Date.now()), 2000);
     return () => clearInterval(t);
   }, []);
 
@@ -291,14 +292,8 @@ export default function AdminCasinoPredictionsPanel() {
     );
   }
 
-  // ── shared row styling ──────────────────────────────────────────────────────
-  const rowSx = (isCurrent: boolean, isPast: boolean) => ({
-    '& td': { borderColor: darkBorder },
-    background: isCurrent
-      ? alpha(neonGreen, 0.07)
-      : isPast ? alpha('#fff', 0.01) : 'transparent',
-    opacity: isPast ? 0.5 : 1,
-  });
+  // Row styling uses the module-level static constants defined at the bottom
+  // of this file — same object reference = Emotion cache hit every render.
 
   return (
     <Box>
@@ -374,7 +369,7 @@ export default function AdminCasinoPredictionsPanel() {
                 const isCurr  = isCurrentRound(r.timeMs, intMs, nowMs);
                 const isPast  = r.timeMs + intMs <= nowMs;
                 return (
-                  <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                  <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                     <TableCell sx={tdSx}>
                       <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                     </TableCell>
@@ -431,7 +426,7 @@ export default function AdminCasinoPredictionsPanel() {
                 const isCurr = isCurrentRound(r.timeMs, intMs, nowMs);
                 const isPast = r.timeMs + intMs <= nowMs;
                 return (
-                  <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                  <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                     <TableCell sx={tdSx}>
                       <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                     </TableCell>
@@ -488,7 +483,7 @@ export default function AdminCasinoPredictionsPanel() {
                   const isCurr = isCurrentRound(r.timeMs, intMs, nowMs);
                   const isPast = r.timeMs + intMs <= nowMs;
                   return (
-                    <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                    <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                       <TableCell sx={tdSx}>
                         <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                       </TableCell>
@@ -547,7 +542,7 @@ export default function AdminCasinoPredictionsPanel() {
                 const isPast  = r.timeMs + intMs <= nowMs;
                 const numColor = r.color === 'green' ? neonGreen : r.color === 'red' ? '#ff4757' : '#aaa';
                 return (
-                  <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                  <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                     <TableCell sx={tdSx}>
                       <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                     </TableCell>
@@ -624,7 +619,7 @@ export default function AdminCasinoPredictionsPanel() {
                   const isMid   = r.bucket === 4;
                   const tone    = isEdge ? '#a855f7' : isMid ? '#ff6b7a' : r.multiplier >= 2 ? neonGold : neonBlue;
                   return (
-                    <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                    <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                       <TableCell sx={tdSx}>
                         <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                       </TableCell>
@@ -675,7 +670,7 @@ export default function AdminCasinoPredictionsPanel() {
                 const isCurr = isCurrentRound(r.timeMs, intMs, nowMs);
                 const isPast = r.timeMs + intMs <= nowMs;
                 return (
-                  <TableRow key={r.round} hover sx={rowSx(isCurr, isPast)}>
+                  <TableRow key={r.round} hover sx={isCurr ? ROW_SX_CURR : isPast ? ROW_SX_PAST : ROW_SX_NORMAL}>
                     <TableCell sx={tdSx}>
                       <TimeCell timeMs={r.timeMs} intervalMs={intMs} nowMs={nowMs} isCurrent={isCurr} />
                     </TableCell>
@@ -806,3 +801,9 @@ const thSx = {
 };
 
 const tdSx = { fontSize: '0.82rem', py: 1, borderColor: darkBorder };
+
+// Pre-computed at module level — same object reference every render so Emotion
+// returns a cached CSS class instead of re-hashing the style on every tick.
+const ROW_SX_CURR   = { '& td': { borderColor: darkBorder }, background: alpha(neonGreen, 0.07), opacity: 1 };
+const ROW_SX_PAST   = { '& td': { borderColor: darkBorder }, background: alpha('#fff', 0.01), opacity: 0.5 };
+const ROW_SX_NORMAL = { '& td': { borderColor: darkBorder }, background: 'transparent', opacity: 1 };

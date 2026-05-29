@@ -21,8 +21,13 @@ import { simulateBasketballMatch } from '../../virtual-sports/basketball/basketb
 import { simulateHockeyMatch } from '../../virtual-sports/hockey/hockeySimulation';
 import type { Team } from '../../virtual-sports/core/types';
 
-const WEEK_SECONDS = 600;
-const MIN_LEAD_MS  = 5 * 60 * 1000;
+const WEEK_SECONDS      = 600;
+const MIN_LEAD_MS       = 5 * 60 * 1000;
+/** Look-ahead window. Keep short — each week requires simulating every fixture. */
+const LOOK_AHEAD_S      = 2 * 60 * 60;   // 2 hours  →  12 virtual weeks
+/** Maximum prediction rows returned per league call. */
+const MAX_ROWS_SINGLE   = 20;
+const MAX_ROWS_ALL      = 5;  // per-league cap in "all leagues" view
 
 type SportFilter = 'all' | 'soccer' | 'basketball' | 'hockey';
 
@@ -106,7 +111,7 @@ function buildPrediction(
   };
 }
 
-function predictionsForLeague(leagueId: string): PredictionRow[] {
+function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): PredictionRow[] {
   const league = getLeague(leagueId);
   if (!league || league.sport === 'horseracing') return [];
   const teams = teamsByLeague(leagueId);
@@ -116,6 +121,14 @@ function predictionsForLeague(leagueId: string): PredictionRow[] {
     ? buildLeaguePhaseSchedule(teams.map(t => t.id), seed, 8)
     : buildSeasonSchedule(teams.map(t => t.id), seed);
 
+  // Pre-index fixtures by week — avoids an O(fixtures) scan on every iteration.
+  const byWeek = new Map<number, typeof fixtures>();
+  for (const f of fixtures) {
+    const arr = byWeek.get(f.week);
+    if (arr) arr.push(f);
+    else byWeek.set(f.week, [f]);
+  }
+
   const anchor = new Date();
   anchor.setUTCHours(0, 0, 0, 0);
   const anchorMs = anchor.getTime();
@@ -123,16 +136,20 @@ function predictionsForLeague(leagueId: string): PredictionRow[] {
   const totalWeeks = fixtures.reduce((m, f) => Math.max(m, f.week), 0);
   if (totalWeeks === 0) return [];
 
-  const maxLookSeconds = 24 * 60 * 60;
-  const maxLookWeeks = Math.ceil(maxLookSeconds / WEEK_SECONDS);
+  // Limit look-ahead to 2 hours (12 virtual weeks) — keeps simulation count
+  // manageable. The old 24-hour window required ~33 000 simulation calls which
+  // blocked the main thread for several seconds.
+  const maxLookWeeks = Math.ceil(LOOK_AHEAD_S / WEEK_SECONDS);
   const teamsById = new Map(teams.map(t => [t.id, t]));
   const out: PredictionRow[] = [];
 
+  outer:
   for (let i = 0; i < maxLookWeeks; i++) {
     const startsAt = anchorMs + i * WEEK_SECONDS * 1000;
     if (startsAt - now < MIN_LEAD_MS) continue;
     const week = (i % totalWeeks) + 1;
-    for (const f of fixtures.filter(x => x.week === week)) {
+    for (const f of byWeek.get(week) ?? []) {
+      if (out.length >= maxRows) break outer;
       const home = teamsById.get(f.homeId);
       const away = teamsById.get(f.awayId);
       if (!home || !away) continue;
@@ -159,6 +176,7 @@ export default function AdminVirtualSportsPanel() {
   }, []);
 
   // "All leagues" mode: compute predictions for every non-horseracing league.
+  // Use a tight per-league cap (MAX_ROWS_ALL) to keep total simulation count low.
   const allPredictions = useMemo<PredictionRow[]>(() => {
     void tick; // refresh dependency
     if (leagueId !== '__all__') return [];
@@ -166,7 +184,7 @@ export default function AdminVirtualSportsPanel() {
     for (const l of LEAGUES) {
       if (l.sport === 'horseracing') continue;
       if (sportFilter !== 'all' && l.sport !== sportFilter) continue;
-      rows.push(...predictionsForLeague(l.id));
+      rows.push(...predictionsForLeague(l.id, MAX_ROWS_ALL));
     }
     return rows.sort((a, b) => a.startsAt - b.startsAt);
   }, [leagueId, sportFilter, tick]);
