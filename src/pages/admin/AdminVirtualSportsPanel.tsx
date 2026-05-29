@@ -136,15 +136,17 @@ function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): Pred
   const totalWeeks = fixtures.reduce((m, f) => Math.max(m, f.week), 0);
   if (totalWeeks === 0) return [];
 
-  // Limit look-ahead to 2 hours (12 virtual weeks) — keeps simulation count
-  // manageable. The old 24-hour window required ~33 000 simulation calls which
-  // blocked the main thread for several seconds.
+  // Start from the virtual-week index that corresponds to "now" so the window
+  // always covers the next LOOK_AHEAD_S seconds regardless of time of day.
+  // The old code started at i=0 (UTC midnight); after the first 2 hours of the
+  // day every iteration fell in the past and nothing was shown.
+  const nowWeekIdx   = Math.floor((now - anchorMs) / (WEEK_SECONDS * 1000));
   const maxLookWeeks = Math.ceil(LOOK_AHEAD_S / WEEK_SECONDS);
   const teamsById = new Map(teams.map(t => [t.id, t]));
   const out: PredictionRow[] = [];
 
   outer:
-  for (let i = 0; i < maxLookWeeks; i++) {
+  for (let i = nowWeekIdx; i < nowWeekIdx + maxLookWeeks; i++) {
     const startsAt = anchorMs + i * WEEK_SECONDS * 1000;
     if (startsAt - now < MIN_LEAD_MS) continue;
     const week = (i % totalWeeks) + 1;
