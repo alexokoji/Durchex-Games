@@ -8,7 +8,30 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\" -Recurse -Directory -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { $_.FullName })",
       "Bash(findstr /i \"html2canvas\")",
       "Bash(node -e \"try { require\\('@mui/icons-material/IceSkating'\\); console.log\\('IceSkating ok'\\); } catch\\(e\\) { console.log\\('IceSkating missing'\\); }\")",
-      "Bash(node -e \"try { require\\('@mui/icons-material/Casino'\\); console.log\\('Casino ok'\\); } catch\\(e\\) { console.log\\('Casino missing'\\); }\")"
+      "Bash(node -e \"try { require\\('@mui/icons-material/Casino'\\); console.log\\('Casino ok'\\); } catch\\(e\\) { console.log\\('Casino missing'\\); }\")",
+      "Bash(ls \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\" 2>/dev/null || echo \"Directory listing done\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\src\\\\screens\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\src\\\\navigation\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\src\\\\components\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\src\\\\hooks\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\assets\")",
+      "Bash(cp \"project/public/assets/logo.png\" \"mobile/assets/splash.png\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('mobile/assets/splash.png'\\);console.log\\('splash:', b.readUInt32BE\\(16\\)+'x'+b.readUInt32BE\\(20\\), Math.round\\(b.length/1024\\)+'KB'\\);\")",
+      "Bash(curl -s -o /dev/null -w \"GET  /            -> HTTP %{http_code}\\\\n\" --max-time 60 https://durchex-games.onrender.com/)",
+      "Bash(curl -s -w '\\\\nPOST /api/auth/login -> HTTP %{http_code}\\\\n' --max-time 60 -X POST https://durchex-games.onrender.com/api/auth/login -H 'Content-Type: application/json' -d '{}')",
+      "Bash(node -e ' *)",
+      "Bash(node_modules/.bin/tsc --noEmit --skipLibCheck)",
+      "Bash(node -e \"const a=require\\('./app.json'\\).expo;console.log\\('  icon:',a.icon\\);console.log\\('  splash.image:',a.splash.image\\);console.log\\('  android.adaptiveIcon.foregroundImage:',a.android.adaptiveIcon.foregroundImage\\);\")",
+      "Bash(curl -s -o /dev/null -w \"GET /crash -> HTTP %{http_code} \\(type: %{content_type}\\)\\\\n\" --max-time 45 https://durchexigames.xyz/crash)",
+      "Bash(curl -s -o /dev/null -w \"Crash.png -> HTTP %{http_code} \\(%{size_download} bytes, %{content_type}\\)\\\\n\" --max-time 45 \"https://durchexigames.xyz/assets/Games%20Images/Crash.png\")",
+      "Bash(curl -s -o /dev/null -w \"Spin.png  -> HTTP %{http_code} \\(%{size_download} bytes\\)\\\\n\" --max-time 45 \"https://durchexigames.xyz/assets/Games%20Images/Spin.png\")",
+      "Bash(rm -rf screens/games)",
+      "Bash(rm -f screens/GameDetailScreen.tsx)",
+      "Bash(rm -f components/GameShell.tsx)",
+      "Bash(rm -f hooks/useGame.ts)",
+      "Bash(rm -f utils/rng.ts)",
+      "Bash(sed 's/styles\\\\.//')",
+      "Bash(sed -n '/StyleSheet.create\\({/,/^}\\);/p' WalletScreen.tsx)"
     ]
   }
 }

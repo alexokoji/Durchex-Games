@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\\\\src\\\\api\\\\\" -File | Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\mobile\\\\src\\\\screens\\\\\" -File | Select-Object Name)",
+      "Bash(Get-ChildItem -Path src -Recurse -Filter \"*.tsx\")",
+      "Bash(Select-Object FullName)"
     ]
   }
 }
