@@ -388,7 +388,9 @@ export default function AdminRiskPanel() {
             gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
           }}>
             {section.fields.map(f => {
-              const rawCurrent = draft[f.key] != null ? draft[f.key]! : config[f.key] ?? 0;
+              // All editable risk fields are numeric; coerce in case the DTO
+              // also carries non-numeric config (e.g. cash-out toggles).
+              const rawCurrent = Number(draft[f.key] != null ? draft[f.key]! : config[f.key] ?? 0);
               const displayed = displayValue(f, rawCurrent);
               const isDirty = draft[f.key] != null && draft[f.key] !== config[f.key];
               const showSlider = f.unit !== 'USD'; // USD is too big a range for a slider

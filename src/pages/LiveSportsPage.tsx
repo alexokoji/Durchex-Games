@@ -11,7 +11,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import IosShareIcon from '@mui/icons-material/IosShare';
-import { neonGreen, neonBlue, neonGold, darkBorder, darkCard, darkSurface } from '../theme';
+import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useToasts } from '../contexts/ToastContext';
