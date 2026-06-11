@@ -24,8 +24,12 @@ export default function AdminPromotersPanel() {
 
   const [editing, setEditing] = useState<AdminPromoter | null>(null);
   const [commission, setCommission] = useState('0.20');
+  const [model, setModel] = useState<'revenue_share' | 'cpa' | 'hybrid'>('revenue_share');
+  const [cpa, setCpa] = useState('0');
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState<AdminPromoter | null>(null);
+  const [payoutFor, setPayoutFor] = useState<AdminPromoter | null>(null);
+  const [payoutAmt, setPayoutAmt] = useState('');
 
   async function load() {
     setIsLoading(true);
@@ -83,13 +87,30 @@ export default function AdminPromotersPanel() {
       toasts.warning('Invalid rate', 'Commission must be between 0 and 1 (e.g. 0.2 = 20%).');
       return;
     }
+    const cpaAmount = parseFloat(cpa) || 0;
     try {
-      await adminApi.updatePromoter(u._id, { commissionRate: rate });
-      toasts.success('Updated', `${u.username} is now on ${(rate * 100).toFixed(1)}% commission.`);
+      await adminApi.updatePromoter(u._id, { commissionModel: model, commissionRate: rate, cpaAmountUsd: cpaAmount });
+      toasts.success('Updated', `${u.username}: ${model.replace('_', ' ')} · ${(rate * 100).toFixed(1)}%${cpaAmount ? ` · $${cpaAmount} CPA` : ''}.`);
       setEditing(null);
       await load();
     } catch (err) {
       toasts.error('Update failed', err instanceof ApiError ? err.code : 'unknown');
+    }
+  }
+
+  async function doPayout() {
+    if (!payoutFor) return;
+    const u = userOf(payoutFor);
+    if (!u) return;
+    const amt = parseFloat(payoutAmt);
+    if (!Number.isFinite(amt) || amt <= 0) { toasts.warning('Invalid amount', 'Enter a positive USD amount.'); return; }
+    try {
+      const r = await adminApi.payoutPromoter(u._id, amt);
+      toasts.success('Payout recorded', `$${amt.toFixed(2)} · unpaid now $${r.unpaidUsd.toFixed(2)}`);
+      setPayoutFor(null); setPayoutAmt('');
+      await load();
+    } catch (err) {
+      toasts.error('Payout failed', err instanceof ApiError ? err.code : 'unknown');
     }
   }
 
@@ -145,7 +166,11 @@ export default function AdminPromotersPanel() {
                   </Box>
                   <Chip
                     size="small"
-                    label={`${(p.commissionRate * 100).toFixed(1)}%`}
+                    label={
+                      p.commissionModel === 'cpa' ? `CPA $${p.cpaAmountUsd ?? 0}`
+                      : p.commissionModel === 'hybrid' ? `Hybrid ${(p.commissionRate * 100).toFixed(0)}% + $${p.cpaAmountUsd ?? 0}`
+                      : `Rev ${(p.commissionRate * 100).toFixed(1)}%`
+                    }
                     sx={{ background: alpha(neonBlue, 0.15), color: neonBlue, fontWeight: 800 }}
                   />
                   <Chip
@@ -153,6 +178,13 @@ export default function AdminPromotersPanel() {
                     label={`${p.totalReferred} referred · ${p.activeReferrals} active`}
                     sx={{ background: alpha('#fff', 0.06) }}
                   />
+                  {p.status === 'approved' && (
+                    <Chip
+                      size="small"
+                      label={`$${(p.totalEarnedUsd ?? 0).toFixed(2)} earned · $${Math.max(0, (p.totalEarnedUsd ?? 0) - (p.paidOutUsd ?? 0)).toFixed(2)} unpaid`}
+                      sx={{ background: alpha(neonGold, 0.15), color: neonGold, fontWeight: 700 }}
+                    />
+                  )}
                   <Chip
                     size="small"
                     label={p.status}
@@ -197,9 +229,22 @@ export default function AdminPromotersPanel() {
                       <Button
                         size="small" variant="outlined"
                         startIcon={<EditIcon />}
-                        onClick={() => { setEditing(p); setCommission(String(p.commissionRate)); }}
+                        onClick={() => {
+                          setEditing(p);
+                          setCommission(String(p.commissionRate));
+                          setModel(p.commissionModel ?? 'revenue_share');
+                          setCpa(String(p.cpaAmountUsd ?? 0));
+                        }}
                       >
-                        Adjust commission
+                        Commission
+                      </Button>
+                      <Button
+                        size="small" variant="outlined"
+                        onClick={() => { setPayoutFor(p); setPayoutAmt(String(Math.max(0, (p.totalEarnedUsd ?? 0) - (p.paidOutUsd ?? 0)).toFixed(2))); }}
+                        disabled={Math.max(0, (p.totalEarnedUsd ?? 0) - (p.paidOutUsd ?? 0)) <= 0}
+                        sx={{ color: neonGold, borderColor: alpha(neonGold, 0.5) }}
+                      >
+                        Pay out
                       </Button>
                       <Button
                         size="small" variant="outlined" color="error"
@@ -219,25 +264,57 @@ export default function AdminPromotersPanel() {
 
       {/* Commission edit dialog */}
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Adjust commission rate</DialogTitle>
+        <DialogTitle>Commission structure</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2 }}>
-            Fraction between 0 and 1. e.g. <code>0.2</code> = 20% of platform revenue from this promoter's referrals.
-          </Typography>
-          <TextField
-            label="Commission rate"
-            fullWidth size="small"
-            value={commission}
-            onChange={e => setCommission(e.target.value)}
-            type="number"
-            inputProps={{ step: 0.01, min: 0, max: 1 }}
-          />
+          <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mb: 1.5 }}>Model</Typography>
+          <ToggleButtonGroup value={model} exclusive size="small" sx={{ mb: 2 }}
+            onChange={(_, v) => v && setModel(v)}>
+            <ToggleButton value="revenue_share">Rev share</ToggleButton>
+            <ToggleButton value="cpa">CPA</ToggleButton>
+            <ToggleButton value="hybrid">Hybrid</ToggleButton>
+          </ToggleButtonGroup>
+
+          {(model === 'revenue_share' || model === 'hybrid') && (
+            <TextField
+              label="Revenue-share rate (0–1)" fullWidth size="small" sx={{ mb: 2 }}
+              value={commission} onChange={e => setCommission(e.target.value)}
+              type="number" inputProps={{ step: 0.01, min: 0, max: 1 }}
+              helperText="e.g. 0.2 = 20% of net gaming revenue from referrals"
+            />
+          )}
+          {(model === 'cpa' || model === 'hybrid') && (
+            <TextField
+              label="CPA bounty (USD per active referral)" fullWidth size="small"
+              value={cpa} onChange={e => setCpa(e.target.value)}
+              type="number" inputProps={{ step: 1, min: 0 }}
+              helperText="Paid once when a referred user places their first settled bet"
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>
           <Button onClick={saveCommission} variant="contained" sx={{ background: neonGreen, color: '#000' }}>
             Save
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Payout dialog */}
+      <Dialog open={!!payoutFor} onClose={() => setPayoutFor(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Record commission payout</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2 }}>
+            Logs a payout against the promoter's unpaid balance (does not move money — settle externally).
+          </Typography>
+          <TextField
+            label="Amount (USD)" fullWidth size="small"
+            value={payoutAmt} onChange={e => setPayoutAmt(e.target.value)}
+            type="number" inputProps={{ step: 0.01, min: 0 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPayoutFor(null)}>Cancel</Button>
+          <Button onClick={doPayout} variant="contained" sx={{ background: neonGold, color: '#000' }}>Record payout</Button>
         </DialogActions>
       </Dialog>
 

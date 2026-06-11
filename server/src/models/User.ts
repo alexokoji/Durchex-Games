@@ -51,6 +51,22 @@ export interface IUser extends Document {
   /** When attribution was blocked or flagged for review. Null = clean. */
   referralAbuseFlag?: 'self_device' | 'self_ip' | 'duplicate_device' | 'duplicate_ip' | null;
 
+  /** Aggregate risk score (0–100) and band, maintained by the risk engine. */
+  riskScore?: number;
+  riskLevel?: 'low' | 'medium' | 'high';
+  riskUpdatedAt?: Date;
+
+  /** When the CPA bounty for this referred user was credited to its promoter. */
+  referralRewardedAt?: Date;
+
+  /** Bonus funds expire at this time if rollover isn't cleared first. */
+  bonusExpiresAt?: Date;
+  /** Max withdrawal (USD) permitted from the active bonus's winnings. 0/undef = uncapped. */
+  bonusMaxWithdrawUsd?: number;
+
+  /** Registered Expo push tokens for this user's devices. */
+  pushTokens?: string[];
+
   /** Promo code captured at signup that needs the user's first deposit to
    *  activate (e.g. a `kind: 'deposit'` campaign giving X% of the first
    *  top-up). Cleared by the deposit webhook once the bonus is awarded. */
@@ -133,6 +149,13 @@ const userSchema = new Schema<IUser>({
   signupDeviceSignature: { type: String, index: true, sparse: true },
   signupIp:              { type: String, index: true, sparse: true },
   referralAbuseFlag:     { type: String, enum: ['self_device', 'self_ip', 'duplicate_device', 'duplicate_ip', null], default: null, sparse: true },
+  riskScore:     { type: Number, default: 0, min: 0, max: 100, index: true },
+  riskLevel:     { type: String, enum: ['low', 'medium', 'high'], default: 'low', index: true },
+  riskUpdatedAt: { type: Date },
+  referralRewardedAt: { type: Date },
+  bonusExpiresAt:      { type: Date, index: true },
+  bonusMaxWithdrawUsd: { type: Number, min: 0 },
+  pushTokens:          { type: [String], default: [] },
   pendingDepositPromo:   { type: String, default: null, sparse: true },
 
   totalWagered: { type: Number, default: 0, min: 0 },

@@ -168,8 +168,19 @@ export async function redeemPromo(ctx: RedeemContext): Promise<
     await PromoCode.updateOne({ _id: promo._id }, { $inc: { totalRedemptions: 1 } });
   }
 
+  // Stamp bonus expiry + (optional) max-withdraw cap from the promo.
+  const { getRiskConfig } = await import('../models/RiskConfig');
+  const { toUsd } = await import('../config/currencies');
+  const cfg = await getRiskConfig();
+  const bonusSet: Record<string, unknown> = {
+    bonusExpiresAt: new Date(Date.now() + cfg.bonusExpiryDays * 24 * 60 * 60 * 1000),
+  };
+  if (promo.maxWithdraw != null && promo.maxWithdraw > 0) {
+    bonusSet.bonusMaxWithdrawUsd = toUsd(promo.maxWithdraw, currency as never);
+  }
   await User.findByIdAndUpdate(ctx.user._id, {
     $inc: { bonusBalance: bonusAmount, bonusRollover: rolloverInitial },
+    $set: bonusSet,
   });
 
   const redemption = await PromoRedemption.create({

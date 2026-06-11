@@ -61,6 +61,12 @@ const navItems = [
     ],
   },
   {
+    section: 'LIVE SPORTS',
+    items: [
+      { label: 'Live Betting', icon: <SportsSoccerIcon />, path: '/live-sports', color: '#ff4757' },
+    ],
+  },
+  {
     section: 'VIRTUAL SPORTS',
     items: [
       { label: 'Soccer',     icon: <SportsSoccerIcon />,     path: '/virtual/soccer',     color: '#10b981' },

@@ -20,6 +20,7 @@ import bookingCodesRouter from './routes/bookingCodes';
 import adminRouter        from './routes/admin';
 import promoRouter        from './routes/promo';
 import activityRouter     from './routes/activity';
+import liveSportsRouter   from './routes/liveSports';
 
 import { attachChat } from './sockets/chat';
 import { setIoInstance } from './sockets/notifier';
@@ -27,6 +28,9 @@ import { notFoundHandler, errorHandler } from './middleware/error';
 import { startCashbackScheduler } from './services/cashbackJob';
 import { startDailySummaryScheduler } from './services/dailySummaryJob';
 import { startVirtualSportsScheduler } from './services/virtualSportsScheduler';
+import { startLiveSportsScheduler } from './services/liveSports';
+import { startRiskScanScheduler } from './services/riskScoring';
+import { startBonusExpiryScheduler } from './services/bonusExpiry';
 
 async function main(): Promise<void> {
   await connectDb();
@@ -127,6 +131,7 @@ async function main(): Promise<void> {
   app.use('/api/admin',    adminRouter);
   app.use('/api/promo',    promoRouter);
   app.use('/api/activity', activityRouter);
+  app.use('/api/live',     liveSportsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -152,6 +157,9 @@ async function main(): Promise<void> {
   startCashbackScheduler();
   startDailySummaryScheduler();
   startVirtualSportsScheduler();
+  startLiveSportsScheduler();
+  startRiskScanScheduler();
+  startBonusExpiryScheduler();
 }
 
 main().catch(err => {

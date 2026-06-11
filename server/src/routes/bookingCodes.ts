@@ -79,12 +79,25 @@ router.get(
       code: doc.code,
       label: doc.label,
       isPromo: doc.isPromo,
+      campaign: doc.campaign,
       selections: doc.selections,
       suggestedStake: doc.suggestedStake,
       currency: doc.currency,
       expiresAt: doc.expiresAt,
       redemptionCount: doc.redemptionCount,
     });
+  },
+);
+
+/** Lightweight view ping — counts how many times a code link was opened. */
+router.post(
+  '/:code/view',
+  optionalAuth,
+  param('code').isString().isLength({ min: 4, max: 12 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    await BookingCode.updateOne({ code: req.params.code.toUpperCase() }, { $inc: { views: 1 } });
+    res.json({ ok: true });
   },
 );
 

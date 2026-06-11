@@ -1,7 +1,22 @@
 import { apiGet, apiPost } from './client';
 import type { AnyCurrency } from '../utils/currency';
 
-export type ApiBetStatus = 'pending' | 'won' | 'lost' | 'push' | 'cashout';
+export type ApiBetStatus = 'pending' | 'won' | 'lost' | 'push' | 'cashout' | 'void' | 'refunded';
+
+export interface CashoutQuote {
+  fairValue: number;
+  cashoutValue: number;
+  margin: number;
+}
+
+export interface CashoutBody {
+  /** Max return if the remaining bet wins = stake × combined odds. */
+  potentialReturn: number;
+  /** Live win probability (0..1) from the deterministic match engine. */
+  winProbability: number;
+  /** 1 = full cash-out (default); 0<f<1 = partial. */
+  fraction?: number;
+}
 
 export interface ApiBet {
   _id: string;
@@ -55,4 +70,12 @@ export const betsApi = {
     return apiGet<{ bets: ApiBet[] }>(`/bets/history${q ? `?${q}` : ''}`);
   },
   pending: () => apiGet<{ bets: ApiBet[] }>('/bets/pending'),
+
+  /** Live cash-out value (no state change). */
+  cashoutQuote: (id: string, body: Omit<CashoutBody, 'fraction'>) =>
+    apiPost<{ quote: CashoutQuote; partialEnabled: boolean }>(`/bets/${id}/cashout/quote`, body),
+
+  /** Execute a full or partial cash-out. */
+  cashout: (id: string, body: CashoutBody) =>
+    apiPost<{ bet: ApiBet; balance: number; paid: number; quote: CashoutQuote; partial: boolean }>(`/bets/${id}/cashout`, body),
 };

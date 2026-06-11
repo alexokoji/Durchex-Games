@@ -12,16 +12,27 @@ export interface AdminPromoter {
   } | string;
   status: 'pending' | 'approved' | 'banned';
   applicationMessage?: string;
+  commissionModel?: 'revenue_share' | 'cpa' | 'hybrid';
   commissionRate: number;
+  cpaAmountUsd?: number;
+  cpaCount?: number;
   totalReferred: number;
   activeReferrals: number;
   totalWageredUsd: number;
   totalEarnedUsd: number;
   paidOutUsd: number;
+  unpaidUsd?: number;
+  conversionPct?: number;
   createdAt: string;
   approvedAt?: string;
   bannedAt?: string;
   banReason?: string;
+}
+
+export interface PromoterCommissionConfig {
+  commissionModel?: 'revenue_share' | 'cpa' | 'hybrid';
+  commissionRate?: number;
+  cpaAmountUsd?: number;
 }
 
 export interface CreatePromoCodeBody {
@@ -110,6 +121,11 @@ export interface RiskConfigDto {
   slotsRtp: number;
   minesHouseEdge: number;
   rouletteHouseEdge: number;
+  // Cash-out controls
+  cashoutEnabled?: boolean;
+  partialCashoutEnabled?: boolean;
+  cashoutMargin?: number;
+  maxCashoutMult?: number;
 }
 
 export interface RiskSnapshot {
@@ -142,12 +158,16 @@ export const adminApi = {
   // Promoters
   promoters: (status?: 'pending' | 'approved' | 'banned') =>
     apiGet<{ promoters: AdminPromoter[] }>(`/admin/promoters${status ? `?status=${status}` : ''}`),
-  approvePromoter: (userId: string, body?: { commissionRate?: number }) =>
+  approvePromoter: (userId: string, body?: PromoterCommissionConfig) =>
     apiPost<{ promoter: AdminPromoter }>(`/admin/promoters/${userId}/approve`, body ?? {}),
   banPromoter: (userId: string, reason?: string) =>
     apiPost<{ promoter: AdminPromoter }>(`/admin/promoters/${userId}/ban`, { reason }),
-  updatePromoter: (userId: string, body: { commissionRate?: number }) =>
+  updatePromoter: (userId: string, body: PromoterCommissionConfig) =>
     apiPatch<{ promoter: AdminPromoter }>(`/admin/promoters/${userId}`, body),
+  promotersReport: () =>
+    apiGet<{ report: AdminPromoter[]; totals: { earnedUsd: number; unpaidUsd: number; referrals: number } }>('/admin/promoters/report'),
+  payoutPromoter: (userId: string, amountUsd: number) =>
+    apiPost<{ promoter: AdminPromoter; unpaidUsd: number }>(`/admin/promoters/${userId}/payout`, { amountUsd }),
 
   // Promo codes
   promoCodes: (filters?: { kind?: PromoKind; tier?: PromoTier; active?: boolean }) => {
@@ -229,7 +249,87 @@ export const adminApi = {
     apiPost<{ payout: HousePayout }>('/admin/payouts', body),
   updatePayout: (id: string, body: Partial<Pick<HousePayout, 'status' | 'flutterwaveReference' | 'notes'>>) =>
     apiPatch<{ payout: HousePayout }>(`/admin/payouts/${id}`, body),
+
+  // ── Risk management ──
+  riskFlags: (filters?: { status?: string; severity?: string; type?: string }) => {
+    const qs = new URLSearchParams();
+    if (filters?.status) qs.set('status', filters.status);
+    if (filters?.severity) qs.set('severity', filters.severity);
+    if (filters?.type) qs.set('type', filters.type);
+    const q = qs.toString();
+    return apiGet<{ flags: RiskFlagDto[] }>(`/admin/risk/flags${q ? `?${q}` : ''}`);
+  },
+  riskUsers: (level: 'low' | 'medium' | 'high' = 'medium') =>
+    apiGet<{ users: RiskUserDto[] }>(`/admin/risk/users?level=${level}`),
+  scanUser: (userId: string) =>
+    apiPost<{ userId: string; score: number; level: string; flags: { type: string; severity: string; detail: string }[] }>(`/admin/risk/scan/${userId}`, {}),
+  resolveFlag: (id: string, status: 'reviewed' | 'dismissed') =>
+    apiPost<{ flag: RiskFlagDto }>(`/admin/risk/flags/${id}/resolve`, { status }),
+
+  // ── Analytics ──
+  analytics: () => apiGet<AnalyticsDto>('/admin/analytics'),
+
+  // ── Promo bet slips (influencer / campaign) ──
+  promoSlips: () => apiGet<{ promos: PromoSlipDto[] }>('/admin/promo-slips'),
+  createPromoSlip: (body: {
+    selections: unknown[]; label: string; campaign?: string;
+    suggestedStake?: number; currency?: string; expiresInDays?: number;
+  }) => apiPost<{ promo: PromoSlipDto }>('/admin/promo-slips', body),
+  deletePromoSlip: (code: string) =>
+    apiDelete<{ ok: true }>(`/admin/promo-slips/${encodeURIComponent(code)}`),
 };
+
+export interface AnalyticsDto {
+  users: { active24h: number; newToday: number; depositorsToday: number };
+  betting: { betsToday: number; rtp24h: number; turnoverUsd: number; payoutUsd: number };
+  exposure: { gameId: string; liabilityUsd: number }[];
+  risk: { openBonusAbuse: number; highRiskUsers: number };
+  promoters: { earnedUsd: number; unpaidUsd: number; referred: number; conversionPct: number };
+  promoSlips: { views: number; loads: number; bets: number; revenue: number; conversionPct: number };
+}
+
+export interface PromoSlipDto {
+  _id: string;
+  code: string;
+  label?: string;
+  campaign?: string;
+  selections: unknown[];
+  suggestedStake: number;
+  currency: string;
+  isPromo: boolean;
+  expiresAt: string;
+  views: number;
+  redemptionCount: number;
+  betsPlaced: number;
+  revenueUsd: number;
+  createdAt: string;
+}
+
+export interface RiskFlagDto {
+  _id: string;
+  userId: { _id: string; email: string; username: string; riskScore?: number; riskLevel?: string; countryCode?: string; totalWagered?: number } | string;
+  type: 'multi_account' | 'self_referral' | 'bonus_abuse' | 'sharp_bettor' | 'velocity' | 'suspicious_betting';
+  severity: 'low' | 'medium' | 'high';
+  weight: number;
+  detail: string;
+  evidence?: Record<string, unknown>;
+  status: 'open' | 'reviewed' | 'dismissed';
+  createdAt: string;
+}
+
+export interface RiskUserDto {
+  _id: string;
+  email: string;
+  username: string;
+  riskScore: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  riskUpdatedAt?: string;
+  countryCode?: string;
+  totalWagered: number;
+  totalWon: number;
+  balance: number;
+  bonusBalance: number;
+}
 
 export interface LedgerRow {
   _id: string;             // YYYY-MM-DD

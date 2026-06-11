@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { requireAuth } from '../middleware/auth';
 import { Bet } from '../models/Bet';
 import { placeBetAtomic, settleBetAtomic } from '../services/wallet';
+import { cashoutBetAtomic } from '../services/cashout';
 import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
 
 const router = Router();
@@ -100,6 +101,76 @@ router.post(
       });
     }
     res.json({ bet: result.bet, balance: result.balance });
+  },
+);
+
+// ─── cash out a bet (full or partial) ─────────────────────────────────────
+//
+// The client supplies the live valuation inputs (potentialReturn + current
+// winProbability) from the SAME deterministic match engine it uses to settle.
+// The server prices the ticket, applies the house cash-out margin, clamps the
+// value, and credits the real (withdrawable) balance atomically.
+router.post(
+  '/:id/cashout',
+  requireAuth,
+  body('fraction').optional().isFloat({ gt: 0, max: 1 }),
+  body('potentialReturn').isFloat({ gt: 0 }),
+  body('winProbability').isFloat({ min: 0, max: 1 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const userId = req.userId!;
+    const fraction = req.body.fraction != null ? Number(req.body.fraction) : 1;
+    const result = await cashoutBetAtomic({
+      userId,
+      betId: req.params.id,
+      fraction,
+      potentialReturn: Number(req.body.potentialReturn),
+      winProbability:  Number(req.body.winProbability),
+    });
+    if ('error' in result) {
+      const code = result.error;
+      const status = code === 'bet_not_found' ? 404
+        : code === 'cashout_disabled' || code === 'partial_disabled' ? 403
+        : 400;
+      res.status(status).json({ error: code });
+      return;
+    }
+    notifyWalletUpdate(userId, 'bet_cashout');
+    notifyUser(userId, {
+      kind: 'bet:cashout',
+      title: result.partial ? `Partial cash-out · ${result.bet.gameName}` : `Cashed out · ${result.bet.gameName}`,
+      body: `+${result.paid.toFixed(2)} ${result.bet.currency}`,
+      data: { betId: result.bet._id.toString(), partial: result.partial, currency: result.bet.currency },
+    });
+    res.json({
+      bet: result.bet,
+      balance: result.balance,
+      paid: result.paid,
+      quote: result.quote,
+      partial: result.partial,
+    });
+  },
+);
+
+// Live cash-out quote (no state change) — lets the UI show an updating value.
+router.post(
+  '/:id/cashout/quote',
+  requireAuth,
+  body('potentialReturn').isFloat({ gt: 0 }),
+  body('winProbability').isFloat({ min: 0, max: 1 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const bet = await Bet.findOne({ _id: req.params.id, userId: req.userId, status: 'pending' }).lean();
+    if (!bet) { res.status(404).json({ error: 'bet_not_found' }); return; }
+    const { getRiskConfig } = await import('../models/RiskConfig');
+    const { quoteCashout }  = await import('../services/cashout');
+    const cfg = await getRiskConfig();
+    if (!cfg.cashoutEnabled) { res.status(403).json({ error: 'cashout_disabled' }); return; }
+    const quote = quoteCashout(
+      { potentialReturn: Number(req.body.potentialReturn), winProbability: Number(req.body.winProbability), stake: bet.stake },
+      cfg.cashoutMargin, cfg.maxCashoutMult,
+    );
+    res.json({ quote, partialEnabled: cfg.partialCashoutEnabled });
   },
 );
 

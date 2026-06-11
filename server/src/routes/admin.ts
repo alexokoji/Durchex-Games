@@ -20,6 +20,11 @@ import { sendMail } from '../services/email';
 import { Transaction } from '../models/Transaction';
 import { reconcileTransaction } from '../services/paymentReconcile';
 import { settleForLeagueWeek, computeAbsoluteWeekIndex } from '../services/virtualSportsScheduler';
+import { Bet } from '../models/Bet';
+import { reverseBetAtomic } from '../services/cashout';
+import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
+import { RiskFlag } from '../models/RiskFlag';
+import { scanUser } from '../services/riskScoring';
 
 const router = Router();
 
@@ -87,6 +92,11 @@ router.patch(
   body('slotsRtp').optional().isFloat({ min: 0.7, max: 1 }),
   body('minesHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
   body('rouletteHouseEdge').optional().isFloat({ min: 0, max: 0.2 }),
+  body('cashoutEnabled').optional().isBoolean(),
+  body('partialCashoutEnabled').optional().isBoolean(),
+  body('cashoutMargin').optional().isFloat({ min: 0, max: 0.5 }),
+  body('maxCashoutMult').optional().isFloat({ min: 1, max: 100000 }),
+  body('bonusExpiryDays').optional().isInt({ min: 1, max: 365 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const update = { ...req.body, updatedAt: new Date() };
@@ -158,9 +168,40 @@ router.get('/promo-slips', requireAdmin, async (_req: Request, res: Response) =>
   res.json({ promos });
 });
 
+/** Create an influencer / campaign promo bet slip. */
+router.post(
+  '/promo-slips',
+  requireAdmin,
+  body('selections').isArray({ min: 1, max: 30 }),
+  body('label').isString().isLength({ min: 1, max: 64 }),
+  body('campaign').optional().isString().isLength({ max: 64 }),
+  body('suggestedStake').optional().isFloat({ min: 0 }),
+  body('currency').optional().isString().isLength({ min: 3, max: 6 }),
+  body('expiresInDays').optional().isInt({ min: 1, max: 90 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const { selections, label, campaign, suggestedStake = 0, currency = 'USD', expiresInDays = 14 } = req.body;
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      const c = generateCode(6);
+      if (!(await BookingCode.exists({ code: c }))) { code = c; break; }
+    }
+    if (!code) { res.status(500).json({ error: 'code_minting_failed' }); return; }
+    const doc = await BookingCode.create({
+      code, ownerId: null, createdByAdmin: req.user!._id,
+      selections, suggestedStake, currency, label, campaign,
+      isPromo: true,
+      expiresAt: new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000),
+    });
+    await auditFromReq(req, 'promoslip.create', 'promo_code', doc.code, { label, campaign });
+    res.status(201).json({ promo: doc });
+  },
+);
+
 router.delete('/promo-slips/:code', requireAdmin, async (req: Request, res: Response) => {
   const code = req.params.code.toUpperCase();
   await BookingCode.deleteOne({ code, isPromo: true });
+  await auditFromReq(req, 'promoslip.delete', 'promo_code', code);
   res.json({ ok: true });
 });
 
@@ -182,6 +223,8 @@ router.post(
   requireAdmin,
   param('userId').isString().isLength({ min: 12 }),
   body('commissionRate').optional().isFloat({ min: 0, max: 1 }),
+  body('commissionModel').optional().isIn(['revenue_share', 'cpa', 'hybrid']),
+  body('cpaAmountUsd').optional().isFloat({ min: 0, max: 100000 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const { userId } = req.params;
@@ -192,6 +235,8 @@ router.post(
       banReason: null,
     };
     if (req.body.commissionRate != null) update.commissionRate = req.body.commissionRate;
+    if (req.body.commissionModel != null) update.commissionModel = req.body.commissionModel;
+    if (req.body.cpaAmountUsd != null) update.cpaAmountUsd = req.body.cpaAmountUsd;
     const promoter = await Promoter.findOneAndUpdate({ userId }, update, { new: true });
     if (!promoter) { res.status(404).json({ error: 'promoter_not_found' }); return; }
     await User.findByIdAndUpdate(userId, { promoterStatus: 'approved' });
@@ -226,16 +271,59 @@ router.patch(
   '/promoters/:userId',
   requireAdmin,
   param('userId').isString().isLength({ min: 12 }),
+  body('commissionModel').optional().isIn(['revenue_share', 'cpa', 'hybrid']),
   body('commissionRate').optional().isFloat({ min: 0, max: 1 }),
+  body('cpaAmountUsd').optional().isFloat({ min: 0, max: 100000 }),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const update: Record<string, unknown> = {};
+    if (req.body.commissionModel != null) update.commissionModel = req.body.commissionModel;
     if (req.body.commissionRate != null) update.commissionRate = req.body.commissionRate;
+    if (req.body.cpaAmountUsd != null) update.cpaAmountUsd = req.body.cpaAmountUsd;
     if (Object.keys(update).length === 0) { res.status(400).json({ error: 'nothing_to_update' }); return; }
     const promoter = await Promoter.findOneAndUpdate({ userId: req.params.userId }, update, { new: true });
     if (!promoter) { res.status(404).json({ error: 'promoter_not_found' }); return; }
     await auditFromReq(req, 'promoter.commission_update', 'user', req.params.userId, { update: req.body });
     res.json({ promoter });
+  },
+);
+
+/** Commission report — promoters ranked by unpaid balance. */
+router.get('/promoters/report', requireAdmin, async (_req: Request, res: Response) => {
+  const rows = await Promoter.find({ status: 'approved' })
+    .sort({ totalEarnedUsd: -1 }).limit(200)
+    .populate('userId', 'email username referralCode')
+    .lean();
+  const report = rows.map(p => ({
+    ...p,
+    unpaidUsd: Math.max(0, (p.totalEarnedUsd ?? 0) - (p.paidOutUsd ?? 0)),
+    conversionPct: p.totalReferred > 0 ? (p.activeReferrals / p.totalReferred) * 100 : 0,
+  }));
+  const totals = {
+    earnedUsd: report.reduce((s, p) => s + (p.totalEarnedUsd ?? 0), 0),
+    unpaidUsd: report.reduce((s, p) => s + p.unpaidUsd, 0),
+    referrals: report.reduce((s, p) => s + (p.totalReferred ?? 0), 0),
+  };
+  res.json({ report, totals });
+});
+
+/** Record a commission payout to a promoter (increments paidOutUsd). */
+router.post(
+  '/promoters/:userId/payout',
+  requireAdmin,
+  param('userId').isString().isLength({ min: 12 }),
+  body('amountUsd').isFloat({ gt: 0 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const amount = Number(req.body.amountUsd);
+    const promoter = await Promoter.findOne({ userId: req.params.userId });
+    if (!promoter) { res.status(404).json({ error: 'promoter_not_found' }); return; }
+    const unpaid = Math.max(0, promoter.totalEarnedUsd - promoter.paidOutUsd);
+    if (amount > unpaid + 1e-9) { res.status(400).json({ error: 'exceeds_unpaid_balance', unpaid }); return; }
+    promoter.paidOutUsd += amount;
+    await promoter.save();
+    await auditFromReq(req, 'promoter.commission_update', 'user', req.params.userId, { payout: amount });
+    res.json({ promoter, unpaidUsd: Math.max(0, promoter.totalEarnedUsd - promoter.paidOutUsd) });
   },
 );
 
@@ -697,6 +785,137 @@ router.patch(
       update: req.body,
     });
     res.json({ payout: doc });
+  },
+);
+
+// ─── Void / refund a bet ───────────────────────────────────────────────────
+// Returns the stake to the user (real + bonus pots, restores rollover) and
+// marks the bet void (cancelled/error) or refunded (event scrubbed).
+async function reverseBetHandler(status: 'void' | 'refunded', req: Request, res: Response): Promise<void> {
+  const bet = await Bet.findById(req.params.id).select('userId').lean();
+  if (!bet) { res.status(404).json({ error: 'bet_not_found' }); return; }
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 240) : undefined;
+  const result = await reverseBetAtomic(bet.userId, req.params.id, status, reason);
+  if ('error' in result) { res.status(400).json({ error: result.error }); return; }
+
+  const uid = bet.userId.toString();
+  notifyWalletUpdate(uid, `bet_${status}`);
+  notifyUser(uid, {
+    kind: 'bet:void',
+    title: status === 'void' ? 'Bet voided' : 'Bet refunded',
+    body: `${result.refunded.toFixed(2)} ${result.bet.currency} returned to your balance`,
+    data: { betId: result.bet._id.toString(), status },
+  });
+  await auditFromReq(req, status === 'void' ? 'bet.void' : 'bet.refund', 'bet', req.params.id, { reason, refunded: result.refunded });
+  res.json({ bet: result.bet, balance: result.balance, refunded: result.refunded });
+}
+
+router.post('/bets/:id/void',   requireAdmin, param('id').isMongoId(), body('reason').optional().isString(),
+  (req: Request, res: Response) => { void reverseBetHandler('void', req, res); });
+
+router.post('/bets/:id/refund', requireAdmin, param('id').isMongoId(), body('reason').optional().isString(),
+  (req: Request, res: Response) => { void reverseBetHandler('refunded', req, res); });
+
+// ─── Analytics dashboard ───────────────────────────────────────────────────
+router.get('/analytics', requireAdmin, async (_req: Request, res: Response) => {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+
+  const [
+    rtp, exposure, activeUsers, newToday, depositorsToday,
+    betsToday, openBonusFlags, highRiskUsers, promoterAgg, slipAgg,
+  ] = await Promise.all([
+    currentRtp24h(),
+    liabilityByMarket(12),
+    Bet.distinct('userId', { placedAt: { $gte: dayAgo } }).then(a => a.length),
+    User.countDocuments({ createdAt: { $gte: startOfDay } }),
+    Transaction.distinct('userId', { kind: 'deposit', status: 'completed', completedAt: { $gte: startOfDay } }).then(a => a.length),
+    Bet.countDocuments({ placedAt: { $gte: startOfDay } }),
+    RiskFlag.countDocuments({ type: 'bonus_abuse', status: 'open' }),
+    User.countDocuments({ riskLevel: 'high' }),
+    Promoter.aggregate([{ $match: { status: 'approved' } }, { $group: {
+      _id: null, earned: { $sum: '$totalEarnedUsd' }, paid: { $sum: '$paidOutUsd' },
+      referred: { $sum: '$totalReferred' }, active: { $sum: '$activeReferrals' },
+    } }]),
+    BookingCode.aggregate([{ $match: { isPromo: true } }, { $group: {
+      _id: null, views: { $sum: '$views' }, loads: { $sum: '$redemptionCount' },
+      bets: { $sum: '$betsPlaced' }, revenue: { $sum: '$revenueUsd' },
+    } }]),
+  ]);
+
+  const pa = promoterAgg[0] ?? { earned: 0, paid: 0, referred: 0, active: 0 };
+  const sa = slipAgg[0] ?? { views: 0, loads: 0, bets: 0, revenue: 0 };
+
+  res.json({
+    users:   { active24h: activeUsers, newToday, depositorsToday },
+    betting: { betsToday, rtp24h: rtp.rtp, turnoverUsd: rtp.turnoverUsd, payoutUsd: rtp.payoutUsd },
+    exposure, // [{ gameId, liabilityUsd }] — heatmap source
+    risk:    { openBonusAbuse: openBonusFlags, highRiskUsers },
+    promoters: { earnedUsd: pa.earned, unpaidUsd: Math.max(0, pa.earned - pa.paid), referred: pa.referred, conversionPct: pa.referred > 0 ? (pa.active / pa.referred) * 100 : 0 },
+    promoSlips: { ...sa, conversionPct: sa.loads > 0 ? (sa.bets / sa.loads) * 100 : 0 },
+  });
+});
+
+// List recent pending bets (for the admin to void/refund or inspect exposure).
+router.get('/bets/pending', requireAdmin, async (req: Request, res: Response) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const bets = await Bet.find({ status: 'pending' }).sort({ placedAt: -1 }).limit(limit).lean();
+  res.json({ bets });
+});
+
+// ─── Risk management ───────────────────────────────────────────────────────
+
+/** Risk flags (default: open), newest first, joined with the user. */
+router.get('/risk/flags', requireAdmin, async (req: Request, res: Response) => {
+  const where: Record<string, unknown> = {};
+  if (typeof req.query.status === 'string') where.status = req.query.status; else where.status = 'open';
+  if (typeof req.query.severity === 'string') where.severity = req.query.severity;
+  if (typeof req.query.type === 'string') where.type = req.query.type;
+  const flags = await RiskFlag.find(where)
+    .sort({ createdAt: -1 }).limit(300)
+    .populate('userId', 'email username riskScore riskLevel countryCode totalWagered')
+    .lean();
+  res.json({ flags });
+});
+
+/** Highest-risk users for the dashboard. */
+router.get('/risk/users', requireAdmin, async (req: Request, res: Response) => {
+  const minLevel = typeof req.query.level === 'string' ? req.query.level : 'medium';
+  const levels = minLevel === 'high' ? ['high'] : minLevel === 'low' ? ['low', 'medium', 'high'] : ['medium', 'high'];
+  const users = await User.find({ riskLevel: { $in: levels } })
+    .sort({ riskScore: -1 }).limit(100)
+    .select('email username riskScore riskLevel riskUpdatedAt countryCode totalWagered totalWon balance bonusBalance')
+    .lean();
+  res.json({ users });
+});
+
+/** Manually (re)scan a user. */
+router.post('/risk/scan/:userId', requireAdmin, param('userId').isString().isLength({ min: 12 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const result = await scanUser(req.params.userId);
+    if (!result) { res.status(404).json({ error: 'user_not_found' }); return; }
+    await auditFromReq(req, 'risk.scan', 'user', req.params.userId, { score: result.score, level: result.level });
+    res.json(result);
+  },
+);
+
+/** Resolve a flag (reviewed / dismissed). */
+router.post('/risk/flags/:id/resolve', requireAdmin,
+  param('id').isMongoId(),
+  body('status').isIn(['reviewed', 'dismissed']),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const flag = await RiskFlag.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: req.body.status, reviewedBy: req.user!._id, reviewedAt: new Date() } },
+      { new: true },
+    );
+    if (!flag) { res.status(404).json({ error: 'flag_not_found' }); return; }
+    // Recompute the user's score now that a flag changed state.
+    await scanUser(flag.userId);
+    await auditFromReq(req, 'risk.flag_resolve', 'risk_flag', req.params.id, { status: req.body.status });
+    res.json({ flag });
   },
 );
 

@@ -5,6 +5,8 @@ import { isFiat, currencyForCountry, convert, type FiatCurrency } from '../confi
 import { notifyWalletUpdate } from '../sockets/notifier';
 import { Bet } from '../models/Bet';
 import { Transaction } from '../models/Transaction';
+import { User } from '../models/User';
+import { Notification } from '../models/Notification';
 import crypto from 'node:crypto';
 
 const router = Router();
@@ -103,6 +105,45 @@ router.patch(
 router.get('/me/suggest-currency', requireAuth, async (req: Request, res: Response) => {
   const country = typeof req.query.country === 'string' ? req.query.country : req.user!.countryCode;
   res.json({ country, currency: currencyForCountry(country) });
+});
+
+// ─── Push tokens ───────────────────────────────────────────────────────────
+
+router.post('/me/push-token', requireAuth,
+  body('token').isString().isLength({ min: 8, max: 256 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    await User.findByIdAndUpdate(req.userId, { $addToSet: { pushTokens: req.body.token } });
+    res.json({ ok: true });
+  },
+);
+
+router.delete('/me/push-token', requireAuth,
+  body('token').isString(),
+  async (req: Request, res: Response) => {
+    const token = (req.body?.token ?? req.query?.token) as string | undefined;
+    if (!token) { res.status(400).json({ error: 'token_required' }); return; }
+    await User.findByIdAndUpdate(req.userId, { $pull: { pushTokens: token } });
+    res.json({ ok: true });
+  },
+);
+
+// ─── Unified notification feed ───────────────────────────────────────────────
+
+router.get('/me/notifications', requireAuth, async (req: Request, res: Response) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const [items, unread] = await Promise.all([
+    Notification.find({ userId: req.userId }).sort({ createdAt: -1 }).limit(limit).lean(),
+    Notification.countDocuments({ userId: req.userId, read: false }),
+  ]);
+  res.json({ notifications: items, unread });
+});
+
+router.post('/me/notifications/read', requireAuth, async (req: Request, res: Response) => {
+  const id = typeof req.body?.id === 'string' ? req.body.id : undefined;
+  if (id) await Notification.updateOne({ _id: id, userId: req.userId }, { $set: { read: true } });
+  else    await Notification.updateMany({ userId: req.userId, read: false }, { $set: { read: true } });
+  res.json({ ok: true });
 });
 
 export default router;

@@ -221,6 +221,11 @@ export async function settleBetAtomic(args: SettleBetArgs): Promise<
   // Update today's house ledger with this bet's contribution to P/L. Non-blocking.
   void recordBetSettlement({ stake: bet.stake, payout: bet.payout, currency: bet.currency });
 
+  // Accrue promoter commission for the referrer (if any). Non-blocking.
+  void import('./promoterCommission')
+    .then(m => m.accrueOnSettlement({ bettorId: args.userId, stake: bet.stake, payout: bet.payout, currency: bet.currency as never }))
+    .catch(() => { /* never block settlement on commission accrual */ });
+
   return { bet, balance: newBalance };
 }
 

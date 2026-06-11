@@ -12,6 +12,8 @@ export type NotificationKind =
   | 'withdraw:completed'
   | 'withdraw:failed'
   | 'bet:settled'
+  | 'bet:cashout'
+  | 'bet:void'
   | 'system';
 
 export interface UserNotification {
@@ -33,15 +35,36 @@ export function userRoom(userId: string): string {
   return `user:${userId}`;
 }
 
-/** Push a notification to every connected socket of a user. */
+/** Push a notification to every connected socket of a user, persist it to the
+ *  unified feed, and fan out an Expo push to the user's devices. Transient
+ *  `wallet:update` pings are emitted only (not persisted / pushed). */
 export function notifyUser(userId: string, notification: Omit<UserNotification, 'id' | 'createdAt'>): void {
-  if (!io) return;
   const payload: UserNotification = {
     id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     createdAt: new Date().toISOString(),
     ...notification,
   };
-  io.to(userRoom(userId)).emit('notification', payload);
+  if (io) io.to(userRoom(userId)).emit('notification', payload);
+
+  // Persist + push for meaningful notifications only.
+  if (notification.kind === 'wallet:update') return;
+  void persistAndPush(userId, notification).catch(() => { /* never throw from notify */ });
+}
+
+async function persistAndPush(
+  userId: string,
+  n: Omit<UserNotification, 'id' | 'createdAt'>,
+): Promise<void> {
+  const [{ Notification }, { User }, { sendExpoPush }] = await Promise.all([
+    import('../models/Notification'),
+    import('../models/User'),
+    import('../services/push'),
+  ]);
+  await Notification.create({ userId, kind: n.kind, title: n.title, body: n.body, data: n.data });
+  const user = await User.findById(userId).select('pushTokens');
+  if (user?.pushTokens?.length) {
+    await sendExpoPush(user.pushTokens, { title: n.title, body: n.body, data: { ...n.data, kind: n.kind } });
+  }
 }
 
 /** Shorthand for wallet:update — the frontend should re-pull /wallet on this. */

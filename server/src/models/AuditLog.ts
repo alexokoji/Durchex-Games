@@ -16,7 +16,14 @@ export type AuditAction =
   | 'risk.update'
   | 'cashback.run'
   | 'user.view'
-  | 'virtual_sports.settle';
+  | 'virtual_sports.settle'
+  | 'bet.cashout'
+  | 'bet.void'
+  | 'bet.refund'
+  | 'risk.scan'
+  | 'risk.flag_resolve'
+  | 'promoslip.create'
+  | 'promoslip.delete';
 
 export interface IAuditLog extends Document {
   _id: Types.ObjectId;
@@ -25,7 +32,7 @@ export interface IAuditLog extends Document {
   action: AuditAction;
   /** The thing being acted on (user id, promo code id, etc.). Always a string
    *  so we don't need a polymorphic ref. */
-  targetType: 'user' | 'promo_code' | 'risk_config' | 'system';
+  targetType: 'user' | 'promo_code' | 'risk_config' | 'system' | 'bet' | 'risk_flag';
   targetId?: string;
   /** Lightweight diff: { before: {...}, after: {...} } or just { payload: {...} }. */
   payload?: Record<string, unknown>;

@@ -20,6 +20,7 @@ import RewardsPage from './pages/RewardsPage';
 import SecurityPage from './pages/SecurityPage';
 import SettingsPage from './pages/SettingsPage';
 import PromoterDashboardPage from './pages/PromoterDashboardPage';
+import LiveSportsPage from './pages/LiveSportsPage';
 import AdminPage from './pages/admin/AdminPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
@@ -93,6 +94,7 @@ function App() {
                   <Route path="/roulette" element={<RouletteGame />} />
                   <Route path="/slots" element={<SlotsGame />} />
                   <Route path="/vip" element={<VIPPage />} />
+                  <Route path="/live-sports" element={<LiveSportsPage />} />
                   <Route path="/virtual"          element={<VirtualSportsbook />} />
                   <Route path="/virtual/:sport"   element={<VirtualSportsbook />} />
                   <Route path="/soccer"      element={<VirtualSportsbook initialSport="soccer" />} />

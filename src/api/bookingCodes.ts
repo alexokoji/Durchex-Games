@@ -16,6 +16,7 @@ export interface BookingCodeRedeemResult {
   code: string;
   label?: string;
   isPromo: boolean;
+  campaign?: string;
   selections: unknown[];
   suggestedStake: number;
   currency: string;
@@ -28,4 +29,7 @@ export const bookingCodesApi = {
     apiPost<BookingCodeMintResult>('/booking-codes', body),
   redeem: (code: string) =>
     apiGet<BookingCodeRedeemResult>(`/booking-codes/${encodeURIComponent(code.trim().toUpperCase())}`),
+  /** Fire-and-forget view ping (shareable link opened). */
+  view: (code: string) =>
+    apiPost<{ ok: true }>(`/booking-codes/${encodeURIComponent(code.trim().toUpperCase())}/view`, {}),
 };

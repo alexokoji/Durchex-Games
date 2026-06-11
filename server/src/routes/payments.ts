@@ -14,7 +14,7 @@ import {
 } from '../services/wallet';
 import { reconcileTransaction } from '../services/paymentReconcile';
 import { redeemPromo } from '../services/promo';
-import { isCrypto, isFiat, FIAT, type CryptoCurrency } from '../config/currencies';
+import { isCrypto, isFiat, FIAT, toUsd, type CryptoCurrency, type AnyCurrency } from '../config/currencies';
 import { notifyUser, notifyWalletUpdate } from '../sockets/notifier';
 
 const router = Router();
@@ -275,10 +275,22 @@ router.post(
     if (!validate(req, res)) return;
     if (!env.flutterwave.enabled) { res.status(503).json({ error: 'flutterwave_not_configured' }); return; }
     const user = req.user!;
+    // Re-evaluate risk at cash-out time (multi-account / bonus-abuse surface here).
+    void import('../services/riskScoring').then(m => m.scanUser(user._id)).catch(() => {});
     const {
       amount, method, accountBank, accountNumber, beneficiaryName,
       cryptoCurrency, cryptoNetwork, cryptoAddress,
     } = req.body;
+
+    // Enforce a promo's max-withdrawal cap (USD) on fiat cash-outs while a
+    // capped bonus is still in force. Crypto handled by its own min/max gates.
+    if (method !== 'crypto' && user.bonusMaxWithdrawUsd && user.bonusMaxWithdrawUsd > 0) {
+      const amtUsd = toUsd(Number(amount), user.currency as AnyCurrency);
+      if (amtUsd > user.bonusMaxWithdrawUsd + 1e-9) {
+        res.status(400).json({ error: 'exceeds_bonus_max_withdraw', maxWithdrawUsd: user.bonusMaxWithdrawUsd });
+        return;
+      }
+    }
 
     const reference = newReference('wd');
 

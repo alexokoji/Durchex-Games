@@ -25,6 +25,9 @@ import AdminReconcilePanel from './AdminReconcilePanel';
 import AdminPromotersPanel  from './AdminPromotersPanel';
 import AdminPromoCodesPanel from './AdminPromoCodesPanel';
 import AdminFlaggedPanel    from './AdminFlaggedPanel';
+import AdminRiskFlagsPanel  from './AdminRiskFlagsPanel';
+import AdminPromoSlipsPanel  from './AdminPromoSlipsPanel';
+import AdminAnalyticsPanel   from './AdminAnalyticsPanel';
 import AdminAuditPanel      from './AdminAuditPanel';
 import AdminJobsPanel       from './AdminJobsPanel';
 import AdminRiskPanel       from './AdminRiskPanel';
@@ -36,7 +39,7 @@ import { AdminCurrencyProvider, useAdminCurrency, type AdminDisplayCurrency } fr
 type TabId =
   | 'overview' | 'payouts' | 'ledger' | 'reconcile'
   | 'users' | 'promoters' | 'codes' | 'flagged'
-  | 'risk' | 'jobs' | 'audit' | 'virtualsports' | 'casinopredictions';
+  | 'riskflags' | 'risk' | 'jobs' | 'audit' | 'virtualsports' | 'casinopredictions' | 'promoslips' | 'analytics';
 
 interface NavItem {
   id: TabId;
@@ -48,13 +51,16 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { id: 'overview',  label: 'Overview',     description: 'Live KPIs and house balance',          icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
+  { id: 'analytics', label: 'Analytics',    description: 'Exposure, conversion & abuse signals', icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
   { id: 'payouts',   label: 'Payouts',      description: 'Approve withdrawals',                 icon: <PaymentsIcon fontSize="small" />,        group: 'Operate' },
   { id: 'ledger',    label: 'Ledger',       description: 'House money trail by day',             icon: <ReceiptLongIcon fontSize="small" />,     group: 'Operate' },
   { id: 'reconcile', label: 'Reconcile',    description: 'Match wallets vs gameplay totals',    icon: <CompareArrowsIcon fontSize="small" />,   group: 'Operate' },
   { id: 'users',         label: 'Users',      description: 'Search, tier, block, refund',      icon: <PeopleIcon fontSize="small" />,            group: 'People' },
   { id: 'promoters',     label: 'Promoters',  description: 'Affiliates & their performance',    icon: <VolunteerActivismIcon fontSize="small" />, group: 'People' },
   { id: 'codes',         label: 'Promo codes', description: 'Bonuses, referral & promo codes', icon: <LocalOfferIcon fontSize="small" />,        group: 'People' },
+  { id: 'promoslips',    label: 'Promo slips', description: 'Influencer bet slips & tracking',  icon: <ReceiptLongIcon fontSize="small" />,       group: 'People' },
   { id: 'flagged',  label: 'Flagged',  description: 'Suspicious accounts & bets',           icon: <FlagIcon fontSize="small" />,            group: 'Safety' },
+  { id: 'riskflags', label: 'Risk flags', description: 'Risk scores, multi-account & abuse alerts', icon: <ShieldIcon fontSize="small" />,    group: 'Safety' },
   { id: 'risk',     label: 'Risk',     description: 'Per-game win/loss tuning (advanced)',  icon: <ShieldIcon fontSize="small" />,          group: 'Safety' },
   { id: 'virtualsports',      label: 'Virtual Sports',  description: 'Accurate predictions for all upcoming kickoffs',   icon: <SportsSoccerIcon fontSize="small" />, group: 'Games' },
   { id: 'casinopredictions', label: 'Casino Predictions', description: 'Crash, Dice, Mines, Roulette, Plinko, Slots tips', icon: <CasinoIcon fontSize="small" />,        group: 'Games' },
@@ -223,6 +229,9 @@ function AdminPageContent() {
             {tab === 'promoters'     && <AdminPromotersPanel />}
             {tab === 'codes'         && <AdminPromoCodesPanel />}
             {tab === 'flagged'       && <AdminFlaggedPanel    />}
+            {tab === 'riskflags'     && <AdminRiskFlagsPanel  />}
+            {tab === 'promoslips'    && <AdminPromoSlipsPanel />}
+            {tab === 'analytics'     && <AdminAnalyticsPanel  />}
             {tab === 'risk'          && <AdminRiskPanel       />}
             {tab === 'virtualsports'      && <AdminVirtualSportsPanel />}
             {tab === 'casinopredictions' && <AdminCasinoPredictionsPanel />}

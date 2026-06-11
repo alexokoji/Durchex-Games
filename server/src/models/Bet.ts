@@ -1,7 +1,7 @@
 import { Schema, model, type Document, type Types } from 'mongoose';
 import { type AnyCurrency } from '../config/currencies';
 
-export type BetStatus = 'pending' | 'won' | 'lost' | 'push' | 'cashout';
+export type BetStatus = 'pending' | 'won' | 'lost' | 'push' | 'cashout' | 'void' | 'refunded';
 
 export interface IBet extends Document {
   _id: Types.ObjectId;
@@ -25,6 +25,18 @@ export interface IBet extends Document {
    *  reconstruct the per-leg win/loss display for settled tickets. */
   selectionResults?: unknown;
 
+  // ── Cashout ────────────────────────────────────────────────────────────────
+  /** Cumulative amount already paid out via (partial) cash-out, in `currency`. */
+  cashoutAmount?: number;
+  /** Fraction of the original stake that has been cashed out so far (0..1). */
+  cashoutFraction?: number;
+  /** Original stake before any partial cash-out reduced it. */
+  originalStake?: number;
+  cashedOutAt?: Date;
+
+  /** Reason recorded when an admin voids/refunds the bet. */
+  reverseReason?: string;
+
   placedAt: Date;
   settledAt?: Date;
 }
@@ -40,10 +52,15 @@ const betSchema = new Schema<IBet>({
   mode:      { type: String },
   systemK:   { type: Number },
   currency:  { type: String, required: true },
-  status:    { type: String, enum: ['pending','won','lost','push','cashout'], default: 'pending', index: true },
+  status:    { type: String, enum: ['pending','won','lost','push','cashout','void','refunded'], default: 'pending', index: true },
   details:          { type: String },
   selections:       { type: Schema.Types.Mixed },
   selectionResults: { type: Schema.Types.Mixed },
+  cashoutAmount:    { type: Number, default: 0, min: 0 },
+  cashoutFraction:  { type: Number, default: 0, min: 0, max: 1 },
+  originalStake:    { type: Number, min: 0 },
+  cashedOutAt:      { type: Date },
+  reverseReason:    { type: String },
   placedAt:         { type: Date, default: Date.now, index: true },
   settledAt: { type: Date },
 }, { timestamps: false });

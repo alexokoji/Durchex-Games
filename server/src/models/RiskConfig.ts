@@ -47,6 +47,15 @@ export interface IRiskConfig extends Document<string> {
   /** Roulette — house edge in decimal. */
   rouletteHouseEdge: number;  // 0.027 default (European single-zero)
 
+  // ── Cashout settings ──────────────────────────────────────────────────────
+  cashoutEnabled: boolean;        // master switch for cash-out
+  partialCashoutEnabled: boolean; // allow partial cash-outs
+  cashoutMargin: number;          // house margin retained on cash-out (0.06 = 6%)
+  maxCashoutMult: number;         // sanity cap: cash-out value ≤ stake × this
+
+  // ── Bonus settings ────────────────────────────────────────────────────────
+  bonusExpiryDays: number;        // bonus funds expire after N days (default 30)
+
   updatedAt: Date;
 }
 
@@ -69,6 +78,11 @@ const riskSchema = new Schema<IRiskConfig>({
   slotsRtp:            { type: Number, default: 0.95 },
   minesHouseEdge:      { type: Number, default: 0.01 },
   rouletteHouseEdge:   { type: Number, default: 0.027 },
+  cashoutEnabled:        { type: Boolean, default: true },
+  partialCashoutEnabled: { type: Boolean, default: true },
+  cashoutMargin:         { type: Number, default: 0.06, min: 0, max: 0.5 },
+  maxCashoutMult:        { type: Number, default: 1000, min: 1 },
+  bonusExpiryDays:       { type: Number, default: 30, min: 1, max: 365 },
   updatedAt:           { type: Date, default: Date.now },
 }, { timestamps: false, _id: false });
 

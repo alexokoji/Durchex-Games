@@ -12,8 +12,17 @@ export interface IPromoter extends Document {
   status: 'pending' | 'approved' | 'banned';
   /** Application notes / pitch. */
   applicationMessage?: string;
+  /** Commission structure:
+   *   • revenue_share → `commissionRate` of net gaming revenue from referrals
+   *   • cpa           → one-off `cpaAmountUsd` bounty per qualifying referral
+   *   • hybrid        → both                                                    */
+  commissionModel: 'revenue_share' | 'cpa' | 'hybrid';
   /** Commission rate as a fraction (e.g. 0.20 = 20% of platform revenue from referrals). */
   commissionRate: number;
+  /** One-off bounty (USD) paid per referral that becomes active (CPA/hybrid). */
+  cpaAmountUsd: number;
+  /** CPA bounties paid so far (for reporting). */
+  cpaCount: number;
   /** Total referrals to-date (any signup status). */
   totalReferred: number;
   /** Referrals that have made at least one settled bet. */
@@ -34,7 +43,10 @@ const promoterSchema = new Schema<IPromoter>({
   userId:  { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
   status:  { type: String, enum: ['pending', 'approved', 'banned'], default: 'pending', index: true },
   applicationMessage: { type: String, maxlength: 1000 },
+  commissionModel:    { type: String, enum: ['revenue_share', 'cpa', 'hybrid'], default: 'revenue_share' },
   commissionRate:     { type: Number, default: 0.20, min: 0, max: 1 },
+  cpaAmountUsd:       { type: Number, default: 0, min: 0 },
+  cpaCount:           { type: Number, default: 0, min: 0 },
   totalReferred:      { type: Number, default: 0, min: 0 },
   activeReferrals:    { type: Number, default: 0, min: 0 },
   totalWageredUsd:    { type: Number, default: 0, min: 0 },

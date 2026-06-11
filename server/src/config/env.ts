@@ -85,6 +85,18 @@ export const env = {
     enabled: !!(process.env.FLUTTERWAVE_SECRET_KEY && process.env.FLUTTERWAVE_PUBLIC_KEY),
   },
 
+  // Live Sports Betting feed. When no ODDS_API_KEY is set the server falls
+  // back to a deterministic SANDBOX feed so the section is fully functional
+  // in dev/demo without a paid provider.
+  liveSports: {
+    oddsApiKey:  process.env.ODDS_API_KEY ?? '',
+    oddsApiBase: process.env.ODDS_API_BASE ?? 'https://api.the-odds-api.com/v4',
+    regions:     process.env.ODDS_API_REGIONS ?? 'uk,eu',
+    pollSeconds: num('ODDS_POLL_SECONDS', 120),
+    /** true → use the real provider; false → sandbox feed. */
+    enabled:     !!process.env.ODDS_API_KEY,
+  },
+
   economy: {
     welcomeBonusBtc: num('WELCOME_BONUS_BTC', 0),
     depositMinBtc:   num('DEPOSIT_MIN_BTC', 0.0001),
