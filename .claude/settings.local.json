@@ -31,7 +31,9 @@
       "Bash(rm -f hooks/useGame.ts)",
       "Bash(rm -f utils/rng.ts)",
       "Bash(sed 's/styles\\\\.//')",
-      "Bash(sed -n '/StyleSheet.create\\({/,/^}\\);/p' WalletScreen.tsx)"
+      "Bash(sed -n '/StyleSheet.create\\({/,/^}\\);/p' WalletScreen.tsx)",
+      "Bash(echo \"=== /api/live/sports \\(is the Live Sports backend deployed?\\) ===\")",
+      "Bash(curl -s -w '\\\\n[HTTP %{http_code}]\\\\n' --max-time 60 https://durchex-games.onrender.com/api/live/sports)"
     ]
   }
 }

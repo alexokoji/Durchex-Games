@@ -194,6 +194,19 @@ export default function LiveSportsPage() {
         Real fixtures, live odds, in-play cash-out. Bet singles or build an accumulator.
       </Typography>
 
+      {events.some(e => e.provider === 'sandbox') && (
+        <Box sx={{
+          mb: 2, px: 1.5, py: 1, borderRadius: 1.5,
+          background: alpha(neonGold, 0.1), border: `1px solid ${alpha(neonGold, 0.4)}`,
+          display: 'flex', alignItems: 'center', gap: 1,
+        }}>
+          <BoltIcon sx={{ fontSize: 16, color: neonGold }} />
+          <Typography sx={{ fontSize: '0.78rem', color: neonGold, fontWeight: 700 }}>
+            Demo odds — connect a live feed (set ODDS_API_KEY) to show real events.
+          </Typography>
+        </Box>
+      )}
+
       {/* Sport tabs */}
       {sports.length > 0 && (
         <Tabs value={active} onChange={(_, v) => setActive(v)} variant="scrollable" scrollButtons="auto"

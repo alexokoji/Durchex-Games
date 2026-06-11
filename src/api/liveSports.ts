@@ -7,6 +7,7 @@ export interface LiveMarket  { key: string; suspended: boolean; outcomes: LiveOu
 
 export interface LiveEvent {
   _id: string;
+  provider: string;
   providerId: string;
   sportKey: string;
   sportTitle: string;
