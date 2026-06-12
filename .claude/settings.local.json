@@ -40,7 +40,10 @@
       "Bash(grep -rn \"\\\\\"types\\\\\"\" tsconfig*.json)",
       "Bash(node -e \"const t=require\\('./tsconfig.json'\\);console.log\\(JSON.stringify\\(t.compilerOptions&&{outDir:t.compilerOptions.outDir,rootDir:t.compilerOptions.rootDir,types:t.compilerOptions.types},null,2\\)\\);console.log\\('include:',JSON.stringify\\(t.include\\)\\);\")",
       "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\('typescript:',p.devDependencies&&p.devDependencies.typescript,'| @types/node:',p.devDependencies&&p.devDependencies['@types/node'],'| @types/express:',p.devDependencies&&p.devDependencies['@types/express']\\);\")",
-      "Bash(node -e \"console.log\\(require\\('typescript'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('typescript'\\).version\\)\")",
+      "Bash(node -e \"try{console.log\\(require\\('@types/express-serve-static-core/package.json'\\).version\\)}catch\\(e\\){console.log\\('NOT INSTALLED'\\)}\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(p.devDependencies['@types/express']\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(p.devDependencies['@types/express-serve-static-core']||'no'\\)\")"
     ]
   }
 }
