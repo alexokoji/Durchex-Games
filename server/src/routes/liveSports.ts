@@ -21,15 +21,23 @@ function validate(req: Request, res: Response): boolean {
 
 // ─── Catalogue ────────────────────────────────────────────────────────────
 
-/** Distinct sports that currently have events. */
+/** Competitions that currently have events, with their sport group. */
 router.get('/sports', async (_req: Request, res: Response) => {
   const rows = await SportEvent.aggregate([
     { $match: { status: { $in: ['upcoming', 'live'] } } },
-    { $group: { _id: { sportKey: '$sportKey', sportTitle: '$sportTitle' }, count: { $sum: 1 } } },
-    { $sort: { '_id.sportTitle': 1 } },
+    { $group: {
+      _id: { sportKey: '$sportKey', sportTitle: '$sportTitle', sportGroup: '$sportGroup' },
+      count: { $sum: 1 },
+    } },
+    { $sort: { '_id.sportGroup': 1, '_id.sportTitle': 1 } },
   ]);
   res.json({
-    sports: rows.map(r => ({ sportKey: r._id.sportKey, sportTitle: r._id.sportTitle, count: r.count })),
+    sports: rows.map(r => ({
+      sportKey: r._id.sportKey,
+      sportTitle: r._id.sportTitle,
+      sportGroup: r._id.sportGroup ?? 'Other',
+      count: r.count,
+    })),
   });
 });
 

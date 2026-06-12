@@ -100,40 +100,41 @@ export const env = {
         .split(',').map(r => r.trim().toLowerCase()).filter(r => VALID.has(r));
       return cleaned.length ? cleaned.join(',') : 'us,uk,eu';
     })(),
-    // SOCCER ONLY — curated competitions to ingest. Each is a separate
-    // Odds-API key, so the app naturally groups events by league/competition.
-    // The provider further filters to whichever are currently in-season.
+    // Curated competitions to ingest, across multiple sports. Each is a
+    // separate Odds-API key; the app groups them as SPORT → COMPETITION. The
+    // provider further filters to whichever are currently in-season.
     // Override with ODDS_SPORTS as a comma-separated list of Odds-API keys.
+    // NOTE: more competitions = more API credits per poll.
     sports: (process.env.ODDS_SPORTS ?? [
-      // Top European leagues
-      'soccer_epl',
-      'soccer_spain_la_liga',
-      'soccer_italy_serie_a',
-      'soccer_germany_bundesliga',
-      'soccer_france_ligue_one',
-      'soccer_netherlands_eredivisie',
-      'soccer_portugal_primeira_liga',
-      'soccer_turkey_super_league',
-      'soccer_belgium_first_div',
-      // England lower tiers + cups
-      'soccer_efl_champ',
-      'soccer_england_league1',
-      'soccer_england_league2',
-      'soccer_england_efl_cup',
-      'soccer_fa_cup',
-      // Continental + international
-      'soccer_uefa_champs_league',
-      'soccer_uefa_europa_league',
-      'soccer_uefa_europa_conference_league',
-      'soccer_uefa_nations_league',
-      'soccer_uefa_european_championship',
-      'soccer_fifa_world_cup',
+      // ⚽ Soccer
+      'soccer_epl', 'soccer_spain_la_liga', 'soccer_italy_serie_a',
+      'soccer_germany_bundesliga', 'soccer_france_ligue_one',
+      'soccer_netherlands_eredivisie', 'soccer_portugal_primeira_liga',
+      'soccer_turkey_super_league', 'soccer_efl_champ', 'soccer_england_efl_cup',
+      'soccer_uefa_champs_league', 'soccer_uefa_europa_league',
+      'soccer_uefa_european_championship', 'soccer_fifa_world_cup',
+      'soccer_usa_mls', 'soccer_brazil_campeonato', 'soccer_mexico_ligamx',
       'soccer_conmebol_copa_libertadores',
-      // Americas
-      'soccer_usa_mls',
-      'soccer_brazil_campeonato',
-      'soccer_mexico_ligamx',
-      'soccer_argentina_primera_division',
+      // 🏀 Basketball
+      'basketball_nba', 'basketball_euroleague', 'basketball_ncaab',
+      'basketball_wnba',
+      // 🏈 American Football
+      'americanfootball_nfl', 'americanfootball_ncaaf',
+      // 🏒 Ice Hockey
+      'icehockey_nhl',
+      // ⚾ Baseball
+      'baseball_mlb',
+      // 🎾 Tennis (ATP/WTA majors — Odds-API exposes the active tour event)
+      'tennis_atp_us_open', 'tennis_wta_us_open',
+      'tennis_atp_wimbledon', 'tennis_wta_wimbledon',
+      'tennis_atp_french_open', 'tennis_wta_french_open',
+      'tennis_atp_aus_open_singles', 'tennis_wta_aus_open_singles',
+      // 🥊 MMA / Boxing
+      'mma_mixed_martial_arts', 'boxing_boxing',
+      // 🏉 Rugby League
+      'rugbyleague_nrl',
+      // 🏏 Cricket
+      'cricket_international_t20', 'cricket_test_match',
     ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
     pollSeconds: num('ODDS_POLL_SECONDS', 120),
     // Markets to request. The three core markets (h2h, totals, spreads) work on

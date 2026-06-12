@@ -13,8 +13,9 @@ export interface ISportEvent extends Document {
   _id: Types.ObjectId;
   provider: string;
   providerId: string;          // stable feed id
-  sportKey: string;
-  sportTitle: string;
+  sportKey: string;            // competition key, e.g. 'soccer_epl'
+  sportTitle: string;          // competition name, e.g. 'EPL'
+  sportGroup: string;          // sport, e.g. 'Soccer' | 'Basketball'
   homeTeam: string;
   awayTeam: string;
   commenceTime: Date;
@@ -44,6 +45,7 @@ const eventSchema = new Schema<ISportEvent>({
   providerId:   { type: String, required: true, unique: true, index: true },
   sportKey:     { type: String, required: true, index: true },
   sportTitle:   { type: String, required: true },
+  sportGroup:   { type: String, required: true, default: 'Other', index: true },
   homeTeam:     { type: String, required: true },
   awayTeam:     { type: String, required: true },
   commenceTime: { type: Date, required: true, index: true },

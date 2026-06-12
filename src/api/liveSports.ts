@@ -19,7 +19,7 @@ export interface LiveEvent {
   markets: LiveMarket[];
 }
 
-export interface LiveSportSummary { sportKey: string; sportTitle: string; count: number }
+export interface LiveSportSummary { sportKey: string; sportTitle: string; sportGroup: string; count: number }
 
 export type LiveMarketKey = 'h2h' | 'totals' | 'spreads' | 'double_chance' | 'btts' | 'draw_no_bet';
 

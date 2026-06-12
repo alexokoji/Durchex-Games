@@ -60,6 +60,7 @@ export async function ingestEvents(): Promise<{ sports: number; events: number }
             provider: feed.name,
             sportKey: ev.sportKey,
             sportTitle: ev.sportTitle,
+            sportGroup: sport.group,
             homeTeam: ev.homeTeam,
             awayTeam: ev.awayTeam,
             commenceTime: commence,

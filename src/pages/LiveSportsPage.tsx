@@ -36,8 +36,8 @@ interface SlipItem {
 
 // Market display metadata — title + how to render. Order = display order.
 const MARKET_META: { key: LiveMarketKey; title: string; primary?: boolean }[] = [
-  { key: 'h2h',           title: 'Match Result (1X2)', primary: true },
-  { key: 'totals',        title: 'Total Goals (Over/Under)', primary: true },
+  { key: 'h2h',           title: 'Match Result', primary: true },
+  { key: 'totals',        title: 'Total (Over/Under)', primary: true },
   { key: 'double_chance', title: 'Double Chance' },
   { key: 'draw_no_bet',   title: 'Draw No Bet' },
   { key: 'btts',          title: 'Both Teams To Score' },
@@ -70,8 +70,9 @@ export default function LiveSportsPage() {
   const wallet = useWallet();
   const toasts = useToasts();
 
-  const [sports, setSports]   = useState<LiveSportSummary[]>([]);
-  const [active, setActive]   = useState<string>('');
+  const [sports, setSports]         = useState<LiveSportSummary[]>([]);
+  const [activeGroup, setActiveGroup] = useState<string>('');  // sport, e.g. 'Soccer'
+  const [activeComp, setActiveComp]   = useState<string>('');  // competition sportKey
   const [events, setEvents]   = useState<LiveEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [slip, setSlip]       = useState<SlipItem[]>([]);
@@ -140,11 +141,33 @@ export default function LiveSportsPage() {
   useEffect(() => {
     liveSportsApi.sports().then(r => {
       setSports(r.sports);
-      setActive(prev => prev || r.sports[0]?.sportKey || '');
+      const first = r.sports[0];
+      if (first) {
+        setActiveGroup(g => g || first.sportGroup);
+        setActiveComp(c => c || first.sportKey);
+      }
     }).catch(() => {});
   }, []);
 
-  // ── Load + poll events for the active sport ──
+  // Sport groups (top tabs) and the competitions within the selected sport.
+  const groups = useMemo(() => {
+    const seen = new Set<string>(); const out: string[] = [];
+    for (const s of sports) if (!seen.has(s.sportGroup)) { seen.add(s.sportGroup); out.push(s.sportGroup); }
+    return out;
+  }, [sports]);
+  const comps = useMemo(() => sports.filter(s => s.sportGroup === activeGroup), [sports, activeGroup]);
+
+  function pickGroup(g: string) {
+    setActiveGroup(g);
+    setActiveComp(sports.find(s => s.sportGroup === g)?.sportKey ?? '');
+  }
+
+  // Keep the competition valid for the active sport.
+  useEffect(() => {
+    if (comps.length && !comps.some(c => c.sportKey === activeComp)) setActiveComp(comps[0].sportKey);
+  }, [comps, activeComp]);
+
+  // ── Load + poll events for the active competition ──
   const loadEvents = useCallback(async (sportKey: string) => {
     if (!sportKey) return;
     try { const r = await liveSportsApi.events(sportKey); setEvents(r.events); }
@@ -154,10 +177,10 @@ export default function LiveSportsPage() {
 
   useEffect(() => {
     setLoading(true);
-    void loadEvents(active);
-    const t = setInterval(() => void loadEvents(active), 25_000);
+    void loadEvents(activeComp);
+    const t = setInterval(() => void loadEvents(activeComp), 25_000);
     return () => clearInterval(t);
-  }, [active, loadEvents]);
+  }, [activeComp, loadEvents]);
 
   // ── Load open bets ──
   const loadMyBets = useCallback(async () => {
@@ -206,23 +229,33 @@ export default function LiveSportsPage() {
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
         <SportsSoccerIcon sx={{ color: neonGreen, fontSize: 30 }} />
-        <Typography variant="h4" sx={{ fontWeight: 900 }}>Soccer</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 900 }}>Live Sports</Typography>
         <Chip icon={<BoltIcon sx={{ fontSize: 14 }} />} label="LIVE" size="small"
           sx={{ background: alpha('#ff4757', 0.15), color: '#ff4757', border: `1px solid ${alpha('#ff4757', 0.4)}`, fontWeight: 800 }} />
       </Box>
       <Typography sx={{ color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>
-        Pick a competition below — real fixtures, live odds, in-play cash-out. Bet singles or build an accumulator.
+        Pick a sport, then a competition — real fixtures, live odds, in-play cash-out. Singles or accumulators.
       </Typography>
 
-      {/* Competition (league) tabs */}
-      {sports.length > 0 && (
+      {/* Sport tabs (top level) */}
+      {groups.length > 0 && (
         <>
-          <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary', letterSpacing: '0.1em', mb: 0.5 }}>
+          <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary', letterSpacing: '0.1em', mb: 0.25 }}>
+            SPORT
+          </Typography>
+          <Tabs value={activeGroup} onChange={(_, v) => pickGroup(v)} variant="scrollable" scrollButtons="auto"
+            sx={{ mb: 1, minHeight: 38, '& .MuiTab-root': { minHeight: 38, fontWeight: 800 } }}>
+            {groups.map(g => <Tab key={g} value={g} label={g} />)}
+          </Tabs>
+
+          {/* Competition tabs (within the selected sport) */}
+          <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary', letterSpacing: '0.1em', mb: 0.25 }}>
             COMPETITION
           </Typography>
-          <Tabs value={active} onChange={(_, v) => setActive(v)} variant="scrollable" scrollButtons="auto"
-            sx={{ mb: 2, '& .MuiTab-root': { minHeight: 40, fontWeight: 700 } }}>
-            {sports.map(s => <Tab key={s.sportKey} value={s.sportKey} label={`${s.sportTitle} (${s.count})`} />)}
+          <Tabs value={comps.some(c => c.sportKey === activeComp) ? activeComp : false}
+            onChange={(_, v) => setActiveComp(v)} variant="scrollable" scrollButtons="auto"
+            sx={{ mb: 2, minHeight: 36, '& .MuiTab-root': { minHeight: 36, fontWeight: 700, fontSize: '0.78rem' } }}>
+            {comps.map(s => <Tab key={s.sportKey} value={s.sportKey} label={`${s.sportTitle} (${s.count})`} />)}
           </Tabs>
         </>
       )}
