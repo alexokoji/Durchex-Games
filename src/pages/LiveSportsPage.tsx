@@ -186,12 +186,12 @@ export default function LiveSportsPage() {
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
         <SportsSoccerIcon sx={{ color: neonGreen, fontSize: 30 }} />
-        <Typography variant="h4" sx={{ fontWeight: 900 }}>Live Sports</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 900 }}>Soccer</Typography>
         <Chip icon={<BoltIcon sx={{ fontSize: 14 }} />} label="LIVE" size="small"
           sx={{ background: alpha('#ff4757', 0.15), color: '#ff4757', border: `1px solid ${alpha('#ff4757', 0.4)}`, fontWeight: 800 }} />
       </Box>
       <Typography sx={{ color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>
-        Real fixtures, live odds, in-play cash-out. Bet singles or build an accumulator.
+        Pick a competition below — real fixtures, live odds, in-play cash-out. Bet singles or build an accumulator.
       </Typography>
 
       {events.some(e => e.provider === 'sandbox') && (
@@ -207,12 +207,17 @@ export default function LiveSportsPage() {
         </Box>
       )}
 
-      {/* Sport tabs */}
+      {/* Competition (league) tabs */}
       {sports.length > 0 && (
-        <Tabs value={active} onChange={(_, v) => setActive(v)} variant="scrollable" scrollButtons="auto"
-          sx={{ mb: 2, '& .MuiTab-root': { minHeight: 40, fontWeight: 700 } }}>
-          {sports.map(s => <Tab key={s.sportKey} value={s.sportKey} label={`${s.sportTitle} (${s.count})`} />)}
-        </Tabs>
+        <>
+          <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary', letterSpacing: '0.1em', mb: 0.5 }}>
+            COMPETITION
+          </Typography>
+          <Tabs value={active} onChange={(_, v) => setActive(v)} variant="scrollable" scrollButtons="auto"
+            sx={{ mb: 2, '& .MuiTab-root': { minHeight: 40, fontWeight: 700 } }}>
+            {sports.map(s => <Tab key={s.sportKey} value={s.sportKey} label={`${s.sportTitle} (${s.count})`} />)}
+          </Tabs>
+        </>
       )}
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 320px' }, gap: 2, alignItems: 'start' }}>

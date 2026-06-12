@@ -22,9 +22,24 @@ export interface LiveSelection {
 
 // ─── Ingestion ───────────────────────────────────────────────────────────────
 
+/** Minimum Odds-API credits to keep in reserve — stop polling below this so a
+ *  key can't be drained to zero (manual refresh still works). */
+const ODDS_CREDIT_FLOOR = 20;
+
 /** Pull upcoming events + odds for every active sport and upsert them. */
 export async function ingestEvents(): Promise<{ sports: number; events: number }> {
   const feed = getSportsFeed();
+
+  // Quota guard for the real provider — bail before exhausting the key.
+  if (feed.live) {
+    const { oddsRequestsRemaining } = await import('../providers/theOddsApi');
+    const remaining = oddsRequestsRemaining();
+    if (remaining != null && remaining < ODDS_CREDIT_FLOOR) {
+      console.warn(`[liveSports] paused — only ${remaining} Odds-API credits left (floor ${ODDS_CREDIT_FLOOR}). Raise the plan or ODDS_POLL_SECONDS.`);
+      return { sports: 0, events: 0 };
+    }
+  }
+
   const sports = await feed.listSports();
   let count = 0;
   for (const sport of sports) {

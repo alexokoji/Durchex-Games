@@ -91,7 +91,50 @@ export const env = {
   liveSports: {
     oddsApiKey:  process.env.ODDS_API_KEY ?? '',
     oddsApiBase: process.env.ODDS_API_BASE ?? 'https://api.the-odds-api.com/v4',
-    regions:     process.env.ODDS_API_REGIONS ?? 'uk,eu',
+    // Only valid Odds-API regions are accepted: us, us2, uk, eu, au. We
+    // normalise the env value and drop anything invalid so a typo can't 422
+    // every request. Empty → sensible default.
+    regions: (() => {
+      const VALID = new Set(['us', 'us2', 'uk', 'eu', 'au']);
+      const cleaned = (process.env.ODDS_API_REGIONS ?? 'us,uk,eu')
+        .split(',').map(r => r.trim().toLowerCase()).filter(r => VALID.has(r));
+      return cleaned.length ? cleaned.join(',') : 'us,uk,eu';
+    })(),
+    // SOCCER ONLY — curated competitions to ingest. Each is a separate
+    // Odds-API key, so the app naturally groups events by league/competition.
+    // The provider further filters to whichever are currently in-season.
+    // Override with ODDS_SPORTS as a comma-separated list of Odds-API keys.
+    sports: (process.env.ODDS_SPORTS ?? [
+      // Top European leagues
+      'soccer_epl',
+      'soccer_spain_la_liga',
+      'soccer_italy_serie_a',
+      'soccer_germany_bundesliga',
+      'soccer_france_ligue_one',
+      'soccer_netherlands_eredivisie',
+      'soccer_portugal_primeira_liga',
+      'soccer_turkey_super_league',
+      'soccer_belgium_first_div',
+      // England lower tiers + cups
+      'soccer_efl_champ',
+      'soccer_england_league1',
+      'soccer_england_league2',
+      'soccer_england_efl_cup',
+      'soccer_fa_cup',
+      // Continental + international
+      'soccer_uefa_champs_league',
+      'soccer_uefa_europa_league',
+      'soccer_uefa_europa_conference_league',
+      'soccer_uefa_nations_league',
+      'soccer_uefa_european_championship',
+      'soccer_fifa_world_cup',
+      'soccer_conmebol_copa_libertadores',
+      // Americas
+      'soccer_usa_mls',
+      'soccer_brazil_campeonato',
+      'soccer_mexico_ligamx',
+      'soccer_argentina_primera_division',
+    ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
     pollSeconds: num('ODDS_POLL_SECONDS', 120),
     /** true → use the real provider; false → sandbox feed. */
     enabled:     !!process.env.ODDS_API_KEY,

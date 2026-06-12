@@ -20,9 +20,16 @@ interface RawEvent {
 interface RawScore { name: string; score: string }
 interface RawResult { id: string; completed: boolean; scores?: RawScore[]; home_team: string; away_team: string }
 
+/** Credits left on the key, read from the `x-requests-remaining` response
+ *  header. null until the first successful call. */
+let _requestsRemaining: number | null = null;
+export function oddsRequestsRemaining(): number | null { return _requestsRemaining; }
+
 async function get<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ apiKey: env.liveSports.oddsApiKey, ...params });
   const res = await fetch(`${env.liveSports.oddsApiBase}${path}?${qs.toString()}`);
+  const rem = res.headers.get('x-requests-remaining');
+  if (rem != null) _requestsRemaining = Number(rem);
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`odds_api_${res.status}: ${txt.slice(0, 200)}`);
@@ -63,8 +70,9 @@ export const theOddsApiProvider: SportsFeedProvider = {
 
   async listSports(): Promise<FeedSport[]> {
     const raw = await get<RawSport[]>('/sports', {});
+    const allow = new Set(env.liveSports.sports);
     return raw
-      .filter(s => !s.has_outrights)
+      .filter(s => !s.has_outrights && s.active && allow.has(s.key))
       .map(s => ({ key: s.key, group: s.group, title: s.title, active: s.active }));
   },
 
