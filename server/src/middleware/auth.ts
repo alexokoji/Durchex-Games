@@ -2,10 +2,17 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/jwt';
 import { User, type IUser } from '../models/User';
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    user?: IUser;
-    userId?: string;
+// Type `req.user` as our IUser without referencing 'express-serve-static-core'
+// (which doesn't resolve reliably across @types trees) and without redeclaring
+// the `user` property (which collides with @types/passport). Passport already
+// types `req.user` as `Express.User` — so we just make `Express.User` = IUser.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface User extends IUser {}
+    interface Request {
+      userId?: string;
+    }
   }
 }
 
