@@ -1,14 +1,13 @@
-import { env } from '../config/env';
 import type { SportsFeedProvider } from './sportsFeed';
 import { theOddsApiProvider } from './theOddsApi';
-import { sandboxProvider } from './sandboxFeed';
 
 export * from './sportsFeed';
 
 /**
- * Returns the live odds provider when ODDS_API_KEY is set, otherwise the
- * deterministic sandbox feed so the Live Sports section works with no vendor.
+ * The live odds provider. There is no demo/sandbox fallback — when no
+ * ODDS_API_KEY is configured the scheduler simply doesn't ingest, so the
+ * Live Sports section stays empty rather than showing fake fixtures.
  */
 export function getSportsFeed(): SportsFeedProvider {
-  return env.liveSports.enabled ? theOddsApiProvider : sandboxProvider;
+  return theOddsApiProvider;
 }

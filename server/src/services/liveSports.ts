@@ -28,16 +28,18 @@ const ODDS_CREDIT_FLOOR = 20;
 
 /** Pull upcoming events + odds for every active sport and upsert them. */
 export async function ingestEvents(): Promise<{ sports: number; events: number }> {
+  const { env } = require('../config/env') as typeof import('../config/env');
+  // No API key → don't ingest at all (no demo fallback). Section stays empty.
+  if (!env.liveSports.enabled) return { sports: 0, events: 0 };
+
   const feed = getSportsFeed();
 
-  // Quota guard for the real provider — bail before exhausting the key.
-  if (feed.live) {
-    const { oddsRequestsRemaining } = await import('../providers/theOddsApi');
-    const remaining = oddsRequestsRemaining();
-    if (remaining != null && remaining < ODDS_CREDIT_FLOOR) {
-      console.warn(`[liveSports] paused — only ${remaining} Odds-API credits left (floor ${ODDS_CREDIT_FLOOR}). Raise the plan or ODDS_POLL_SECONDS.`);
-      return { sports: 0, events: 0 };
-    }
+  // Quota guard — bail before exhausting the key.
+  const { oddsRequestsRemaining } = await import('../providers/theOddsApi');
+  const remaining = oddsRequestsRemaining();
+  if (remaining != null && remaining < ODDS_CREDIT_FLOOR) {
+    console.warn(`[liveSports] paused — only ${remaining} Odds-API credits left (floor ${ODDS_CREDIT_FLOOR}). Raise the plan or ODDS_POLL_SECONDS.`);
+    return { sports: 0, events: 0 };
   }
 
   const sports = await feed.listSports();
@@ -250,22 +252,27 @@ let started = false;
 export function startLiveSportsScheduler(): void {
   if (started) return;
   started = true;
-  const everyMs = Math.max(30, getPollSeconds()) * 1000;
 
+  // One-time cleanup: drop any demo/sandbox events left in the DB from before
+  // the sandbox feed was removed, so no fake fixtures ever linger.
+  void SportEvent.deleteMany({ provider: 'sandbox' })
+    .then(r => { if (r.deletedCount) console.log(`[liveSports] purged ${r.deletedCount} legacy sandbox events`); })
+    .catch(() => {});
+
+  const { env } = require('../config/env') as typeof import('../config/env');
+  if (!env.liveSports.enabled) {
+    console.log('[liveSports] no ODDS_API_KEY — live feed disabled (section will be empty).');
+    return;
+  }
+
+  const everyMs = Math.max(30, env.liveSports.pollSeconds) * 1000;
   const tick = async () => {
     try { await ingestEvents(); } catch (e) { console.error('[liveSports] ingest', (e as Error).message); }
     try { await settleFinished(); } catch (e) { console.error('[liveSports] settle', (e as Error).message); }
   };
-  // First run shortly after boot, then on the poll cadence.
   setTimeout(() => { void tick(); }, 4000);
   setInterval(() => { void tick(); }, everyMs);
   console.log(`[liveSports] scheduler started · provider=${getSportsFeed().name} · every ${everyMs / 1000}s`);
-}
-
-function getPollSeconds(): number {
-  // Imported lazily to avoid a config import cycle at module top.
-  const { env } = require('../config/env') as typeof import('../config/env');
-  return env.liveSports.pollSeconds;
 }
 
 export { LIVE_GAME_ID };

@@ -11,6 +11,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import IosShareIcon from '@mui/icons-material/IosShare';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -36,13 +37,21 @@ function selKey(eventId: string, marketKey: string, name: string, point?: number
   return `${eventId}:${marketKey}:${name}:${point ?? ''}`;
 }
 
-function kickoff(iso: string): string {
+/** Exact kickoff date + time, e.g. "Sat, 14 Jun · 19:30". */
+function fmtKickoff(iso: string): string {
   const d = new Date(iso);
-  const diff = (d.getTime() - Date.now()) / 60000;
+  const date = d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' });
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
+
+/** Short countdown until kickoff (for the badge). */
+function kickoffIn(iso: string): string {
+  const diff = (new Date(iso).getTime() - Date.now()) / 60000;
   if (diff <= 0) return 'LIVE';
-  if (diff < 60) return `${Math.round(diff)}m`;
-  if (diff < 1440) return `${Math.round(diff / 60)}h`;
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (diff < 60) return `in ${Math.round(diff)}m`;
+  if (diff < 1440) return `in ${Math.round(diff / 60)}h`;
+  return `in ${Math.round(diff / 1440)}d`;
 }
 
 export default function LiveSportsPage() {
@@ -193,19 +202,6 @@ export default function LiveSportsPage() {
       <Typography sx={{ color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>
         Pick a competition below — real fixtures, live odds, in-play cash-out. Bet singles or build an accumulator.
       </Typography>
-
-      {events.some(e => e.provider === 'sandbox') && (
-        <Box sx={{
-          mb: 2, px: 1.5, py: 1, borderRadius: 1.5,
-          background: alpha(neonGold, 0.1), border: `1px solid ${alpha(neonGold, 0.4)}`,
-          display: 'flex', alignItems: 'center', gap: 1,
-        }}>
-          <BoltIcon sx={{ fontSize: 16, color: neonGold }} />
-          <Typography sx={{ fontSize: '0.78rem', color: neonGold, fontWeight: 700 }}>
-            Demo odds — connect a live feed (set ODDS_API_KEY) to show real events.
-          </Typography>
-        </Box>
-      )}
 
       {/* Competition (league) tabs */}
       {sports.length > 0 && (
@@ -369,12 +365,20 @@ function EventCard({ ev, slip, onPick }: {
 
   return (
     <Box sx={{ background: darkCard, border: `1px solid ${isLive ? alpha('#ff4757', 0.3) : darkBorder}`, borderRadius: 2, p: 1.5, mb: 1.25 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Chip label={isLive ? 'LIVE' : kickoff(ev.commenceTime)} size="small"
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+        <Chip label={isLive ? 'LIVE' : kickoffIn(ev.commenceTime)} size="small"
           sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800,
             background: isLive ? alpha('#ff4757', 0.15) : alpha(neonBlue, 0.12),
             color: isLive ? '#ff4757' : neonBlue }} />
         <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>{ev.sportTitle}</Typography>
+        <Box sx={{ flex: 1 }} />
+        {/* Exact kick-off date + time */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <AccessTimeIcon sx={{ fontSize: 13, color: isLive ? '#ff4757' : neonGold }} />
+          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isLive ? '#ff4757' : neonGold }}>
+            {isLive ? 'In play now' : fmtKickoff(ev.commenceTime)}
+          </Typography>
+        </Box>
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
         <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.homeTeam}</Typography>
