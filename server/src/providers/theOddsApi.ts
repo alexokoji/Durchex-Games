@@ -37,19 +37,28 @@ async function get<T>(path: string, params: Record<string, string>): Promise<T> 
   return res.json() as Promise<T>;
 }
 
-/** Collapse all bookmakers into one representative price per outcome (median-ish: best price). */
+/** Map alternate-line markets onto their base market so all O/U or handicap
+ *  lines live together (the UI shows them in one line-picker dropdown). */
+function baseMarketKey(key: string): string {
+  if (key === 'alternate_totals')  return 'totals';
+  if (key === 'alternate_spreads') return 'spreads';
+  return key;
+}
+
+/** Collapse all bookmakers into one representative price per outcome (best price). */
 function consolidate(ev: RawEvent): FeedMarket[] {
   const byKey = new Map<string, Map<string, { price: number; point?: number }>>();
   for (const bm of ev.bookmakers ?? []) {
     for (const m of bm.markets ?? []) {
-      const outs = byKey.get(m.key) ?? new Map();
+      const key = baseMarketKey(m.key);
+      const outs = byKey.get(key) ?? new Map();
       for (const o of m.outcomes ?? []) {
         const k = `${o.name}|${o.point ?? ''}`;
         const cur = outs.get(k);
         // keep the best (highest) price across books for a fair displayed line
         if (!cur || o.price > cur.price) outs.set(k, { price: o.price, point: o.point });
       }
-      byKey.set(m.key, outs);
+      byKey.set(key, outs);
     }
   }
   const markets: FeedMarket[] = [];
@@ -79,7 +88,7 @@ export const theOddsApiProvider: SportsFeedProvider = {
   async listEvents(sportKey: string): Promise<FeedEvent[]> {
     const raw = await get<RawEvent[]>(`/sports/${sportKey}/odds`, {
       regions: env.liveSports.regions,
-      markets: 'h2h,totals',
+      markets: env.liveSports.markets,
       oddsFormat: 'decimal',
     });
     return raw.map(ev => ({

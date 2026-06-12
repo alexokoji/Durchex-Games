@@ -136,7 +136,11 @@ export const env = {
       'soccer_argentina_primera_division',
     ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
     pollSeconds: num('ODDS_POLL_SECONDS', 120),
-    /** true → use the real provider; false → sandbox feed. */
+    // Markets to request. Default is the safe, always-available pair. For many
+    // Over/Under lines (SportyBet-style) add 'alternate_totals' (paid plans):
+    //   ODDS_MARKETS=h2h,totals,alternate_totals
+    markets: process.env.ODDS_MARKETS ?? 'h2h,totals',
+    /** true → live provider active; false → section stays empty. */
     enabled:     !!process.env.ODDS_API_KEY,
   },
 

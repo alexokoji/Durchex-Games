@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Typography, Button, Chip, Tabs, Tab, TextField, CircularProgress,
+  Select, MenuItem,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useSearchParams } from 'react-router-dom';
@@ -343,6 +344,26 @@ function EventCard({ ev, slip, onPick }: {
   const totals = ev.markets.find(m => m.key === 'totals');
   const isLive = ev.status === 'live';
 
+  // 1X2 in the correct, fixed order: 1 (home) · X (draw) · 2 (away).
+  const oneXtwo = h2h
+    ? [
+        { o: h2h.outcomes.find(o => o.name === ev.homeTeam), label: '1', sub: ev.homeTeam },
+        { o: h2h.outcomes.find(o => o.name === 'Draw'),      label: 'X', sub: 'Draw' },
+        { o: h2h.outcomes.find(o => o.name === ev.awayTeam), label: '2', sub: ev.awayTeam },
+      ].filter((x): x is { o: NonNullable<typeof x.o>; label: string; sub: string } => !!x.o)
+    : [];
+
+  // Over/Under lines available, sorted (e.g. 1.5, 2.5, 3.5 …).
+  const lines = totals
+    ? Array.from(new Set(totals.outcomes.map(o => o.point).filter((p): p is number => p != null))).sort((a, b) => a - b)
+    : [];
+  const [pickedLine, setPickedLine] = useState<number | null>(null);
+  const activeLine = pickedLine != null && lines.includes(pickedLine)
+    ? pickedLine
+    : (lines.includes(2.5) ? 2.5 : lines[Math.floor(lines.length / 2)] ?? null);
+  const over  = totals?.outcomes.find(o => o.name === 'Over'  && o.point === activeLine);
+  const under = totals?.outcomes.find(o => o.name === 'Under' && o.point === activeLine);
+
   const OddsBtn = ({ m, name, price, point, label }: { m: LiveMarket; name: string; price: number; point?: number; label: string }) => {
     const on = slip.some(s => s.key === selKey(ev.providerId, m.key, name, point));
     const disabled = m.suspended || ev.suspended;
@@ -385,21 +406,46 @@ function EventCard({ ev, slip, onPick }: {
         <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.awayTeam}</Typography>
       </Box>
 
-      {h2h && (
-        <Box sx={{ display: 'flex', gap: 0.75, mb: totals ? 0.75 : 0 }}>
-          {h2h.outcomes.map(o => (
-            <OddsBtn key={o.name} m={h2h} name={o.name} price={o.price}
-              label={o.name === ev.homeTeam ? '1' : o.name === ev.awayTeam ? '2' : 'X'} />
-          ))}
-        </Box>
+      {/* 1X2 (Match Result) */}
+      {oneXtwo.length > 0 && (
+        <>
+          <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em', mb: 0.5 }}>
+            MATCH RESULT (1X2)
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.75, mb: totals ? 1 : 0 }}>
+            {oneXtwo.map(x => (
+              <OddsBtn key={x.label} m={h2h!} name={x.o.name} price={x.o.price} label={x.label} />
+            ))}
+          </Box>
+        </>
       )}
-      {totals && (
-        <Box sx={{ display: 'flex', gap: 0.75 }}>
-          {totals.outcomes.map(o => (
-            <OddsBtn key={`${o.name}${o.point}`} m={totals} name={o.name} price={o.price} point={o.point}
-              label={`${o.name} ${o.point}`} />
-          ))}
-        </Box>
+
+      {/* Over / Under with a line dropdown */}
+      {totals && activeLine != null && (over || under) && (
+        <>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em' }}>
+              TOTAL GOALS (OVER / UNDER)
+            </Typography>
+            {lines.length > 1 && (
+              <Select
+                value={activeLine}
+                onChange={e => setPickedLine(Number(e.target.value))}
+                size="small" variant="standard" disableUnderline
+                sx={{ fontSize: '0.7rem', fontWeight: 700, color: neonGold,
+                  '& .MuiSelect-select': { py: 0, pr: '18px !important' } }}
+              >
+                {lines.map(l => (
+                  <MenuItem key={l} value={l} sx={{ fontSize: '0.78rem' }}>Line {l.toFixed(1)}</MenuItem>
+                ))}
+              </Select>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 0.75 }}>
+            {over  && <OddsBtn m={totals} name="Over"  price={over.price}  point={activeLine} label={`Over ${activeLine.toFixed(1)}`} />}
+            {under && <OddsBtn m={totals} name="Under" price={under.price} point={activeLine} label={`Under ${activeLine.toFixed(1)}`} />}
+          </Box>
+        </>
       )}
     </Box>
   );
