@@ -56,7 +56,7 @@ router.post(
   body('stake').isFloat({ gt: 0 }),
   body('selections').isArray({ min: 1, max: 20 }),
   body('selections.*.eventId').isString(),
-  body('selections.*.marketKey').isIn(['h2h', 'totals']),
+  body('selections.*.marketKey').isIn(['h2h', 'totals', 'spreads', 'double_chance', 'btts', 'draw_no_bet']),
   body('selections.*.outcomeName').isString(),
   body('selections.*.point').optional().isFloat(),
   body('fromCode').optional().isString().isLength({ max: 12 }),

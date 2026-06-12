@@ -136,10 +136,13 @@ export const env = {
       'soccer_argentina_primera_division',
     ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
     pollSeconds: num('ODDS_POLL_SECONDS', 120),
-    // Markets to request. Default is the safe, always-available pair. For many
-    // Over/Under lines (SportyBet-style) add 'alternate_totals' (paid plans):
-    //   ODDS_MARKETS=h2h,totals,alternate_totals
-    markets: process.env.ODDS_MARKETS ?? 'h2h,totals',
+    // Markets to request. The three core markets (h2h, totals, spreads) work on
+    // every plan → 1X2, Over/Under, Handicap. For the rest (Double Chance, BTTS,
+    // Draw No Bet, and the full 0.5–6.5 O/U ladder) you need a paid Odds-API plan
+    // that exposes additional markets, then set e.g.:
+    //   ODDS_MARKETS=h2h,totals,spreads,double_chance,btts,draw_no_bet,alternate_totals,alternate_spreads
+    // NOTE: each extra market multiplies credit cost (markets × regions per call).
+    markets: process.env.ODDS_MARKETS ?? 'h2h,totals,spreads',
     /** true → live provider active; false → section stays empty. */
     enabled:     !!process.env.ODDS_API_KEY,
   },

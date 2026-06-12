@@ -121,20 +121,58 @@ export async function applyTrading(): Promise<void> {
 
 // ─── Settlement from real results ────────────────────────────────────────────
 
+type Outcome3 = 'home' | 'draw' | 'away';
+
 function legResult(ev: ISportEvent, sel: LiveSelection): 'won' | 'lost' | 'push' {
   const r = ev.result;
   if (!r || !r.completed || r.homeScore == null || r.awayScore == null) return 'push';
-  if (sel.marketKey === 'h2h') {
-    const winner = r.homeScore > r.awayScore ? ev.homeTeam : r.homeScore < r.awayScore ? ev.awayTeam : 'Draw';
-    return sel.outcomeName === winner ? 'won' : 'lost';
+  const hs = r.homeScore, as = r.awayScore;
+  const result: Outcome3 = hs > as ? 'home' : hs < as ? 'away' : 'draw';
+  const name = sel.outcomeName;
+  const lc = name.toLowerCase();
+
+  switch (sel.marketKey) {
+    case 'h2h': {
+      const winner = result === 'home' ? ev.homeTeam : result === 'away' ? ev.awayTeam : 'Draw';
+      return name === winner ? 'won' : 'lost';
+    }
+    case 'totals': {
+      if (sel.point == null) return 'push';
+      const total = hs + as;
+      if (total === sel.point) return 'push';
+      const over = total > sel.point;
+      return (name === 'Over' && over) || (name === 'Under' && !over) ? 'won' : 'lost';
+    }
+    case 'spreads': {
+      // Handicap: outcome name = team, point = handicap applied to that team.
+      if (sel.point == null) return 'push';
+      const isHome = name === ev.homeTeam;
+      const adj = (isHome ? hs : as) + sel.point;
+      const opp = isHome ? as : hs;
+      if (adj === opp) return 'push';
+      return adj > opp ? 'won' : 'lost';
+    }
+    case 'double_chance': {
+      // Outcome covers any results whose label it mentions (home/draw/away).
+      const covers = new Set<Outcome3>();
+      if (lc.includes(ev.homeTeam.toLowerCase())) covers.add('home');
+      if (lc.includes(ev.awayTeam.toLowerCase())) covers.add('away');
+      if (lc.includes('draw')) covers.add('draw');
+      return covers.has(result) ? 'won' : 'lost';
+    }
+    case 'btts': {
+      const bothScored = hs > 0 && as > 0;
+      const yes = lc === 'yes';
+      return (yes && bothScored) || (!yes && !bothScored) ? 'won' : 'lost';
+    }
+    case 'draw_no_bet': {
+      if (result === 'draw') return 'push';            // stake returned
+      const winner = result === 'home' ? ev.homeTeam : ev.awayTeam;
+      return name === winner ? 'won' : 'lost';
+    }
+    default:
+      return 'push';
   }
-  if (sel.marketKey === 'totals' && sel.point != null) {
-    const total = r.homeScore + r.awayScore;
-    if (total === sel.point) return 'push';
-    const over = total > sel.point;
-    return (sel.outcomeName === 'Over' && over) || (sel.outcomeName === 'Under' && !over) ? 'won' : 'lost';
-  }
-  return 'push';
 }
 
 /** Pull results, mark events completed, then settle any fully-decided bets. */
@@ -231,17 +269,19 @@ export async function liveCashoutInputs(bet: { stake: number; selections?: unkno
     const market = ev.markets.find(m => m.key === s.marketKey);
     const outcome = market?.outcomes.find(o => o.name === s.outcomeName && (s.point == null || o.point === s.point));
     if (!outcome || market?.suspended || ev.suspended) return { error: 'no_market' };
-    // De-margin a single market's implied probabilities, then take this outcome's share.
-    const fairProb = impliedFair(market!, outcome.price);
-    winProb *= fairProb;
+    // De-margin against the relevant book. For line markets (totals/spreads)
+    // that's only the outcomes sharing the same line; otherwise the whole market.
+    const siblings = s.point != null
+      ? market!.outcomes.filter(o => o.point === s.point)
+      : market!.outcomes;
+    winProb *= impliedFair(siblings, outcome.price);
   }
   return { potentialReturn: bet.stake * combinedLocked, winProbability: Math.max(0, Math.min(1, winProb)) };
 }
 
-/** De-margined implied probability of one outcome within a market. */
-function impliedFair(market: IEventMarket, price: number): number {
-  const inv = market.outcomes.map(o => 1 / o.price);
-  const sum = inv.reduce((a, b) => a + b, 0); // > 1 due to overround
+/** De-margined implied probability of one outcome within a set of siblings. */
+function impliedFair(siblings: { price: number }[], price: number): number {
+  const sum = siblings.reduce((a, o) => a + 1 / o.price, 0); // > 1 due to overround
   if (sum <= 0) return 0;
   return (1 / price) / sum;
 }

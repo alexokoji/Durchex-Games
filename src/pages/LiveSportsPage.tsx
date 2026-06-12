@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import {
   Box, Typography, Button, Chip, Tabs, Tab, TextField, CircularProgress,
   Select, MenuItem,
@@ -19,7 +19,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useToasts } from '../contexts/ToastContext';
 import { formatMoney } from '../utils/currency';
 import {
-  liveSportsApi, type LiveEvent, type LiveSportSummary, type LiveMarket,
+  liveSportsApi, type LiveEvent, type LiveSportSummary, type LiveMarket, type LiveMarketKey,
 } from '../api/liveSports';
 import { bookingCodesApi } from '../api/bookingCodes';
 import type { ApiBet } from '../api/bets';
@@ -28,11 +28,21 @@ interface SlipItem {
   key: string;
   eventId: string;
   label: string;
-  marketKey: 'h2h' | 'totals';
+  marketKey: LiveMarketKey;
   outcomeName: string;
   point?: number;
   price: number;
 }
+
+// Market display metadata — title + how to render. Order = display order.
+const MARKET_META: { key: LiveMarketKey; title: string; primary?: boolean }[] = [
+  { key: 'h2h',           title: 'Match Result (1X2)', primary: true },
+  { key: 'totals',        title: 'Total Goals (Over/Under)', primary: true },
+  { key: 'double_chance', title: 'Double Chance' },
+  { key: 'draw_no_bet',   title: 'Draw No Bet' },
+  { key: 'btts',          title: 'Both Teams To Score' },
+  { key: 'spreads',       title: 'Handicap' },
+];
 
 function selKey(eventId: string, marketKey: string, name: string, point?: number) {
   return `${eventId}:${marketKey}:${name}:${point ?? ''}`;
@@ -166,7 +176,7 @@ export default function LiveSportsPage() {
       const withoutEvent = prev.filter(s => s.eventId !== ev.providerId);
       return [...withoutEvent, {
         key, eventId: ev.providerId, label: `${ev.homeTeam} vs ${ev.awayTeam}`,
-        marketKey: market.key as 'h2h' | 'totals', outcomeName: name, point, price,
+        marketKey: market.key as LiveMarketKey, outcomeName: name, point, price,
       }];
     });
   }
@@ -340,29 +350,9 @@ function EventCard({ ev, slip, onPick }: {
   slip: SlipItem[];
   onPick: (ev: LiveEvent, m: LiveMarket, name: string, price: number, point?: number) => void;
 }) {
-  const h2h    = ev.markets.find(m => m.key === 'h2h');
-  const totals = ev.markets.find(m => m.key === 'totals');
   const isLive = ev.status === 'live';
-
-  // 1X2 in the correct, fixed order: 1 (home) · X (draw) · 2 (away).
-  const oneXtwo = h2h
-    ? [
-        { o: h2h.outcomes.find(o => o.name === ev.homeTeam), label: '1', sub: ev.homeTeam },
-        { o: h2h.outcomes.find(o => o.name === 'Draw'),      label: 'X', sub: 'Draw' },
-        { o: h2h.outcomes.find(o => o.name === ev.awayTeam), label: '2', sub: ev.awayTeam },
-      ].filter((x): x is { o: NonNullable<typeof x.o>; label: string; sub: string } => !!x.o)
-    : [];
-
-  // Over/Under lines available, sorted (e.g. 1.5, 2.5, 3.5 …).
-  const lines = totals
-    ? Array.from(new Set(totals.outcomes.map(o => o.point).filter((p): p is number => p != null))).sort((a, b) => a - b)
-    : [];
-  const [pickedLine, setPickedLine] = useState<number | null>(null);
-  const activeLine = pickedLine != null && lines.includes(pickedLine)
-    ? pickedLine
-    : (lines.includes(2.5) ? 2.5 : lines[Math.floor(lines.length / 2)] ?? null);
-  const over  = totals?.outcomes.find(o => o.name === 'Over'  && o.point === activeLine);
-  const under = totals?.outcomes.find(o => o.name === 'Under' && o.point === activeLine);
+  const [pickedLines, setPickedLines] = useState<Record<string, number>>({});
+  const [expanded, setExpanded] = useState(false);
 
   const OddsBtn = ({ m, name, price, point, label }: { m: LiveMarket; name: string; price: number; point?: number; label: string }) => {
     const on = slip.some(s => s.key === selKey(ev.providerId, m.key, name, point));
@@ -378,11 +368,81 @@ function EventCard({ ev, slip, onPick }: {
           color: on ? neonGreen : 'text.primary',
           '&:hover': { background: alpha(neonGreen, 0.1) },
         }}>
-        <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }} noWrap>{label}</Typography>
+        <Typography sx={{ fontSize: '0.58rem', color: 'text.secondary' }} noWrap>{label}</Typography>
         <Typography sx={{ fontSize: '0.85rem', fontWeight: 800 }}>{disabled ? '🔒' : price.toFixed(2)}</Typography>
       </Button>
     );
   };
+
+  const LineSelect = ({ mkey, lines, active }: { mkey: string; lines: number[]; active: number }) =>
+    lines.length > 1 ? (
+      <Select
+        value={active}
+        onChange={e => setPickedLines(p => ({ ...p, [mkey]: Number(e.target.value) }))}
+        size="small" variant="standard" disableUnderline
+        sx={{ fontSize: '0.7rem', fontWeight: 700, color: neonGold, '& .MuiSelect-select': { py: 0, pr: '18px !important' } }}>
+        {lines.map(l => <MenuItem key={l} value={l} sx={{ fontSize: '0.78rem' }}>{l > 0 ? `+${l}` : l.toFixed(1)}</MenuItem>)}
+      </Select>
+    ) : null;
+
+  function dcLabel(name: string): string {
+    const lc = name.toLowerCase();
+    const h = lc.includes(ev.homeTeam.toLowerCase()), a = lc.includes(ev.awayTeam.toLowerCase()), d = lc.includes('draw');
+    if (h && d) return '1X'; if (h && a) return '12'; if (d && a) return 'X2';
+    return name;
+  }
+
+  function renderMarket(meta: { key: LiveMarketKey; title: string }) {
+    const m = ev.markets.find(x => x.key === meta.key);
+    if (!m || m.outcomes.length === 0) return null;
+
+    let header: ReactNode = <Typography sx={sectLabel}>{meta.title.toUpperCase()}</Typography>;
+    let body: ReactNode = null;
+
+    if (meta.key === 'h2h') {
+      const ordered = [
+        { o: m.outcomes.find(o => o.name === ev.homeTeam), label: '1' },
+        { o: m.outcomes.find(o => o.name === 'Draw'),      label: 'X' },
+        { o: m.outcomes.find(o => o.name === ev.awayTeam), label: '2' },
+      ].filter((x): x is { o: NonNullable<typeof x.o>; label: string } => !!x.o);
+      body = <Box sx={rowSx}>{ordered.map(x => <OddsBtn key={x.label} m={m} name={x.o.name} price={x.o.price} label={x.label} />)}</Box>;
+    } else if (meta.key === 'totals') {
+      const lines = Array.from(new Set(m.outcomes.map(o => o.point).filter((p): p is number => p != null))).sort((a, b) => a - b);
+      if (lines.length === 0) return null;
+      const active = pickedLines.totals != null && lines.includes(pickedLines.totals) ? pickedLines.totals : (lines.includes(2.5) ? 2.5 : lines[Math.floor(lines.length / 2)]);
+      const over  = m.outcomes.find(o => o.name === 'Over'  && o.point === active);
+      const under = m.outcomes.find(o => o.name === 'Under' && o.point === active);
+      header = <Box sx={hdrRow}><Typography sx={sectLabel}>{meta.title.toUpperCase()}</Typography><LineSelect mkey="totals" lines={lines} active={active} /></Box>;
+      body = <Box sx={rowSx}>
+        {over  && <OddsBtn m={m} name="Over"  price={over.price}  point={active} label={`Over ${active.toFixed(1)}`} />}
+        {under && <OddsBtn m={m} name="Under" price={under.price} point={active} label={`Under ${active.toFixed(1)}`} />}
+      </Box>;
+    } else if (meta.key === 'spreads') {
+      const homeLines = Array.from(new Set(m.outcomes.filter(o => o.name === ev.homeTeam).map(o => o.point).filter((p): p is number => p != null))).sort((a, b) => a - b);
+      if (homeLines.length === 0) return null;
+      const active = pickedLines.spreads != null && homeLines.includes(pickedLines.spreads) ? pickedLines.spreads : homeLines[Math.floor(homeLines.length / 2)];
+      const homeO = m.outcomes.find(o => o.name === ev.homeTeam && o.point === active);
+      const awayO = m.outcomes.find(o => o.name === ev.awayTeam && o.point === -active) ?? m.outcomes.find(o => o.name === ev.awayTeam);
+      header = <Box sx={hdrRow}><Typography sx={sectLabel}>{meta.title.toUpperCase()}</Typography><LineSelect mkey="spreads" lines={homeLines} active={active} /></Box>;
+      body = <Box sx={rowSx}>
+        {homeO && <OddsBtn m={m} name={homeO.name} price={homeO.price} point={homeO.point} label={`${ev.homeTeam} ${active > 0 ? '+' : ''}${active}`} />}
+        {awayO && <OddsBtn m={m} name={awayO.name} price={awayO.price} point={awayO.point} label={`${ev.awayTeam} ${(awayO.point ?? 0) > 0 ? '+' : ''}${awayO.point}`} />}
+      </Box>;
+    } else {
+      // Column markets: double_chance / btts / draw_no_bet
+      const label = (o: { name: string }) =>
+        meta.key === 'double_chance' ? dcLabel(o.name)
+        : meta.key === 'draw_no_bet' ? (o.name === ev.homeTeam ? '1' : o.name === ev.awayTeam ? '2' : o.name)
+        : o.name; // btts: Yes / No
+      body = <Box sx={rowSx}>{m.outcomes.map(o => <OddsBtn key={o.name + (o.point ?? '')} m={m} name={o.name} price={o.price} point={o.point} label={label(o)} />)}</Box>;
+    }
+
+    return <Box key={meta.key} sx={{ mb: 1 }}>{header}{body}</Box>;
+  }
+
+  const present = MARKET_META.filter(meta => ev.markets.some(m => m.key === meta.key && m.outcomes.length));
+  const primary = present.filter(p => p.primary);
+  const extra   = present.filter(p => !p.primary);
 
   return (
     <Box sx={{ background: darkCard, border: `1px solid ${isLive ? alpha('#ff4757', 0.3) : darkBorder}`, borderRadius: 2, p: 1.5, mb: 1.25 }}>
@@ -393,7 +453,6 @@ function EventCard({ ev, slip, onPick }: {
             color: isLive ? '#ff4757' : neonBlue }} />
         <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>{ev.sportTitle}</Typography>
         <Box sx={{ flex: 1 }} />
-        {/* Exact kick-off date + time */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <AccessTimeIcon sx={{ fontSize: 13, color: isLive ? '#ff4757' : neonGold }} />
           <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isLive ? '#ff4757' : neonGold }}>
@@ -406,50 +465,22 @@ function EventCard({ ev, slip, onPick }: {
         <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.awayTeam}</Typography>
       </Box>
 
-      {/* 1X2 (Match Result) */}
-      {oneXtwo.length > 0 && (
-        <>
-          <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em', mb: 0.5 }}>
-            MATCH RESULT (1X2)
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.75, mb: totals ? 1 : 0 }}>
-            {oneXtwo.map(x => (
-              <OddsBtn key={x.label} m={h2h!} name={x.o.name} price={x.o.price} label={x.label} />
-            ))}
-          </Box>
-        </>
-      )}
+      {primary.map(renderMarket)}
+      {expanded && extra.map(renderMarket)}
 
-      {/* Over / Under with a line dropdown */}
-      {totals && activeLine != null && (over || under) && (
-        <>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em' }}>
-              TOTAL GOALS (OVER / UNDER)
-            </Typography>
-            {lines.length > 1 && (
-              <Select
-                value={activeLine}
-                onChange={e => setPickedLine(Number(e.target.value))}
-                size="small" variant="standard" disableUnderline
-                sx={{ fontSize: '0.7rem', fontWeight: 700, color: neonGold,
-                  '& .MuiSelect-select': { py: 0, pr: '18px !important' } }}
-              >
-                {lines.map(l => (
-                  <MenuItem key={l} value={l} sx={{ fontSize: '0.78rem' }}>Line {l.toFixed(1)}</MenuItem>
-                ))}
-              </Select>
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', gap: 0.75 }}>
-            {over  && <OddsBtn m={totals} name="Over"  price={over.price}  point={activeLine} label={`Over ${activeLine.toFixed(1)}`} />}
-            {under && <OddsBtn m={totals} name="Under" price={under.price} point={activeLine} label={`Under ${activeLine.toFixed(1)}`} />}
-          </Box>
-        </>
+      {extra.length > 0 && (
+        <Button size="small" onClick={() => setExpanded(e => !e)}
+          sx={{ mt: 0.5, fontSize: '0.7rem', fontWeight: 700, color: neonBlue }}>
+          {expanded ? 'Hide markets' : `+ ${extra.length} more markets`}
+        </Button>
       )}
     </Box>
   );
 }
+
+const sectLabel = { fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em', mb: 0.5 } as const;
+const hdrRow    = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 } as const;
+const rowSx     = { display: 'flex', gap: 0.75 } as const;
 
 // ─── Open bet row with cash-out ───────────────────────────────────────────────
 
