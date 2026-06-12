@@ -5,23 +5,18 @@
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "..",
-    "baseUrl": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node",
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
-    "declaration": false,
-    "paths": {
-      "@virtual-sports/*": ["../src/virtual-sports/*"]
-    }
+    "declaration": false
   },
   "include": ["src/**/*", "../src/virtual-sports/core/oddsEngine.ts", "../src/virtual-sports/core/teamDatabase.ts", "../src/virtual-sports/core/leagueDatabase.ts", "../src/virtual-sports/core/seasonScheduler.ts", "../src/virtual-sports/soccer/soccerSimulation.ts", "../src/virtual-sports/basketball/basketballSimulation.ts", "../src/virtual-sports/hockey/hockeySimulation.ts"],
   "exclude": ["node_modules", "dist"]
