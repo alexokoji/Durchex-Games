@@ -66,6 +66,157 @@ function kickoffIn(iso: string): string {
   return `in ${Math.round(diff / 1440)}d`;
 }
 
+// ─── Team crest + competition flag ─────────────────────────────────────────
+// The Odds API supplies only team-name strings (no logos), so we render a
+// deterministic monogram crest per team — the same name always yields the
+// same colour + initials, mirroring the Virtual Sports emblems.
+function teamHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+const CREST_NOISE = /^(fc|cf|sc|afc|ac|if|sk|cd|bk|club|de|the|los|las|el|la|al)$/i;
+function teamInitials(name: string): string {
+  const words = name.replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+  const meaningful = words.filter(w => !CREST_NOISE.test(w));
+  const src = meaningful.length ? meaningful : words;
+  if (src.length >= 2) return (src[0][0] + src[1][0]).toUpperCase();
+  return (src[0] ?? name).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
+}
+function TeamCrest({ name, size = 22 }: { name: string; size?: number }) {
+  const seed = teamHash(name);
+  const hue = seed % 360;
+  const id = `tc-${seed}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-label={name} style={{ flexShrink: 0 }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={`hsl(${hue} 65% 46%)`} />
+          <stop offset="100%" stopColor={`hsl(${(hue + 26) % 360} 70% 28%)`} />
+        </linearGradient>
+      </defs>
+      <path d="M24 2 L42 7 L42 24 C42 36 34 42 24 46 C14 42 6 36 6 24 L6 7 Z"
+        fill={`url(#${id})`} stroke="rgba(255,255,255,0.25)" strokeWidth="1.4" />
+      <rect x="6" y="21" width="36" height="2.5" fill="#fff" opacity="0.45" />
+      <text x="24" y="30" textAnchor="middle" fontSize="15" fontWeight="900" fill="#fff" fontFamily="Arial">
+        {teamInitials(name)}
+      </text>
+    </svg>
+  );
+}
+
+// ─── Real team badges via TheSportsDB (free, CORS-open) ────────────────────
+// The Odds API gives only team-name strings, so we resolve the real club crest
+// by name from TheSportsDB and cache it in localStorage (badges rarely change),
+// with request dedupe + a small concurrency cap to stay under the free-tier
+// rate limit. Clubs it doesn't know fall back to the monogram TeamCrest.
+const TSDB_KEY = '3'; // free public key
+const badgeMem = new Map<string, string | null>();
+const badgePending = new Map<string, Promise<string | null>>();
+const badgeQueue: (() => void)[] = [];
+let badgeActive = 0;
+const normName = (n: string) => n.trim().toLowerCase();
+
+function pumpBadgeQueue() {
+  while (badgeActive < 4 && badgeQueue.length) (badgeQueue.shift()!)();
+}
+
+function resolveBadge(name: string): Promise<string | null> {
+  const key = normName(name);
+  if (badgeMem.has(key)) return Promise.resolve(badgeMem.get(key)!);
+  if (badgePending.has(key)) return badgePending.get(key)!;
+
+  let stored: string | null | undefined;
+  try { stored = localStorage.getItem(`tsdb:badge:${key}`); } catch { stored = null; }
+  if (stored != null) { const v = stored || null; badgeMem.set(key, v); return Promise.resolve(v); }
+
+  const p = new Promise<string | null>((resolve) => {
+    const job = async () => {
+      badgeActive++;
+      let url: string | null = null;
+      let ok = false;
+      try {
+        const r = await fetch(
+          `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/searchteams.php?t=${encodeURIComponent(name)}`,
+        );
+        if (r.ok) {
+          ok = true;
+          const data = await r.json();
+          const team = Array.isArray(data?.teams) ? data.teams[0] : null;
+          url = (team?.strBadge as string) || (team?.strTeamBadge as string) || null;
+        }
+      } catch { /* network error — retry next session, don't persist */ }
+      finally { badgeActive--; pumpBadgeQueue(); }
+
+      badgeMem.set(key, url);
+      if (ok) { try { localStorage.setItem(`tsdb:badge:${key}`, url ?? ''); } catch { /* quota */ } }
+      badgePending.delete(key);
+      resolve(url);
+    };
+    badgeQueue.push(job);
+    pumpBadgeQueue();
+  });
+  badgePending.set(key, p);
+  return p;
+}
+
+function useTeamBadge(name: string): string | null {
+  const [url, setUrl] = useState<string | null>(() => badgeMem.get(normName(name)) ?? null);
+  useEffect(() => {
+    let on = true;
+    void resolveBadge(name).then(u => { if (on) setUrl(u); });
+    return () => { on = false; };
+  }, [name]);
+  return url;
+}
+
+/** Real club badge when known, else the deterministic monogram crest. */
+function TeamLogo({ name, size = 24 }: { name: string; size?: number }) {
+  const badge = useTeamBadge(name);
+  const [broken, setBroken] = useState(false);
+  if (badge && !broken) {
+    return (
+      <img src={badge} alt={name} width={size} height={size} loading="lazy"
+        onError={() => setBroken(true)}
+        style={{ objectFit: 'contain', flexShrink: 0 }} />
+    );
+  }
+  return <TeamCrest name={name} size={size} />;
+}
+
+// Real flag image (flagcdn) for a competition, by ISO-3166 code derived from
+// its Odds-API sport key. Emoji flags render as plain letters on Windows, so
+// we use PNGs. Returns null for multi-country comps where no single flag fits.
+function competitionIso(sportKey: string): string {
+  const k = (sportKey || '').toLowerCase();
+  const exact: Record<string, string> = {
+    soccer_epl: 'gb-eng', soccer_efl_champ: 'gb-eng', soccer_england_efl_cup: 'gb-eng',
+    soccer_usa_mls: 'us', soccer_mexico_ligamx: 'mx', soccer_brazil_campeonato: 'br',
+    basketball_nba: 'us', basketball_wnba: 'us', basketball_ncaab: 'us', basketball_euroleague: 'eu',
+    americanfootball_nfl: 'us', americanfootball_ncaaf: 'us', icehockey_nhl: 'us',
+    baseball_mlb: 'us', rugbyleague_nrl: 'au',
+  };
+  if (exact[k]) return exact[k];
+  const tokens: [string, string][] = [
+    ['spain', 'es'], ['italy', 'it'], ['germany', 'de'], ['france', 'fr'],
+    ['netherlands', 'nl'], ['portugal', 'pt'], ['turkey', 'tr'], ['england', 'gb-eng'],
+    ['usa', 'us'], ['brazil', 'br'], ['mexico', 'mx'], ['argentina', 'ar'],
+    ['wimbledon', 'gb-eng'], ['french_open', 'fr'], ['aus_open', 'au'], ['us_open', 'us'],
+  ];
+  for (const [tok, code] of tokens) if (k.includes(tok)) return code;
+  if (k.includes('uefa')) return 'eu';
+  return '';
+}
+
+function CompFlag({ sportKey }: { sportKey: string }) {
+  const iso = competitionIso(sportKey);
+  if (!iso) return null;
+  return (
+    <img src={`https://flagcdn.com/w20/${iso}.png`} alt="" height={12}
+      style={{ borderRadius: 1, marginRight: 5, verticalAlign: 'middle' }} />
+  );
+}
+
 export default function LiveSportsPage() {
   const { isAuthenticated, openAuthPrompt } = useAuth();
   const wallet = useWallet();
@@ -527,7 +678,10 @@ function EventCard({ ev, slip, onPick }: {
           sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800,
             background: isLive ? alpha('#ff4757', 0.15) : alpha(neonBlue, 0.12),
             color: isLive ? '#ff4757' : neonBlue }} />
-        <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>{ev.sportTitle}</Typography>
+        <Typography component="span" sx={{ fontSize: '0.65rem', color: 'text.disabled', display: 'inline-flex', alignItems: 'center' }}>
+          <CompFlag sportKey={ev.sportKey} />
+          {ev.sportTitle}
+        </Typography>
         <Box sx={{ flex: 1 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <AccessTimeIcon sx={{ fontSize: 13, color: isLive ? '#ff4757' : neonGold }} />
@@ -536,9 +690,15 @@ function EventCard({ ev, slip, onPick }: {
           </Typography>
         </Box>
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.homeTeam}</Typography>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.awayTeam}</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+          <TeamLogo name={ev.homeTeam} />
+          <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.homeTeam}</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, justifyContent: 'flex-end' }}>
+          <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.9rem', textAlign: 'right' }}>{ev.awayTeam}</Typography>
+          <TeamLogo name={ev.awayTeam} />
+        </Box>
       </Box>
 
       {primary.map(renderMarket)}

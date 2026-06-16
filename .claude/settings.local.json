@@ -45,7 +45,16 @@
       "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(p.devDependencies['@types/express']\\)\")",
       "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(p.devDependencies['@types/express-serve-static-core']||'no'\\)\")",
       "Bash(grep -rn \"express-serve-static-core\" src)",
-      "Bash(sed -n '5,16p' src/middleware/auth.ts)"
+      "Bash(sed -n '5,16p' src/middleware/auth.ts)",
+      "Bash(curl -s -L -w \"\\\\nHTTP:%{http_code}\\\\n\" \"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Arsenal\")",
+      "Bash(curl -s -L -w \"\\\\nHTTP:%{http_code}\\\\n\" \"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t=Arsenal\")",
+      "Bash(curl -s -L -A \"Mozilla/5.0\" -w \"\\\\nHTTP:%{http_code}\\\\n\" \"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Arsenal\")",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Arsenal\")",
+      "Bash(python -c \"import sys,json; t=json.load\\(sys.stdin\\)['teams'][0]; print\\({k:v for k,v in t.items\\(\\) if 'adge' in k or 'ogo' in k or k in \\('strTeam','strSport'\\)}\\)\")",
+      "Bash(curl -s -I -A \"Mozilla/5.0\" \"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Arsenal\")",
+      "WebSearch",
+      "WebFetch(domain:www.thesportsdb.com)",
+      "WebFetch(domain:www.api-football.com)"
     ]
   }
 }
