@@ -54,7 +54,9 @@
       "Bash(curl -s -I -A \"Mozilla/5.0\" \"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Arsenal\")",
       "WebSearch",
       "WebFetch(domain:www.thesportsdb.com)",
-      "WebFetch(domain:www.api-football.com)"
+      "WebFetch(domain:www.api-football.com)",
+      "WebFetch(domain:sharpapi.io)",
+      "WebFetch(domain:rapidapi.com)"
     ]
   }
 }

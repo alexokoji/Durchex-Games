@@ -66,6 +66,26 @@ router.get('/events/:id', async (req: Request, res: Response) => {
   res.json({ event: ev });
 });
 
+// Rich match details (lineups, stats, timeline, H2H, table). Cached in-memory
+// to protect the feed quota — many users opening one match = one upstream call.
+const DETAIL_TTL_MS = 20_000;
+const detailCache = new Map<string, { at: number; data: unknown }>();
+router.get('/events/:id/details', async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const hit = detailCache.get(id);
+  if (hit && Date.now() - hit.at < DETAIL_TTL_MS) { res.json(hit.data); return; }
+
+  const { getSportsFeed } = await import('../providers');
+  const feed = getSportsFeed();
+  let details: import('../providers/sportsFeed').FeedMatchDetails | null = null;
+  try { details = feed.matchDetails ? await feed.matchDetails(id) : null; }
+  catch { /* feed hiccup — return nulls, client degrades gracefully */ }
+
+  const data = { details };
+  detailCache.set(id, { at: Date.now(), data });
+  res.json(data);
+});
+
 // ─── Place a live-sports bet (single or multi) ─────────────────────────────
 
 router.post(

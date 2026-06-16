@@ -34,11 +34,10 @@ export async function ingestEvents(): Promise<{ sports: number; events: number }
 
   const feed = getSportsFeed();
 
-  // Quota guard — bail before exhausting the key.
-  const { oddsRequestsRemaining } = await import('../providers/theOddsApi');
-  const remaining = oddsRequestsRemaining();
+  // Quota guard — bail before exhausting the key (provider-agnostic).
+  const remaining = feed.requestsRemaining?.() ?? null;
   if (remaining != null && remaining < ODDS_CREDIT_FLOOR) {
-    console.warn(`[liveSports] paused — only ${remaining} Odds-API credits left (floor ${ODDS_CREDIT_FLOOR}). Raise the plan or ODDS_POLL_SECONDS.`);
+    console.warn(`[liveSports] paused — only ${remaining} ${feed.name} credits left (floor ${ODDS_CREDIT_FLOOR}). Raise the plan or poll interval.`);
     return { sports: 0, events: 0 };
   }
 

@@ -89,6 +89,9 @@ export const env = {
   // back to a deterministic SANDBOX feed so the section is fully functional
   // in dev/demo without a paid provider.
   liveSports: {
+    // Which feed adapter to use: 'the-odds-api' (default) | 'api-football'.
+    provider: (process.env.LIVE_PROVIDER ?? 'the-odds-api').toLowerCase(),
+
     oddsApiKey:  process.env.ODDS_API_KEY ?? '',
     oddsApiBase: process.env.ODDS_API_BASE ?? 'https://api.the-odds-api.com/v4',
     // Only valid Odds-API regions are accepted: us, us2, uk, eu, au. We
@@ -144,8 +147,48 @@ export const env = {
     // alternate_* lines are merged into totals/spreads for the line dropdowns.
     // NOTE: each extra market multiplies credit cost (markets × regions per call).
     markets: process.env.ODDS_MARKETS ?? 'h2h,totals,spreads',
-    /** true → live provider active; false → section stays empty. */
-    enabled:     !!process.env.ODDS_API_KEY,
+
+    // ── API-Football (api-sports.io v3) adapter ──────────────────────────────
+    // Soccer fixtures + scores + pre-match odds on every plan; in-play odds via
+    // /odds/live (set API_FOOTBALL_LIVE_ODDS=1, needs a paid plan to tick).
+    apiFootball: {
+      key:          process.env.API_FOOTBALL_KEY ?? '',
+      // Direct API-Sports host by default. For the RapidAPI gateway, set
+      // API_FOOTBALL_HOST=api-football-v1.p.rapidapi.com and the base flips.
+      rapidApiHost: process.env.API_FOOTBALL_HOST ?? '',
+      base: process.env.API_FOOTBALL_HOST
+        ? `https://${process.env.API_FOOTBALL_HOST}/v3`
+        : (process.env.API_FOOTBALL_BASE ?? 'https://v3.football.api-sports.io'),
+      // Soccer league IDs to ingest. Override with API_FOOTBALL_LEAGUES (CSV).
+      // NOTE: more leagues = more requests per poll (fixtures + odds pages each).
+      leagues: (process.env.API_FOOTBALL_LEAGUES ?? [
+        '39',   // Premier League (England)
+        '140',  // La Liga (Spain)
+        '135',  // Serie A (Italy)
+        '78',   // Bundesliga (Germany)
+        '61',   // Ligue 1 (France)
+        '2',    // UEFA Champions League
+        '3',    // UEFA Europa League
+      ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
+      // Season = starting year (Europe's 2025-26 = 2025). Inferred from today;
+      // override with API_FOOTBALL_SEASON.
+      season: (() => {
+        const fixed = process.env.API_FOOTBALL_SEASON;
+        if (fixed && /^\d{4}$/.test(fixed)) return Number(fixed);
+        const now = new Date();
+        return now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+      })(),
+      daysAhead:    num('API_FOOTBALL_DAYS_AHEAD', 7),
+      // In-play odds (/odds/live). Free 100/day can't sustain this — paid only.
+      liveOdds:     bool('API_FOOTBALL_LIVE_ODDS', false),
+      // Cap odds pagination per league per poll (each page = 1 request).
+      maxOddsPages: num('API_FOOTBALL_MAX_ODDS_PAGES', 3),
+    },
+
+    /** true → selected provider configured; false → section stays empty. */
+    enabled: ((process.env.LIVE_PROVIDER ?? 'the-odds-api').toLowerCase() === 'api-football')
+      ? !!process.env.API_FOOTBALL_KEY
+      : !!process.env.ODDS_API_KEY,
   },
 
   economy: {

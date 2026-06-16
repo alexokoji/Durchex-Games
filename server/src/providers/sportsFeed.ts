@@ -42,6 +42,57 @@ export interface FeedResult {
   awayScore?: number;
 }
 
+// ─── Rich match-details payloads (lineups, stats, timeline, …) ───────────────
+// Optional — only providers with this data (e.g. API-Football) populate it.
+export interface FeedLineupPlayer { number?: number; name: string; pos?: string }
+export interface FeedLineupTeam {
+  side: 'home' | 'away';
+  team: string;
+  formation?: string;
+  coach?: string;
+  startXI: FeedLineupPlayer[];
+  subs: FeedLineupPlayer[];
+}
+export interface FeedStat { type: string; home: number | string | null; away: number | string | null }
+export interface FeedTimelineEvent {
+  minute: number;
+  side: 'home' | 'away';
+  type: string;           // 'Goal' | 'Card' | 'subst' | 'Var'
+  detail?: string;        // 'Yellow Card' | 'Normal Goal' | …
+  player?: string;
+  assist?: string;
+}
+export interface FeedH2HMatch {
+  date: string;
+  home: string;
+  away: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  competition?: string;
+}
+export interface FeedStandingRow {
+  rank: number;
+  team: string;
+  played: number;
+  win: number;
+  draw: number;
+  lose: number;
+  goalsDiff: number;
+  points: number;
+  form?: string;          // e.g. 'WWDLW'
+}
+export interface FeedMatchDetails {
+  status?: { short: string; elapsed: number | null };
+  score?: { home: number | null; away: number | null };
+  venue?: string;
+  referee?: string;
+  lineups?: FeedLineupTeam[];
+  statistics?: FeedStat[];
+  timeline?: FeedTimelineEvent[];
+  h2h?: FeedH2HMatch[];
+  standings?: FeedStandingRow[];
+}
+
 export interface SportsFeedProvider {
   readonly name: string;
   /** Whether this is the live provider (false for sandbox). */
@@ -51,4 +102,8 @@ export interface SportsFeedProvider {
   listEvents(sportKey: string): Promise<FeedEvent[]>;
   /** Results for finished events (for settlement). */
   listResults(sportKey: string): Promise<FeedResult[]>;
+  /** Provider quota remaining (from rate-limit headers); null if unknown. */
+  requestsRemaining?(): number | null;
+  /** Rich details (lineups, stats, timeline, H2H, table) for one event. */
+  matchDetails?(eventId: string): Promise<FeedMatchDetails | null>;
 }

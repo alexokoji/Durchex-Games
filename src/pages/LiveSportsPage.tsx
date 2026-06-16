@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import {
   Box, Typography, Button, Chip, Tabs, Tab, TextField, CircularProgress,
-  Select, MenuItem, Drawer, Badge,
+  Select, MenuItem, Drawer, Badge, Dialog, IconButton, LinearProgress,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useSearchParams } from 'react-router-dom';
@@ -13,6 +13,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import IosShareIcon from '@mui/icons-material/IosShare';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -20,6 +21,7 @@ import { useToasts } from '../contexts/ToastContext';
 import { formatMoney } from '../utils/currency';
 import {
   liveSportsApi, type LiveEvent, type LiveSportSummary, type LiveMarket, type LiveMarketKey,
+  type MatchDetails, type MatchStat, type TimelineEvent,
 } from '../api/liveSports';
 import { bookingCodesApi } from '../api/bookingCodes';
 import type { ApiBet } from '../api/bets';
@@ -204,7 +206,7 @@ function competitionIso(sportKey: string): string {
     ['wimbledon', 'gb-eng'], ['french_open', 'fr'], ['aus_open', 'au'], ['us_open', 'us'],
   ];
   for (const [tok, code] of tokens) if (k.includes(tok)) return code;
-  if (k.includes('uefa')) return 'eu';
+  if (k.includes('uefa') || k.includes('europe')) return 'eu';
   return '';
 }
 
@@ -232,6 +234,7 @@ export default function LiveSportsPage() {
   const [placing, setPlacing] = useState(false);
   const [myBets, setMyBets]   = useState<ApiBet[]>([]);
   const [mobileSlipOpen, setMobileSlipOpen] = useState(false);
+  const [detailEvent, setDetailEvent] = useState<LiveEvent | null>(null);
 
   // Booking codes
   const [params] = useSearchParams();
@@ -520,7 +523,8 @@ export default function LiveSportsPage() {
               <Typography sx={{ color: 'text.secondary' }}>No events available right now. Check back soon.</Typography>
             </Box>
           ) : events.map(ev => (
-            <EventCard key={ev.providerId} ev={ev} slip={slip} onPick={toggle} />
+            <EventCard key={ev.providerId} ev={ev} slip={slip} onPick={toggle}
+              onOpenDetails={() => setDetailEvent(ev)} />
           ))}
         </Box>
 
@@ -566,20 +570,26 @@ export default function LiveSportsPage() {
         slotProps={{ paper: { sx: { background: 'transparent', maxHeight: '85vh', p: 1.5 } } }}>
         {betSlipCard}
       </Drawer>
+
+      {/* Match details (line-ups, stats, timeline, H2H, table) */}
+      <MatchDetailsDialog
+        ev={detailEvent} slip={slip} onPick={toggle} onClose={() => setDetailEvent(null)} />
     </Box>
   );
 }
 
 // ─── Event card ──────────────────────────────────────────────────────────────
 
-function EventCard({ ev, slip, onPick }: {
+function EventCard({ ev, slip, onPick, onOpenDetails, defaultExpanded = false }: {
   ev: LiveEvent;
   slip: SlipItem[];
   onPick: (ev: LiveEvent, m: LiveMarket, name: string, price: number, point?: number) => void;
+  onOpenDetails?: () => void;
+  defaultExpanded?: boolean;
 }) {
   const isLive = ev.status === 'live';
   const [pickedLines, setPickedLines] = useState<Record<string, number>>({});
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const OddsBtn = ({ m, name, price, point, label }: { m: LiveMarket; name: string; price: number; point?: number; label: string }) => {
     const on = slip.some(s => s.key === selKey(ev.providerId, m.key, name, point));
@@ -690,7 +700,13 @@ function EventCard({ ev, slip, onPick }: {
           </Typography>
         </Box>
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
+      <Box
+        onClick={onOpenDetails}
+        sx={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1,
+          ...(onOpenDetails && { cursor: 'pointer', borderRadius: 1, p: 0.5, mx: -0.5,
+            '&:hover': { background: alpha('#fff', 0.04) } }),
+        }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <TeamLogo name={ev.homeTeam} />
           <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{ev.homeTeam}</Typography>
@@ -704,12 +720,312 @@ function EventCard({ ev, slip, onPick }: {
       {primary.map(renderMarket)}
       {expanded && extra.map(renderMarket)}
 
-      {extra.length > 0 && (
-        <Button size="small" onClick={() => setExpanded(e => !e)}
-          sx={{ mt: 0.5, fontSize: '0.7rem', fontWeight: 700, color: neonBlue }}>
-          {expanded ? 'Hide markets' : `+ ${extra.length} more markets`}
-        </Button>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        {extra.length > 0 && (
+          <Button size="small" onClick={() => setExpanded(e => !e)}
+            sx={{ fontSize: '0.7rem', fontWeight: 700, color: neonBlue }}>
+            {expanded ? 'Hide markets' : `+ ${extra.length} more markets`}
+          </Button>
+        )}
+        <Box sx={{ flex: 1 }} />
+        {onOpenDetails && (
+          <Button size="small" onClick={onOpenDetails} startIcon={<BarChartIcon sx={{ fontSize: 15 }} />}
+            sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'text.secondary' }}>
+            Stats & line-ups
+          </Button>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+// ─── Match details dialog (line-ups · stats · timeline · H2H · table) ────────
+
+const DETAIL_TABS = [
+  { key: 'markets',  label: 'Markets' },
+  { key: 'lineups',  label: 'Line-ups' },
+  { key: 'stats',    label: 'Stats' },
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'h2h',      label: 'H2H' },
+  { key: 'table',    label: 'Table' },
+] as const;
+
+function statNum(v: number | string | null): number {
+  if (v == null) return 0;
+  const n = parseFloat(String(v).replace('%', ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function eventGlyph(t: TimelineEvent): string {
+  const ty = (t.type || '').toLowerCase(), d = (t.detail || '').toLowerCase();
+  if (ty === 'goal') return d.includes('own') ? '🥅' : d.includes('miss') || d.includes('penalty missed') ? '❌' : '⚽';
+  if (ty === 'card') return d.includes('red') ? '🟥' : '🟨';
+  if (ty === 'subst') return '🔁';
+  if (ty === 'var') return '📺';
+  return '•';
+}
+
+function MatchDetailsDialog({ ev, slip, onPick, onClose }: {
+  ev: LiveEvent | null;
+  slip: SlipItem[];
+  onPick: (ev: LiveEvent, m: LiveMarket, name: string, price: number, point?: number) => void;
+  onClose: () => void;
+}) {
+  const [details, setDetails] = useState<MatchDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<string>('markets');
+
+  useEffect(() => {
+    if (!ev) return;
+    let on = true;
+    setDetails(null); setLoading(true); setTab('markets');
+    const load = () => liveSportsApi.details(ev.providerId)
+      .then(r => { if (on) setDetails(r.details); })
+      .catch(() => { /* keep nulls */ })
+      .finally(() => { if (on) setLoading(false); });
+    void load();
+    const t = setInterval(load, 25_000); // refresh live stats while open
+    return () => { on = false; clearInterval(t); };
+  }, [ev]);
+
+  if (!ev) return null;
+  const isLive = ev.status === 'live';
+  const score = details?.score;
+  const hasScore = score && (score.home != null || score.away != null);
+  const elapsed = details?.status?.elapsed;
+
+  const tabs = DETAIL_TABS.filter(t => {
+    if (t.key === 'markets') return true;
+    if (t.key === 'lineups')  return !!details?.lineups?.length;
+    if (t.key === 'stats')    return !!details?.statistics?.length;
+    if (t.key === 'timeline') return !!details?.timeline?.length;
+    if (t.key === 'h2h')      return !!details?.h2h?.length;
+    if (t.key === 'table')    return !!details?.standings?.length;
+    return false;
+  });
+  const activeTab = tabs.some(t => t.key === tab) ? tab : 'markets';
+
+  return (
+    <Dialog open={!!ev} onClose={onClose} fullWidth maxWidth="md"
+      slotProps={{ paper: { sx: { background: '#0d0f14', backgroundImage: 'none', border: `1px solid ${darkBorder}`, borderRadius: { xs: 0, sm: 2 } } } }}
+      fullScreen={typeof window !== 'undefined' && window.innerWidth < 600}>
+      {/* Scoreboard header */}
+      <Box sx={{ p: 2, borderBottom: `1px solid ${darkBorder}`, background: `linear-gradient(180deg, ${alpha(neonGreen, 0.06)}, transparent)` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary', display: 'inline-flex', alignItems: 'center' }}>
+            <CompFlag sportKey={ev.sportKey} />{ev.sportTitle}
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <IconButton size="small" onClick={onClose}><CloseIcon sx={{ fontSize: 20 }} /></IconButton>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+            <TeamLogo name={ev.homeTeam} size={40} />
+            <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', textAlign: 'center' }} noWrap>{ev.homeTeam}</Typography>
+          </Box>
+          <Box sx={{ textAlign: 'center', px: 1 }}>
+            {hasScore ? (
+              <Typography sx={{ fontWeight: 900, fontSize: '1.8rem', lineHeight: 1 }}>
+                {score!.home ?? 0}<span style={{ opacity: 0.4 }}> - </span>{score!.away ?? 0}
+              </Typography>
+            ) : (
+              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: 'text.secondary' }}>vs</Typography>
+            )}
+            <Chip size="small" label={isLive ? (elapsed != null ? `${elapsed}'` : 'LIVE') : fmtKickoff(ev.commenceTime)}
+              sx={{ mt: 0.5, height: 18, fontSize: '0.6rem', fontWeight: 800,
+                background: isLive ? alpha('#ff4757', 0.15) : alpha(neonBlue, 0.12),
+                color: isLive ? '#ff4757' : neonBlue }} />
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+            <TeamLogo name={ev.awayTeam} size={40} />
+            <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', textAlign: 'center' }} noWrap>{ev.awayTeam}</Typography>
+          </Box>
+        </Box>
+        {(details?.venue || details?.referee) && (
+          <Typography sx={{ mt: 1, fontSize: '0.62rem', color: 'text.disabled', textAlign: 'center' }}>
+            {[details?.venue, details?.referee && `Ref: ${details.referee}`].filter(Boolean).join(' · ')}
+          </Typography>
+        )}
+      </Box>
+
+      {loading && <LinearProgress sx={{ height: 2 }} />}
+
+      <Tabs value={activeTab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto"
+        sx={{ borderBottom: `1px solid ${darkBorder}`, minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontWeight: 700, fontSize: '0.78rem' } }}>
+        {tabs.map(t => <Tab key={t.key} value={t.key} label={t.label} />)}
+      </Tabs>
+
+      <Box sx={{ p: 1.5, maxHeight: { xs: 'unset', sm: '60vh' }, overflowY: 'auto' }}>
+        {activeTab === 'markets' && (
+          <EventCard ev={ev} slip={slip} onPick={onPick} defaultExpanded />
+        )}
+        {activeTab === 'lineups'  && <LineupsView details={details!} ev={ev} />}
+        {activeTab === 'stats'    && <StatsView details={details!} ev={ev} />}
+        {activeTab === 'timeline' && <TimelineView details={details!} ev={ev} />}
+        {activeTab === 'h2h'      && <H2HView details={details!} />}
+        {activeTab === 'table'    && <TableView details={details!} ev={ev} />}
+
+        {activeTab === 'markets' && !loading && !details && (
+          <Typography sx={{ mt: 1.5, fontSize: '0.72rem', color: 'text.disabled', textAlign: 'center' }}>
+            Line-ups, stats and head-to-head appear here when the data feed provides them.
+          </Typography>
+        )}
+      </Box>
+    </Dialog>
+  );
+}
+
+function LineupsView({ details, ev }: { details: MatchDetails; ev: LiveEvent }) {
+  const home = details.lineups?.find(l => l.side === 'home');
+  const away = details.lineups?.find(l => l.side === 'away');
+  const col = (lu: typeof home, fallback: string) => (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <TeamLogo name={lu?.team ?? fallback} size={20} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: '0.78rem' }} noWrap>{lu?.team ?? fallback}</Typography>
+          {lu?.formation && <Typography sx={{ fontSize: '0.62rem', color: neonGold }}>{lu.formation}</Typography>}
+        </Box>
+      </Box>
+      {(lu?.startXI ?? []).map((p, i) => (
+        <Box key={i} sx={{ display: 'flex', gap: 0.75, py: 0.35, alignItems: 'baseline' }}>
+          <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled', width: 18, textAlign: 'right' }}>{p.number ?? ''}</Typography>
+          <Typography sx={{ fontSize: '0.74rem', flex: 1 }} noWrap>{p.name}</Typography>
+          {p.pos && <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>{p.pos}</Typography>}
+        </Box>
+      ))}
+      {!!lu?.subs?.length && (
+        <>
+          <Typography sx={{ mt: 1, mb: 0.5, fontSize: '0.6rem', fontWeight: 800, color: 'text.disabled', letterSpacing: '0.08em' }}>SUBS</Typography>
+          {lu.subs.map((p, i) => (
+            <Box key={i} sx={{ display: 'flex', gap: 0.75, py: 0.25, alignItems: 'baseline' }}>
+              <Typography sx={{ fontSize: '0.64rem', color: 'text.disabled', width: 18, textAlign: 'right' }}>{p.number ?? ''}</Typography>
+              <Typography sx={{ fontSize: '0.7rem', flex: 1, color: 'text.secondary' }} noWrap>{p.name}</Typography>
+            </Box>
+          ))}
+        </>
       )}
+      {lu?.coach && <Typography sx={{ mt: 1, fontSize: '0.62rem', color: 'text.disabled' }}>Coach: {lu.coach}</Typography>}
+    </Box>
+  );
+  return <Box sx={{ display: 'flex', gap: 2 }}>{col(home, ev.homeTeam)}{col(away, ev.awayTeam)}</Box>;
+}
+
+function StatsView({ details, ev }: { details: MatchDetails; ev: LiveEvent }) {
+  const stats: MatchStat[] = details.statistics ?? [];
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 800 }} noWrap>{ev.homeTeam}</Typography>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 800 }} noWrap>{ev.awayTeam}</Typography>
+      </Box>
+      {stats.map((s, i) => {
+        const h = statNum(s.home), a = statNum(s.away), tot = h + a;
+        const hf = tot > 0 ? (h / tot) * 100 : 50;
+        return (
+          <Box key={i} sx={{ mb: 1.25 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+              <Typography sx={{ fontSize: '0.74rem', fontWeight: 700 }}>{s.home ?? 0}</Typography>
+              <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary' }}>{s.type}</Typography>
+              <Typography sx={{ fontSize: '0.74rem', fontWeight: 700 }}>{s.away ?? 0}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', height: 5, borderRadius: 3, overflow: 'hidden', background: alpha('#fff', 0.06) }}>
+              <Box sx={{ width: `${hf}%`, background: neonGreen }} />
+              <Box sx={{ width: `${100 - hf}%`, background: neonBlue }} />
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
+function TimelineView({ details, ev }: { details: MatchDetails; ev: LiveEvent }) {
+  const events = details.timeline ?? [];
+  return (
+    <Box>
+      {events.map((e, i) => {
+        const homeSide = e.side === 'home';
+        return (
+          <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.6, borderBottom: `1px solid ${alpha('#fff', 0.04)}`,
+            flexDirection: homeSide ? 'row' : 'row-reverse', textAlign: homeSide ? 'left' : 'right' }}>
+            <Chip size="small" label={`${e.minute}'`} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800, background: alpha('#fff', 0.06) }} />
+            <Typography sx={{ fontSize: '1rem' }}>{eventGlyph(e)}</Typography>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontSize: '0.74rem', fontWeight: 700 }} noWrap>{e.player ?? e.detail ?? e.type}</Typography>
+              {(e.assist || e.detail) && (
+                <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled' }} noWrap>
+                  {e.type.toLowerCase() === 'subst' && e.assist ? `↔ ${e.assist}` : e.assist ? `assist: ${e.assist}` : e.detail}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        );
+      })}
+      <Typography sx={{ mt: 1, fontSize: '0.6rem', color: 'text.disabled', textAlign: 'center' }}>
+        {ev.homeTeam} (left) · {ev.awayTeam} (right)
+      </Typography>
+    </Box>
+  );
+}
+
+function H2HView({ details }: { details: MatchDetails }) {
+  const matches = details.h2h ?? [];
+  return (
+    <Box>
+      {matches.map((m, i) => (
+        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.7, borderBottom: `1px solid ${alpha('#fff', 0.04)}` }}>
+          <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', width: 60 }}>
+            {new Date(m.date).toLocaleDateString([], { day: '2-digit', month: 'short', year: '2-digit' })}
+          </Typography>
+          <Typography sx={{ fontSize: '0.74rem', flex: 1, textAlign: 'right' }} noWrap>{m.home}</Typography>
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800, px: 1 }}>
+            {m.homeScore ?? '-'} : {m.awayScore ?? '-'}
+          </Typography>
+          <Typography sx={{ fontSize: '0.74rem', flex: 1 }} noWrap>{m.away}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function TableView({ details, ev }: { details: MatchDetails; ev: LiveEvent }) {
+  const rows = details.standings ?? [];
+  const mine = new Set([ev.homeTeam.toLowerCase(), ev.awayTeam.toLowerCase()]);
+  const cell = { fontSize: '0.68rem', px: 0.4, textAlign: 'center' as const };
+  return (
+    <Box sx={{ overflowX: 'auto' }}>
+      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
+        <Box component="thead">
+          <Box component="tr" sx={{ color: 'text.disabled' }}>
+            <Box component="th" sx={{ ...cell, textAlign: 'left', width: 22 }}>#</Box>
+            <Box component="th" sx={{ ...cell, textAlign: 'left' }}>Team</Box>
+            <Box component="th" sx={cell}>P</Box>
+            <Box component="th" sx={cell}>W</Box>
+            <Box component="th" sx={cell}>D</Box>
+            <Box component="th" sx={cell}>L</Box>
+            <Box component="th" sx={cell}>GD</Box>
+            <Box component="th" sx={{ ...cell, fontWeight: 800 }}>Pts</Box>
+          </Box>
+        </Box>
+        <Box component="tbody">
+          {rows.map(r => {
+            const hot = mine.has(r.team.toLowerCase());
+            return (
+              <Box component="tr" key={r.rank} sx={{ background: hot ? alpha(neonGreen, 0.1) : 'transparent' }}>
+                <Box component="td" sx={{ ...cell, textAlign: 'left', color: 'text.disabled' }}>{r.rank}</Box>
+                <Box component="td" sx={{ ...cell, textAlign: 'left', fontWeight: hot ? 800 : 600, whiteSpace: 'nowrap' }}>{r.team}</Box>
+                <Box component="td" sx={cell}>{r.played}</Box>
+                <Box component="td" sx={cell}>{r.win}</Box>
+                <Box component="td" sx={cell}>{r.draw}</Box>
+                <Box component="td" sx={cell}>{r.lose}</Box>
+                <Box component="td" sx={cell}>{r.goalsDiff}</Box>
+                <Box component="td" sx={{ ...cell, fontWeight: 800, color: neonGold }}>{r.points}</Box>
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
     </Box>
   );
 }

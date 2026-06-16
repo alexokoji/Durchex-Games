@@ -76,6 +76,7 @@ function consolidate(ev: RawEvent): FeedMarket[] {
 export const theOddsApiProvider: SportsFeedProvider = {
   name: 'the-odds-api',
   live: true,
+  requestsRemaining: () => _requestsRemaining,
 
   async listSports(): Promise<FeedSport[]> {
     const raw = await get<RawSport[]>('/sports', {});
