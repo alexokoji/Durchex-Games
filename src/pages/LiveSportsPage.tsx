@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import {
   Box, Typography, Button, Chip, Tabs, Tab, TextField, CircularProgress,
-  Select, MenuItem,
+  Select, MenuItem, Drawer, Badge,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useSearchParams } from 'react-router-dom';
@@ -37,11 +37,12 @@ interface SlipItem {
 // Market display metadata — title + how to render. Order = display order.
 const MARKET_META: { key: LiveMarketKey; title: string; primary?: boolean }[] = [
   { key: 'h2h',           title: 'Match Result', primary: true },
+  { key: 'h2h_3_way',     title: 'Match Result (3-Way)' },
   { key: 'totals',        title: 'Total (Over/Under)', primary: true },
+  { key: 'spreads',       title: 'Handicap' },
   { key: 'double_chance', title: 'Double Chance' },
   { key: 'draw_no_bet',   title: 'Draw No Bet' },
   { key: 'btts',          title: 'Both Teams To Score' },
-  { key: 'spreads',       title: 'Handicap' },
 ];
 
 function selKey(eventId: string, marketKey: string, name: string, point?: number) {
@@ -79,6 +80,7 @@ export default function LiveSportsPage() {
   const [stake, setStake]     = useState('');
   const [placing, setPlacing] = useState(false);
   const [myBets, setMyBets]   = useState<ApiBet[]>([]);
+  const [mobileSlipOpen, setMobileSlipOpen] = useState(false);
 
   // Booking codes
   const [params] = useSearchParams();
@@ -218,11 +220,108 @@ export default function LiveSportsPage() {
       })), loadedFromCode ?? undefined);
       toasts.success('Bet placed', `${slip.length}-selection slip · ${combined.toFixed(2)}×`);
       setSlip([]); setStake(''); setBookedCode(null); setQrUrl(null); setLoadedFromCode(null);
+      setMobileSlipOpen(false);
       await Promise.all([wallet.refresh(), loadMyBets()]);
     } catch (e: any) {
       toasts.error('Could not place bet', e?.message ?? 'Try again.');
     } finally { setPlacing(false); }
   }
+
+  // ── Reusable bet-slip panel (used in desktop sidebar + mobile drawer) ──
+  const betSlipCard = (
+    <Box sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, borderBottom: `1px solid ${darkBorder}` }}>
+        <ReceiptLongIcon sx={{ fontSize: 18, color: neonGold }} />
+        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>Bet Slip</Typography>
+        <Box sx={{ flex: 1 }} />
+        {slip.length > 0 && <Chip label={`${slip.length}`} size="small" sx={{ background: alpha(neonGreen, 0.2), color: neonGreen, fontWeight: 800 }} />}
+      </Box>
+
+      {/* Load a booking code */}
+      <Box sx={{ display: 'flex', gap: 0.75, px: 2, py: 1.25, borderBottom: `1px solid ${darkBorder}` }}>
+        <TextField size="small" placeholder="Enter booking code" value={loadInput}
+          onChange={e => setLoadInput(e.target.value.toUpperCase())}
+          sx={{ flex: 1, '& input': { fontSize: '0.8rem', textTransform: 'uppercase' } }} />
+        <Button size="small" variant="outlined" disabled={!loadInput.trim()}
+          onClick={() => { void loadCode(loadInput.trim()); setLoadInput(''); }}>Load</Button>
+      </Box>
+
+      {slip.length === 0 ? (
+        <Typography sx={{ p: 2, fontSize: '0.8rem', color: 'text.secondary' }}>
+          Tap any odds to add a selection, or load a booking code above.
+        </Typography>
+      ) : (
+        <Box>
+          {slip.map(s => (
+            <Box key={s.key} sx={{ px: 2, py: 1, borderBottom: `1px solid ${darkBorder}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }} noWrap>
+                  {s.outcomeName}{s.point != null ? ` ${s.point}` : ''}
+                </Typography>
+                <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary' }} noWrap>{s.label}</Typography>
+              </Box>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGold }}>{s.price.toFixed(2)}</Typography>
+              <CloseIcon sx={{ fontSize: 16, cursor: 'pointer', color: 'text.disabled' }}
+                onClick={() => { setBookedCode(null); setQrUrl(null); setSlip(prev => prev.filter(x => x.key !== s.key)); }} />
+            </Box>
+          ))}
+
+          <Box sx={{ p: 2 }}>
+            <TextField fullWidth size="small" placeholder={`Stake (${wallet.currency})`} value={stake}
+              onChange={e => setStake(e.target.value.replace(/[^0-9.]/g, ''))}
+              type="number" sx={{ mb: 1.5 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                {slip.length > 1 ? 'Accumulator odds' : 'Odds'}
+              </Typography>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGold }}>{combined.toFixed(2)}×</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>Potential return</Typography>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGreen }}>
+                {potential > 0 ? formatMoney(potential, wallet.currency) : '—'}
+              </Typography>
+            </Box>
+            <Button fullWidth variant="contained" disabled={placing || stakeNum <= 0}
+              onClick={placeBet}
+              sx={{ fontWeight: 900, background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`, color: '#000' }}>
+              {placing ? <CircularProgress size={18} color="inherit" /> : isAuthenticated ? 'Place Bet' : 'Sign in to bet'}
+            </Button>
+
+            <Button fullWidth size="small" onClick={book}
+              sx={{ mt: 1, fontWeight: 700, fontSize: '0.75rem', color: neonBlue, border: `1px solid ${alpha(neonBlue, 0.4)}` }}>
+              Book slip → get a code
+            </Button>
+
+            {bookedCode && (
+              <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, background: alpha(neonBlue, 0.06), border: `1px solid ${alpha(neonBlue, 0.3)}`, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.1em' }}>BOOKING CODE</Typography>
+                <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, color: neonBlue, letterSpacing: '0.15em', fontFamily: 'monospace' }}>{bookedCode}</Typography>
+                {qrUrl && <Box component="img" src={qrUrl} alt="QR" sx={{ width: 140, height: 140, borderRadius: 1, my: 1, background: '#fff', p: 0.5 }} />}
+                <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5 }}>
+                  <Button size="small" fullWidth startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />} onClick={copyCode}
+                    sx={{ fontSize: '0.7rem', border: `1px solid ${darkBorder}` }}>Copy</Button>
+                  <Button size="small" fullWidth startIcon={<IosShareIcon sx={{ fontSize: 14 }} />} onClick={shareCode}
+                    sx={{ fontSize: '0.7rem', border: `1px solid ${darkBorder}` }}>Share</Button>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+
+  const openBetsCard = myBets.filter(b => b.status === 'pending').length > 0 ? (
+    <Box sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, overflow: 'hidden' }}>
+      <Typography sx={{ px: 2, py: 1.25, fontWeight: 800, fontSize: '0.9rem', borderBottom: `1px solid ${darkBorder}` }}>
+        Open Bets
+      </Typography>
+      {myBets.filter(b => b.status === 'pending').map(b => (
+        <OpenBetRow key={b._id} bet={b} onChanged={() => { void wallet.refresh(); void loadMyBets(); }} />
+      ))}
+    </Box>
+  ) : null;
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, pb: { xs: 12, md: 3 }, maxWidth: 1100, mx: 'auto' }}>
@@ -274,104 +373,48 @@ export default function LiveSportsPage() {
           ))}
         </Box>
 
-        {/* Bet slip + open bets */}
-        <Box sx={{ position: { md: 'sticky' }, top: { md: 12 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, borderBottom: `1px solid ${darkBorder}` }}>
-              <ReceiptLongIcon sx={{ fontSize: 18, color: neonGold }} />
-              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>Bet Slip</Typography>
-              <Box sx={{ flex: 1 }} />
-              {slip.length > 0 && <Chip label={`${slip.length}`} size="small" sx={{ background: alpha(neonGreen, 0.2), color: neonGreen, fontWeight: 800 }} />}
-            </Box>
-
-            {/* Load a booking code */}
-            <Box sx={{ display: 'flex', gap: 0.75, px: 2, py: 1.25, borderBottom: `1px solid ${darkBorder}` }}>
-              <TextField size="small" placeholder="Enter booking code" value={loadInput}
-                onChange={e => setLoadInput(e.target.value.toUpperCase())}
-                sx={{ flex: 1, '& input': { fontSize: '0.8rem', textTransform: 'uppercase' } }} />
-              <Button size="small" variant="outlined" disabled={!loadInput.trim()}
-                onClick={() => { void loadCode(loadInput.trim()); setLoadInput(''); }}>Load</Button>
-            </Box>
-
-            {slip.length === 0 ? (
-              <Typography sx={{ p: 2, fontSize: '0.8rem', color: 'text.secondary' }}>
-                Tap any odds to add a selection, or load a booking code above.
-              </Typography>
-            ) : (
-              <Box>
-                {slip.map(s => (
-                  <Box key={s.key} sx={{ px: 2, py: 1, borderBottom: `1px solid ${darkBorder}`, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }} noWrap>
-                        {s.outcomeName}{s.point != null ? ` ${s.point}` : ''}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary' }} noWrap>{s.label}</Typography>
-                    </Box>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGold }}>{s.price.toFixed(2)}</Typography>
-                    <CloseIcon sx={{ fontSize: 16, cursor: 'pointer', color: 'text.disabled' }}
-                      onClick={() => { setBookedCode(null); setQrUrl(null); setSlip(prev => prev.filter(x => x.key !== s.key)); }} />
-                  </Box>
-                ))}
-
-                <Box sx={{ p: 2 }}>
-                  <TextField fullWidth size="small" placeholder={`Stake (${wallet.currency})`} value={stake}
-                    onChange={e => setStake(e.target.value.replace(/[^0-9.]/g, ''))}
-                    type="number" sx={{ mb: 1.5 }} />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                      {slip.length > 1 ? 'Accumulator odds' : 'Odds'}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGold }}>{combined.toFixed(2)}×</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>Potential return</Typography>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: neonGreen }}>
-                      {potential > 0 ? formatMoney(potential, wallet.currency) : '—'}
-                    </Typography>
-                  </Box>
-                  <Button fullWidth variant="contained" disabled={placing || stakeNum <= 0}
-                    onClick={placeBet}
-                    sx={{ fontWeight: 900, background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`, color: '#000' }}>
-                    {placing ? <CircularProgress size={18} color="inherit" /> : isAuthenticated ? 'Place Bet' : 'Sign in to bet'}
-                  </Button>
-
-                  {/* Booking code */}
-                  <Button fullWidth size="small" onClick={book}
-                    sx={{ mt: 1, fontWeight: 700, fontSize: '0.75rem', color: neonBlue, border: `1px solid ${alpha(neonBlue, 0.4)}` }}>
-                    Book slip → get a code
-                  </Button>
-
-                  {bookedCode && (
-                    <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, background: alpha(neonBlue, 0.06), border: `1px solid ${alpha(neonBlue, 0.3)}`, textAlign: 'center' }}>
-                      <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.1em' }}>BOOKING CODE</Typography>
-                      <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, color: neonBlue, letterSpacing: '0.15em', fontFamily: 'monospace' }}>{bookedCode}</Typography>
-                      {qrUrl && <Box component="img" src={qrUrl} alt="QR" sx={{ width: 140, height: 140, borderRadius: 1, my: 1, background: '#fff', p: 0.5 }} />}
-                      <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5 }}>
-                        <Button size="small" fullWidth startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />} onClick={copyCode}
-                          sx={{ fontSize: '0.7rem', border: `1px solid ${darkBorder}` }}>Copy</Button>
-                        <Button size="small" fullWidth startIcon={<IosShareIcon sx={{ fontSize: 14 }} />} onClick={shareCode}
-                          sx={{ fontSize: '0.7rem', border: `1px solid ${darkBorder}` }}>Share</Button>
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-            )}
-          </Box>
-
-          {/* Open bets */}
-          {myBets.filter(b => b.status === 'pending').length > 0 && (
-            <Box sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, overflow: 'hidden' }}>
-              <Typography sx={{ px: 2, py: 1.25, fontWeight: 800, fontSize: '0.9rem', borderBottom: `1px solid ${darkBorder}` }}>
-                Open Bets
-              </Typography>
-              {myBets.filter(b => b.status === 'pending').map(b => (
-                <OpenBetRow key={b._id} bet={b} onChanged={() => { void wallet.refresh(); void loadMyBets(); }} />
-              ))}
-            </Box>
-          )}
+        {/* Desktop bet slip + open bets sidebar (hidden on mobile) */}
+        <Box sx={{ display: { xs: 'none', md: 'flex' }, position: 'sticky', top: 12, flexDirection: 'column', gap: 2 }}>
+          {betSlipCard}
+          {openBetsCard}
         </Box>
       </Box>
+
+      {/* Mobile: open bets below the events */}
+      <Box sx={{ display: { xs: 'block', md: 'none' }, mt: 2 }}>{openBetsCard}</Box>
+
+      {/* Mobile floating bet-slip bar */}
+      {slip.length > 0 && (
+        <Box
+          onClick={() => setMobileSlipOpen(true)}
+          sx={{
+            display: { xs: 'flex', md: 'none' },
+            position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 1200,
+            alignItems: 'center', gap: 1.5, px: 2, py: 1.25, borderRadius: 3,
+            background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`, color: '#000',
+            boxShadow: `0 6px 24px ${alpha('#000', 0.5)}`, cursor: 'pointer',
+          }}>
+          <Badge badgeContent={slip.length} color="error">
+            <ReceiptLongIcon sx={{ color: '#000' }} />
+          </Badge>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.8 }}>
+              {slip.length} selection{slip.length !== 1 ? 's' : ''} · {combined.toFixed(2)}×
+            </Typography>
+            <Typography sx={{ fontSize: '0.9rem', fontWeight: 900 }}>
+              {potential > 0 ? `Returns ${formatMoney(potential, wallet.currency)}` : 'Open bet slip'}
+            </Typography>
+          </Box>
+          <Typography sx={{ fontWeight: 900, fontSize: '0.85rem' }}>BET →</Typography>
+        </Box>
+      )}
+
+      {/* Mobile bet-slip drawer */}
+      <Drawer
+        anchor="bottom" open={mobileSlipOpen} onClose={() => setMobileSlipOpen(false)}
+        slotProps={{ paper: { sx: { background: 'transparent', maxHeight: '85vh', p: 1.5 } } }}>
+        {betSlipCard}
+      </Drawer>
     </Box>
   );
 }
@@ -432,7 +475,7 @@ function EventCard({ ev, slip, onPick }: {
     let header: ReactNode = <Typography sx={sectLabel}>{meta.title.toUpperCase()}</Typography>;
     let body: ReactNode = null;
 
-    if (meta.key === 'h2h') {
+    if (meta.key === 'h2h' || meta.key === 'h2h_3_way') {
       const ordered = [
         { o: m.outcomes.find(o => o.name === ev.homeTeam), label: '1' },
         { o: m.outcomes.find(o => o.name === 'Draw'),      label: 'X' },

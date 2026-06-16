@@ -138,10 +138,10 @@ export const env = {
     ].join(',')).split(',').map(s => s.trim()).filter(Boolean),
     pollSeconds: num('ODDS_POLL_SECONDS', 120),
     // Markets to request. The three core markets (h2h, totals, spreads) work on
-    // every plan → 1X2, Over/Under, Handicap. For the rest (Double Chance, BTTS,
-    // Draw No Bet, and the full 0.5–6.5 O/U ladder) you need a paid Odds-API plan
-    // that exposes additional markets, then set e.g.:
-    //   ODDS_MARKETS=h2h,totals,spreads,double_chance,btts,draw_no_bet,alternate_totals,alternate_spreads
+    // every plan → 1X2, Over/Under, Handicap. The full settleable set (needs a
+    // paid Odds-API plan that exposes additional markets) is:
+    //   h2h,h2h_3_way,totals,spreads,alternate_totals,alternate_spreads,double_chance,btts,draw_no_bet
+    // alternate_* lines are merged into totals/spreads for the line dropdowns.
     // NOTE: each extra market multiplies credit cost (markets × regions per call).
     markets: process.env.ODDS_MARKETS ?? 'h2h,totals,spreads',
     /** true → live provider active; false → section stays empty. */

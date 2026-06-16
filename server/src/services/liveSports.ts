@@ -133,7 +133,8 @@ function legResult(ev: ISportEvent, sel: LiveSelection): 'won' | 'lost' | 'push'
   const lc = name.toLowerCase();
 
   switch (sel.marketKey) {
-    case 'h2h': {
+    case 'h2h':
+    case 'h2h_3_way': {
       const winner = result === 'home' ? ev.homeTeam : result === 'away' ? ev.awayTeam : 'Draw';
       return name === winner ? 'won' : 'lost';
     }

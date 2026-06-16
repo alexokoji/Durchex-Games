@@ -21,7 +21,7 @@ export interface LiveEvent {
 
 export interface LiveSportSummary { sportKey: string; sportTitle: string; sportGroup: string; count: number }
 
-export type LiveMarketKey = 'h2h' | 'totals' | 'spreads' | 'double_chance' | 'btts' | 'draw_no_bet';
+export type LiveMarketKey = 'h2h' | 'h2h_3_way' | 'totals' | 'spreads' | 'double_chance' | 'btts' | 'draw_no_bet';
 
 export interface LiveSelectionInput {
   eventId: string;

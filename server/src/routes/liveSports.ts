@@ -21,10 +21,21 @@ function validate(req: Request, res: Response): boolean {
 
 // ─── Catalogue ────────────────────────────────────────────────────────────
 
-/** Competitions that currently have events, with their sport group. */
+// Matches that kicked off more than this long ago are treated as finished and
+// hidden — only present (in-play) and future fixtures are shown.
+const LIVE_WINDOW_MS = 3.5 * 60 * 60 * 1000;
+function liveMatch(extra: Record<string, unknown> = {}) {
+  return {
+    status: { $in: ['upcoming', 'live'] },
+    commenceTime: { $gte: new Date(Date.now() - LIVE_WINDOW_MS) },
+    ...extra,
+  };
+}
+
+/** Competitions that currently have present/future events, with their sport group. */
 router.get('/sports', async (_req: Request, res: Response) => {
   const rows = await SportEvent.aggregate([
-    { $match: { status: { $in: ['upcoming', 'live'] } } },
+    { $match: liveMatch() },
     { $group: {
       _id: { sportKey: '$sportKey', sportTitle: '$sportTitle', sportGroup: '$sportGroup' },
       count: { $sum: 1 },
@@ -41,12 +52,11 @@ router.get('/sports', async (_req: Request, res: Response) => {
   });
 });
 
-/** Upcoming + live events, optionally filtered by ?sport=key. */
+/** Present + future events, optionally filtered by ?sport=key. */
 router.get('/events', async (req: Request, res: Response) => {
-  const where: Record<string, unknown> = { status: { $in: ['upcoming', 'live'] } };
-  if (typeof req.query.sport === 'string') where.sportKey = req.query.sport;
+  const extra = typeof req.query.sport === 'string' ? { sportKey: req.query.sport } : {};
   const limit = Math.min(Number(req.query.limit) || 60, 200);
-  const events = await SportEvent.find(where).sort({ commenceTime: 1 }).limit(limit).lean();
+  const events = await SportEvent.find(liveMatch(extra)).sort({ commenceTime: 1 }).limit(limit).lean();
   res.json({ events });
 });
 
@@ -64,7 +74,7 @@ router.post(
   body('stake').isFloat({ gt: 0 }),
   body('selections').isArray({ min: 1, max: 20 }),
   body('selections.*.eventId').isString(),
-  body('selections.*.marketKey').isIn(['h2h', 'totals', 'spreads', 'double_chance', 'btts', 'draw_no_bet']),
+  body('selections.*.marketKey').isIn(['h2h', 'h2h_3_way', 'totals', 'spreads', 'double_chance', 'btts', 'draw_no_bet']),
   body('selections.*.outcomeName').isString(),
   body('selections.*.point').optional().isFloat(),
   body('fromCode').optional().isString().isLength({ max: 12 }),
