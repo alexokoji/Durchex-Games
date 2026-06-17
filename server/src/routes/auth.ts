@@ -195,11 +195,22 @@ router.post(
     if (!validate(req, res)) return;
     const { username, password } = req.body as { username: string; password: string };
     const { validateAdminCreds, ensureAdminUser } = await import('../services/adminAuth');
-    if (!validateAdminCreds(username, password)) {
-      res.status(401).json({ error: 'invalid_admin_credentials' });
-      return;
+
+    // Non-secret diagnostics — reveals which check fails without logging values.
+    const u = (username ?? '').trim().toLowerCase();
+    const userMatch = env.admin.enabled
+      && (u === env.admin.username.toLowerCase() || u === env.admin.email.toLowerCase());
+    const ok = validateAdminCreds(username, password);
+    console.log(`[admin-login] enabled=${env.admin.enabled} userMatch=${userMatch} ok=${ok}`);
+
+    if (!ok) { res.status(401).json({ error: 'invalid_admin_credentials' }); return; }
+
+    let user;
+    try { user = await ensureAdminUser(); }
+    catch (e) {
+      console.error('[admin-login] ensureAdminUser failed', (e as Error).message);
+      res.status(500).json({ error: 'admin_provisioning_failed' }); return;
     }
-    const user = await ensureAdminUser();
     if (!user) { res.status(503).json({ error: 'admin_login_disabled' }); return; }
     user.lastLoginAt = new Date();
     await user.save();

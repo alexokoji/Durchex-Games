@@ -29,20 +29,25 @@ export function validateAdminCreds(username: string, password: string): boolean 
 /** Upsert the backing admin user from env. Returns null when admin login is off. */
 export async function ensureAdminUser(): Promise<IUser | null> {
   if (!env.admin.enabled) return null;
-  let user = await User.findOne({ email: env.admin.email });
-  if (!user) {
-    user = await User.create({
-      email:         env.admin.email,
-      username:      env.admin.username,
-      passwordHash:  await hashPassword(env.admin.password),
-      isAdmin:       true,
-      emailVerified: true,
-      currency:      'USD',
-      cryptoBalances: {},
-    });
-  } else if (!user.isAdmin) {
-    user.isAdmin = true;
-    await user.save();
+  // Reuse an existing record matching either the admin email or username, so a
+  // pre-existing "admin" account doesn't cause a duplicate-key crash.
+  let user = await User.findOne({ $or: [{ email: env.admin.email }, { username: env.admin.username }] });
+  if (user) {
+    if (!user.isAdmin) { user.isAdmin = true; await user.save(); }
+    return user;
   }
-  return user;
+  const base = {
+    email:         env.admin.email,
+    passwordHash:  await hashPassword(env.admin.password),
+    isAdmin:       true,
+    emailVerified: true,
+    currency:      'USD',
+    cryptoBalances: {},
+  };
+  try {
+    return await User.create({ ...base, username: env.admin.username });
+  } catch {
+    // Username taken by another account — fall back to a unique one.
+    return await User.create({ ...base, username: `${env.admin.username}-${Date.now().toString(36)}` });
+  }
 }
