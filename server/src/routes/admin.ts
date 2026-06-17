@@ -922,11 +922,65 @@ router.post('/risk/flags/:id/resolve', requireAdmin,
 
 // ─── Betting exposure (what people bet on, how much, # per option) ──────────
 router.get('/betting-exposure', requireAdmin, async (_req: Request, res: Response) => {
-  const selections = await liabilityBySelection();
-  const totalStakeUsd     = selections.reduce((s, e) => s + e.stakeUsd, 0);
-  const totalLiabilityUsd = selections.reduce((s, e) => s + e.liabilityUsd, 0);
-  res.json({ selections, totals: { stakeUsd: totalStakeUsd, liabilityUsd: totalLiabilityUsd, optionCount: selections.length } });
+  const { recentBetsAllGames, gameActivity } = await import('../services/risk');
+  const { SportEvent } = await import('../models/SportEvent');
+  const [selections, recentBets, games] = await Promise.all([
+    liabilityBySelection(),       // live-sports per-option detail
+    recentBetsAllGames(40),       // site-wide live feed (all games)
+    gameActivity(60),             // per-game activity rollup (last 60 min)
+  ]);
+
+  // Per-event suspension/status so the panel can show + toggle live control.
+  const eventIds = [...new Set(selections.map(s => s.eventId))];
+  const evDocs = eventIds.length
+    ? await SportEvent.find({ providerId: { $in: eventIds } })
+        .select('providerId suspended manualSuspended status commenceTime').lean()
+    : [];
+  const events: Record<string, { suspended: boolean; manualSuspended: boolean; status: string; commenceTime: string }> = {};
+  for (const e of evDocs) {
+    events[e.providerId] = {
+      suspended: !!e.suspended,
+      manualSuspended: !!e.manualSuspended,
+      status: e.status,
+      commenceTime: e.commenceTime instanceof Date ? e.commenceTime.toISOString() : String(e.commenceTime),
+    };
+  }
+
+  res.json({
+    games,
+    recentBets,
+    selections,
+    events,
+    totals: {
+      openLiabilityUsd: games.reduce((s, g) => s + g.openLiabilityUsd, 0),
+      turnover60mUsd:   games.reduce((s, g) => s + g.turnoverUsd, 0),
+      net60mUsd:        games.reduce((s, g) => s + g.netUsd, 0),
+      sportsLiabilityUsd: selections.reduce((s, e) => s + e.liabilityUsd, 0),
+      optionCount: selections.length,
+    },
+  });
 });
+
+// Manually suspend / resume a live event — blocks new bets on it immediately
+// and survives the trading engine's recompute (via manualSuspended).
+router.post(
+  '/live-events/:id/suspend',
+  requireAdmin,
+  body('suspended').isBoolean(),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const { SportEvent } = await import('../models/SportEvent');
+    const suspended = !!req.body.suspended;
+    const ev = await SportEvent.findOneAndUpdate(
+      { providerId: req.params.id },
+      { $set: { manualSuspended: suspended, suspended, 'markets.$[].suspended': suspended } },
+      { new: true },
+    );
+    if (!ev) { res.status(404).json({ error: 'event_not_found' }); return; }
+    await auditFromReq(req, 'risk.update', 'system', req.params.id, { action: 'live_event_suspend', suspended });
+    res.json({ ok: true, providerId: ev.providerId, suspended: ev.suspended, manualSuspended: ev.manualSuspended });
+  },
+);
 
 // ─── Email hub ──────────────────────────────────────────────────────────────
 

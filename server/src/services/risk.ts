@@ -121,6 +121,160 @@ export async function liabilityBySelection(): Promise<SelectionExposure[]> {
 }
 
 /**
+ * Most recent live-sports bets, newest first — the admin's live feed of what
+ * people are betting on as it happens, with who, stake and potential payout.
+ */
+export interface RecentLiveBet {
+  id: string;
+  userEmail?: string;
+  username?: string;
+  currency: string;
+  stake: number;
+  stakeUsd: number;
+  liabilityUsd: number;   // payout owed if this bet wins
+  mode: string;
+  status: string;
+  placedAt: string;
+  selections: { label: string; marketKey: string; outcomeName: string; point?: number; price: number }[];
+}
+export async function recentLiveBets(limit = 25): Promise<RecentLiveBet[]> {
+  const bets = await Bet.find({ gameId: LIVE_GAME_ID_FOR_EXPOSURE })
+    .sort({ placedAt: -1 }).limit(limit)
+    .populate('userId', 'email username')
+    .lean();
+  return bets.map(b => {
+    const sels = (b.selections as RecentLiveBet['selections'] | undefined) ?? [];
+    const combined = b.multiplier ?? sels.reduce((a, s) => a * (s.price || 1), 1);
+    const stakeUsd = toUsd(b.stake, b.currency as AnyCurrency);
+    const u = b.userId as unknown as { email?: string; username?: string } | null;
+    const placed = (b as { placedAt?: Date; createdAt?: Date }).placedAt ?? (b as { createdAt?: Date }).createdAt;
+    return {
+      id: String(b._id),
+      userEmail: u?.email,
+      username: u?.username,
+      currency: b.currency,
+      stake: b.stake,
+      stakeUsd,
+      liabilityUsd: stakeUsd * combined,
+      mode: (b as { mode?: string }).mode ?? 'single',
+      status: b.status,
+      placedAt: placed instanceof Date ? placed.toISOString() : '',
+      selections: sels.map(s => ({ label: s.label, marketKey: s.marketKey, outcomeName: s.outcomeName, point: s.point, price: s.price })),
+    };
+  });
+}
+
+/**
+ * Site-wide live feed — newest bets across EVERY game (casino, virtual, live
+ * sports), so the admin sees all play/betting activity as it happens.
+ */
+export interface RecentBet {
+  id: string;
+  userEmail?: string;
+  username?: string;
+  gameId: string;
+  gameName: string;
+  currency: string;
+  stake: number;
+  stakeUsd: number;
+  payout: number;
+  multiplier?: number;
+  status: string;
+  mode: string;
+  details?: string;
+  placedAt: string;
+  selections: { label: string; marketKey: string; outcomeName: string; point?: number; price: number }[];
+}
+export async function recentBetsAllGames(limit = 40): Promise<RecentBet[]> {
+  const bets = await Bet.find({})
+    .sort({ placedAt: -1 }).limit(limit)
+    .populate('userId', 'email username')
+    .lean();
+  return bets.map(b => {
+    const u = b.userId as unknown as { email?: string; username?: string } | null;
+    const sels = Array.isArray(b.selections) ? (b.selections as RecentBet['selections']) : [];
+    const placed = (b as { placedAt?: Date }).placedAt;
+    return {
+      id: String(b._id),
+      userEmail: u?.email, username: u?.username,
+      gameId: b.gameId, gameName: b.gameName,
+      currency: b.currency, stake: b.stake, stakeUsd: toUsd(b.stake, b.currency as AnyCurrency),
+      payout: b.payout ?? 0, multiplier: b.multiplier,
+      status: b.status, mode: (b as { mode?: string }).mode ?? 'single',
+      details: b.details,
+      placedAt: placed instanceof Date ? placed.toISOString() : '',
+      selections: sels.map(s => ({ label: s.label, marketKey: s.marketKey, outcomeName: s.outcomeName, point: s.point, price: s.price })),
+    };
+  });
+}
+
+/**
+ * Per-GAME activity rollup over a recent window — turnover, payouts, house net,
+ * active players and current open liability, for every game on the site.
+ */
+export interface GameActivity {
+  gameId: string;
+  gameName: string;
+  players: number;
+  bets: number;
+  turnoverUsd: number;
+  payoutUsd: number;
+  netUsd: number;            // turnover − payout over the window (house P/L)
+  openLiabilityUsd: number;  // potential payout of currently-pending bets
+  pendingCount: number;
+}
+export async function gameActivity(windowMinutes = 60): Promise<GameActivity[]> {
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000);
+  const rows = await Bet.aggregate<{
+    _id: { gameId: string; currency: string };
+    gameName: string; bets: number; stake: number; payout: number; users: unknown[];
+  }>([
+    { $match: { placedAt: { $gte: since } } },
+    { $group: {
+      _id: { gameId: '$gameId', currency: '$currency' },
+      gameName: { $first: '$gameName' },
+      bets:   { $sum: 1 },
+      stake:  { $sum: '$stake' },
+      payout: { $sum: '$payout' },
+      users:  { $addToSet: '$userId' },
+    } },
+  ]);
+
+  const open = await liabilityByMarket(500);
+  const openByGame = new Map(open.map(o => [o.gameId, o]));
+
+  const byGame = new Map<string, GameActivity & { _users: Set<string> }>();
+  const get = (gameId: string, gameName: string) => {
+    let g = byGame.get(gameId);
+    if (!g) {
+      const o = openByGame.get(gameId);
+      g = {
+        gameId, gameName, players: 0, bets: 0, turnoverUsd: 0, payoutUsd: 0, netUsd: 0,
+        openLiabilityUsd: o?.liabilityUsd ?? 0, pendingCount: o?.pendingCount ?? 0,
+        _users: new Set<string>(),
+      };
+      byGame.set(gameId, g);
+    }
+    return g;
+  };
+
+  for (const r of rows) {
+    const g = get(r._id.gameId, r.gameName ?? r._id.gameId);
+    const cur = r._id.currency as AnyCurrency;
+    g.bets += r.bets;
+    g.turnoverUsd += toUsd(r.stake, cur);
+    g.payoutUsd   += toUsd(r.payout, cur);
+    for (const uid of r.users ?? []) g._users.add(String(uid));
+  }
+  // Games with open liability but no bets in the window still matter for risk.
+  for (const o of open) if (!byGame.has(o.gameId)) get(o.gameId, o.gameId);
+
+  return Array.from(byGame.values())
+    .map(({ _users, ...g }) => ({ ...g, players: _users.size, netUsd: g.turnoverUsd - g.payoutUsd }))
+    .sort((a, b) => (b.turnoverUsd + b.openLiabilityUsd) - (a.turnoverUsd + a.openLiabilityUsd));
+}
+
+/**
  * Check whether a new bet should be accepted given current liability caps
  * and user concentration. Used by /api/bets before placement (advisory —
  * the wallet still does the final balance check atomically).

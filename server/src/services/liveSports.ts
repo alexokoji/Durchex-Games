@@ -124,13 +124,13 @@ export async function applyTrading(): Promise<void> {
   const events = await SportEvent.find({ status: { $in: ['upcoming', 'live'] } });
   for (const ev of events) {
     const expo = exposure.get(ev.providerId) ?? 0;
-    const overCap = expo > perEventCap;
-    let changed = ev.exposureUsd !== expo || ev.suspended !== overCap;
+    // Effective suspension = exposure over the cap OR an admin manual suspend.
+    const suspend = expo > perEventCap || ev.manualSuspended === true;
+    let changed = ev.exposureUsd !== expo || ev.suspended !== suspend;
     ev.exposureUsd = expo;
-    ev.suspended = overCap;
+    ev.suspended = suspend;
     for (const m of ev.markets) {
-      const next = overCap;
-      if (m.suspended !== next) { m.suspended = next; changed = true; }
+      if (m.suspended !== suspend) { m.suspended = suspend; changed = true; }
     }
     if (changed) await ev.save();
   }

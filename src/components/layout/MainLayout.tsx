@@ -6,6 +6,8 @@ import RightSidebar from './RightSidebar';
 import ScrollToTop from './ScrollToTop';
 import Footer from './Footer';
 import { darkBg } from '../../theme';
+import { useAuth } from '../../contexts/AuthContext';
+import VerifyEmailPage from '../../pages/VerifyEmailPage';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -18,12 +20,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(!isMobile);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { user, isAuthenticated } = useAuth();
 
   // When the viewport crosses the breakpoint, reset to the natural state for
   // that layout — collapsed-but-pinned on desktop, hidden on mobile.
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
+
+  // Email-verification gate: a signed-in user who hasn't verified their email
+  // can't reach the dashboard — they must enter the code first. OAuth and admin
+  // accounts are created already-verified, so only email/password signups hit
+  // this. Logged-out visitors browse normally.
+  if (isAuthenticated && user && !user.emailVerified) {
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: darkBg }}>
+        <VerifyEmailPage />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: darkBg }}>

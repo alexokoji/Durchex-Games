@@ -75,6 +75,13 @@ export default function VerifyEmailPage() {
             sx={{ fontWeight: 700, color: 'text.secondary' }}>
             {resending ? 'Sending…' : "Didn't get it? Resend code"}
           </Button>
+
+          {auth.isAuthenticated && (
+            <Button fullWidth size="small" onClick={() => void auth.signOut()}
+              sx={{ mt: 0.5, fontWeight: 600, color: 'text.disabled', fontSize: '0.75rem' }}>
+              Use a different account
+            </Button>
+          )}
         </Box>
       )}
     </Box>

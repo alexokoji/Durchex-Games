@@ -57,7 +57,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: 'overview',  label: 'Overview',     description: 'Live KPIs and house balance',          icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
   { id: 'analytics', label: 'Analytics',    description: 'Exposure, conversion & abuse signals', icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
-  { id: 'exposure',  label: 'Betting exposure', description: 'Per-option stakes, bettors & liability', icon: <TrendingUpIcon fontSize="small" />, group: 'Operate' },
+  { id: 'exposure',  label: 'Live activity', description: 'All games: turnover, P/L, exposure & live bet feed', icon: <TrendingUpIcon fontSize="small" />, group: 'Operate' },
   { id: 'payouts',   label: 'Payouts',      description: 'Approve withdrawals',                 icon: <PaymentsIcon fontSize="small" />,        group: 'Operate' },
   { id: 'ledger',    label: 'Ledger',       description: 'House money trail by day',             icon: <ReceiptLongIcon fontSize="small" />,     group: 'Operate' },
   { id: 'reconcile', label: 'Reconcile',    description: 'Match wallets vs gameplay totals',    icon: <CompareArrowsIcon fontSize="small" />,   group: 'Operate' },

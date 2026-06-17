@@ -165,9 +165,52 @@ export interface SelectionExposureDto {
   stakeUsd: number;
   liabilityUsd: number;
 }
+export interface RecentBetDto {
+  id: string;
+  userEmail?: string;
+  username?: string;
+  gameId: string;
+  gameName: string;
+  currency: string;
+  stake: number;
+  stakeUsd: number;
+  payout: number;
+  multiplier?: number;
+  status: string;
+  mode: string;
+  details?: string;
+  placedAt: string;
+  selections: { label: string; marketKey: string; outcomeName: string; point?: number; price: number }[];
+}
+export interface GameActivityDto {
+  gameId: string;
+  gameName: string;
+  players: number;
+  bets: number;
+  turnoverUsd: number;
+  payoutUsd: number;
+  netUsd: number;
+  openLiabilityUsd: number;
+  pendingCount: number;
+}
+export interface EventControlDto {
+  suspended: boolean;
+  manualSuspended: boolean;
+  status: string;
+  commenceTime: string;
+}
 export interface BettingExposureDto {
+  games: GameActivityDto[];
+  recentBets: RecentBetDto[];
   selections: SelectionExposureDto[];
-  totals: { stakeUsd: number; liabilityUsd: number; optionCount: number };
+  events: Record<string, EventControlDto>;
+  totals: {
+    openLiabilityUsd: number;
+    turnover60mUsd: number;
+    net60mUsd: number;
+    sportsLiabilityUsd: number;
+    optionCount: number;
+  };
 }
 
 export interface EmailCampaignDto {
@@ -309,6 +352,9 @@ export const adminApi = {
 
   // ── Betting exposure (per-option) ──
   bettingExposure: () => apiGet<BettingExposureDto>('/admin/betting-exposure'),
+  suspendLiveEvent: (providerId: string, suspended: boolean) =>
+    apiPost<{ ok: true; providerId: string; suspended: boolean; manualSuspended: boolean }>(
+      `/admin/live-events/${encodeURIComponent(providerId)}/suspend`, { suspended }),
 
   // ── Email hub ──
   emailAudienceCount: () =>

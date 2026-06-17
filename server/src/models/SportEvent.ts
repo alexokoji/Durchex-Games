@@ -20,7 +20,9 @@ export interface ISportEvent extends Document {
   awayTeam: string;
   commenceTime: Date;
   status: SportEventStatus;
-  suspended: boolean;          // whole-event suspension
+  suspended: boolean;          // effective suspension (auto exposure cap OR manual)
+  /** Admin-forced suspension — survives trading-engine recomputes. */
+  manualSuspended: boolean;
   markets: IEventMarket[];
   /** USD liability currently exposed on this event (trading engine). */
   exposureUsd: number;
@@ -50,7 +52,8 @@ const eventSchema = new Schema<ISportEvent>({
   awayTeam:     { type: String, required: true },
   commenceTime: { type: Date, required: true, index: true },
   status:       { type: String, enum: ['upcoming','live','completed','settled'], default: 'upcoming', index: true },
-  suspended:    { type: Boolean, default: false },
+  suspended:       { type: Boolean, default: false },
+  manualSuspended: { type: Boolean, default: false },
   markets:      { type: [marketSchema], default: [] },
   exposureUsd:  { type: Number, default: 0 },
   result:       { type: new Schema({ homeScore: Number, awayScore: Number, completed: Boolean }, { _id: false }), default: undefined },
