@@ -149,6 +149,9 @@ async function main(): Promise<void> {
   server.listen(env.port, () => {
     console.log(`[server] listening on :${env.port} · public ${env.publicUrl}`);
     console.log(`[server] CORS origins: ${env.corsOrigins.join(', ')}`);
+    // Safe diagnostic — confirms ADMIN_EMAILS is live without logging addresses.
+    const { adminEmailCount } = require('./config/admin') as typeof import('./config/admin');
+    console.log(`[server] admin emails configured: ${adminEmailCount()}`);
   });
 
   // Recurring background jobs — cheap setInterval based scheduling so we
