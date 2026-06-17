@@ -68,7 +68,15 @@ export const env = {
   // Falls back to SMTP, then to a dev console log, so flows always work.
   resend: {
     apiKey:  process.env.RESEND_API_KEY ?? '',
-    from:    process.env.RESEND_FROM ?? process.env.EMAIL_FROM ?? 'DUCHEXiGAMES <onboarding@resend.dev>',
+    // Must be "email@example.com" or "Name <email@example.com>". A malformed
+    // value (name-only, stray quotes) makes Resend 422 every send, so we
+    // validate and fall back to the safe testing sender.
+    from: (() => {
+      const raw = (process.env.RESEND_FROM ?? process.env.EMAIL_FROM ?? '').trim().replace(/^["']|["']$/g, '');
+      const bare    = /^[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+$/;
+      const named   = /<\s*[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+\s*>\s*$/;
+      return bare.test(raw) || named.test(raw) ? raw : 'DUCHEXiGAMES <onboarding@resend.dev>';
+    })(),
     enabled: !!process.env.RESEND_API_KEY,
   },
 
