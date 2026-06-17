@@ -50,6 +50,9 @@ interface AuthContextValue {
 
   signIn: (email: string, password: string) => Promise<AuthResult>;
   adminLogin: (username: string, password: string) => Promise<AuthResult>;
+  /** True only after an explicit admin-credential login this session. Reset on
+   *  reload/sign-out so the admin console never auto-opens from a restored session. */
+  adminAuthed: boolean;
   signUp: (email: string, username: string, password: string, extras?: SignUpExtras) => Promise<SignUpResult>;
   signInWithGoogle: () => void;
   signInWithApple:  () => void;
@@ -110,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
   const [detectedCountry, setDetectedCountry] = useState<string | undefined>();
   const [detectedCurrency, setDetectedCurrency] = useState<FiatCurrency | undefined>();
 
@@ -138,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const onLogout = () => setUser(null);
+    const onLogout = () => { setUser(null); setAdminAuthed(false); };
     window.addEventListener('duchex:auth:logout', onLogout);
     return () => window.removeEventListener('duchex:auth:logout', onLogout);
   }, []);
@@ -207,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const u = await authApi.adminLogin(username, password);
       setUser(toAuthUser(u));
+      setAdminAuthed(true);
       return { ok: true };
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'admin_login_failed';
@@ -241,6 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async (): Promise<void> => {
     await authApi.logout();
     setUser(null);
+    setAdminAuthed(false);
   }, []);
 
   const signInWithGoogle = useCallback((): void => { window.location.href = authApi.oauthStartUrl('google'); }, []);
@@ -289,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, isAuthenticated: user !== null, isLoading, isSubmitting, authError,
-      signIn, adminLogin, signUp, signOut, signInWithGoogle, signInWithApple, acceptOAuthTokens,
+      signIn, adminLogin, adminAuthed, signUp, signOut, signInWithGoogle, signInWithApple, acceptOAuthTokens,
       refreshMe, requireAuth, authPromptOpen, openAuthPrompt, closeAuthPrompt,
       forgotPassword, resetPassword, verifyEmail, resendVerification,
       detectedCountry, detectedCurrency, syncCurrencyFromGeo, redetectCurrency,

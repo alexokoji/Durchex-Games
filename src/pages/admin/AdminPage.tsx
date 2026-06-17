@@ -107,10 +107,21 @@ function AdminLogin({ signedInNonAdmin }: { signedInNonAdmin: boolean }) {
           </Alert>
         )}
 
+        {/* Hidden dummy fields absorb the browser's saved-login autofill so the
+            real admin fields stay empty for manual entry. */}
+        <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} aria-hidden tabIndex={-1} />
+        <input type="password" name="password" autoComplete="current-password" style={{ display: 'none' }} aria-hidden tabIndex={-1} />
+
         <TextField fullWidth size="small" label="Admin username" value={username} autoFocus
+          name="admin-console-user"
+          autoComplete="off"
+          inputProps={{ autoComplete: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true' }}
           onChange={e => setUsername(e.target.value)} sx={{ mb: 1.5 }}
           onKeyDown={e => { if (e.key === 'Enter') void submit(); }} />
         <TextField fullWidth size="small" label="Password" type="password" value={password}
+          name="admin-console-secret"
+          autoComplete="new-password"
+          inputProps={{ autoComplete: 'new-password', 'data-lpignore': 'true', 'data-1p-ignore': 'true' }}
           onChange={e => setPassword(e.target.value)} sx={{ mb: 2 }}
           onKeyDown={e => { if (e.key === 'Enter') void submit(); }} />
 
@@ -126,14 +137,16 @@ function AdminLogin({ signedInNonAdmin }: { signedInNonAdmin: boolean }) {
 }
 
 function AdminPageContent() {
-  const { user } = useAuth();
+  const { user, adminAuthed } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const { displayCurrency, setDisplayCurrency } = useAdminCurrency();
 
-  if (!user?.isAdmin) {
+  // The console always requires an explicit admin-credential login this session —
+  // a restored regular-user session never auto-opens it.
+  if (!adminAuthed || !user?.isAdmin) {
     return <AdminLayout><AdminLogin signedInNonAdmin={!!user} /></AdminLayout>;
   }
 
