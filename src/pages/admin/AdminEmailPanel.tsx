@@ -105,6 +105,9 @@ export default function AdminEmailPanel() {
           <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, mb: 1 }}>{subject || <i style={{ color: '#64748b' }}>Subject…</i>}</Typography>
           <Box sx={{ background: '#fff', color: '#111', borderRadius: 1, p: 1.5, minHeight: 160, overflow: 'auto', fontSize: '0.82rem' }}
             dangerouslySetInnerHTML={{ __html: html || '<i style="color:#888">Body preview…</i>' }} />
+          <Typography sx={{ mt: 1, fontSize: '0.68rem', color: 'text.disabled' }}>
+            Your message is automatically wrapped in the branded logo header and footer before sending.
+          </Typography>
         </Box>
       </Box>
 

@@ -17,7 +17,7 @@ import { HousePayout } from '../models/HousePayout';
 import { aggregateRange } from '../services/houseLedger';
 import { AuditLog } from '../models/AuditLog';
 import { auditFromReq } from '../services/audit';
-import { sendMail } from '../services/email';
+import { sendMail, wrapEmail } from '../services/email';
 import { Transaction } from '../models/Transaction';
 import { reconcileTransaction } from '../services/paymentReconcile';
 import { settleForLeagueWeek, computeAbsoluteWeekIndex } from '../services/virtualSportsScheduler';
@@ -977,11 +977,14 @@ router.post(
       sentBy: me._id, sentByEmail: me.email,
     });
 
+    // Wrap the admin's content in the branded header/footer shell.
+    const branded = wrapEmail({ title: subject, contentHtml: html });
+
     // Send in the background so a large blast doesn't hold the request open.
     void (async () => {
       let sent = 0, failed = 0;
       for (const to of recipients) {
-        try { await sendMail({ to, subject, html }); sent++; }
+        try { await sendMail({ to, subject, html: branded }); sent++; }
         catch (e) { failed++; console.error('[email hub] send failed', to, (e as Error).message); }
       }
       await EmailCampaign.findByIdAndUpdate(campaign._id, {
