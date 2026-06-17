@@ -48,10 +48,11 @@ export const env = {
   // Credential-based admin login. Set ADMIN_PASSWORD to enable a dedicated
   // admin login page (no need to flag a real user via ADMIN_EMAILS).
   admin: {
-    username: process.env.ADMIN_USERNAME ?? 'admin',
-    password: process.env.ADMIN_PASSWORD ?? '',
-    email:    (process.env.ADMIN_EMAIL ?? `${(process.env.ADMIN_USERNAME ?? 'admin').toLowerCase()}@admin.local`).toLowerCase(),
-    enabled:  !!process.env.ADMIN_PASSWORD,
+    username: (process.env.ADMIN_USERNAME ?? 'admin').trim(),
+    // Trim stray whitespace/newlines that hosting dashboards often append.
+    password: (process.env.ADMIN_PASSWORD ?? '').trim(),
+    email:    (process.env.ADMIN_EMAIL ?? `${(process.env.ADMIN_USERNAME ?? 'admin').trim().toLowerCase()}@admin.local`).toLowerCase(),
+    enabled:  !!(process.env.ADMIN_PASSWORD ?? '').trim(),
   },
 
   smtp: {

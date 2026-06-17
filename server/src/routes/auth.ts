@@ -201,7 +201,7 @@ router.post(
     const userMatch = env.admin.enabled
       && (u === env.admin.username.toLowerCase() || u === env.admin.email.toLowerCase());
     const ok = validateAdminCreds(username, password);
-    console.log(`[admin-login] enabled=${env.admin.enabled} userMatch=${userMatch} ok=${ok}`);
+    console.log(`[admin-login] enabled=${env.admin.enabled} userMatch=${userMatch} ok=${ok} providedPassLen=${(password ?? '').length} expectedPassLen=${env.admin.password.length} providedUser='${u}' expectedUser='${env.admin.username.toLowerCase()}'`);
 
     if (!ok) { res.status(401).json({ error: 'invalid_admin_credentials' }); return; }
 
