@@ -26,6 +26,9 @@ export interface LiveSelection {
  *  key can't be drained to zero (manual refresh still works). */
 const ODDS_CREDIT_FLOOR = 20;
 
+/** Set once we've logged a provider plan/season restriction, to avoid log spam. */
+let warnedPlanRestriction = false;
+
 /** Pull upcoming events + odds for every active sport and upsert them. */
 export async function ingestEvents(): Promise<{ sports: number; events: number }> {
   const { env } = require('../config/env') as typeof import('../config/env');
@@ -47,7 +50,21 @@ export async function ingestEvents(): Promise<{ sports: number; events: number }
     if (!sport.active) continue;
     let events;
     try { events = await feed.listEvents(sport.key); }
-    catch (e) { console.error('[liveSports] listEvents failed', sport.key, (e as Error).message); continue; }
+    catch (e) {
+      const msg = (e as Error).message;
+      // Plan/season restriction (e.g. API-Football free tier has no current
+      // season): every league fails identically, so warn once and stop this
+      // tick rather than burning quota on 7 doomed calls every poll.
+      if (/do not have access to this season|"plan"/i.test(msg)) {
+        if (!warnedPlanRestriction) {
+          console.warn(`[liveSports] provider plan restriction — current season unavailable on this plan. Upgrade the plan, set API_FOOTBALL_SEASON to an allowed season, or switch LIVE_PROVIDER. (${msg})`);
+          warnedPlanRestriction = true;
+        }
+        break;
+      }
+      console.error('[liveSports] listEvents failed', sport.key, msg);
+      continue;
+    }
 
     for (const ev of events) {
       const commence = new Date(ev.commenceTime);
