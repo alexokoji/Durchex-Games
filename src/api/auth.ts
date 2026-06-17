@@ -62,6 +62,10 @@ export const authApi = {
     const r = await apiPost<AuthResponse>('/auth/login', { email, password }, { skipAuth: true });
     return applyAuthResponse(r).user;
   },
+  async adminLogin(username: string, password: string): Promise<ApiUser> {
+    const r = await apiPost<AuthResponse>('/auth/admin-login', { username, password }, { skipAuth: true });
+    return applyAuthResponse(r).user;
+  },
   async me(): Promise<ApiUser> {
     const r = await apiGet<{ user: ApiUser }>('/auth/me');
     return r.user;

@@ -185,6 +185,29 @@ router.post(
   },
 );
 
+// Dedicated admin login — validates credentials against env (ADMIN_USERNAME /
+// ADMIN_PASSWORD), then issues normal tokens for the backing admin user.
+router.post(
+  '/admin-login',
+  body('username').isString().notEmpty(),
+  body('password').isString().notEmpty(),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const { username, password } = req.body as { username: string; password: string };
+    const { validateAdminCreds, ensureAdminUser } = await import('../services/adminAuth');
+    if (!validateAdminCreds(username, password)) {
+      res.status(401).json({ error: 'invalid_admin_credentials' });
+      return;
+    }
+    const user = await ensureAdminUser();
+    if (!user) { res.status(503).json({ error: 'admin_login_disabled' }); return; }
+    user.lastLoginAt = new Date();
+    await user.save();
+    const tokens = issueTokenPair(user._id.toString());
+    res.json({ user: user.publicProfile(), ...tokens });
+  },
+);
+
 router.post('/refresh', async (req: Request, res: Response) => {
   const { refreshToken } = req.body as { refreshToken?: string };
   if (!refreshToken) { res.status(400).json({ error: 'missing_refresh_token' }); return; }

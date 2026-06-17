@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Alert, Button, Drawer, IconButton, useMediaQuery, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Typography, Alert, Button, Drawer, IconButton, useMediaQuery, ToggleButton, ToggleButtonGroup, TextField, CircularProgress } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -77,35 +77,64 @@ const NAV: NavItem[] = [
 
 const SIDEBAR_WIDTH = 264;
 
+function AdminLogin({ signedInNonAdmin }: { signedInNonAdmin: boolean }) {
+  const { adminLogin, signOut } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!username.trim() || !password) { setError('Enter your admin username and password.'); return; }
+    setBusy(true); setError(null);
+    const r = await adminLogin(username.trim(), password);
+    setBusy(false);
+    if (!r.ok) setError((r.error ?? 'admin_login_failed').replace(/_/g, ' '));
+  }
+
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 'calc(100vh - 64px)', p: 2 }}>
+      <Box sx={{ width: '100%', maxWidth: 380, background: darkSurface, border: `1px solid ${darkBorder}`, borderRadius: 3, p: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 900, mb: 0.5 }}>Admin sign in</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mb: 2.5 }}>
+          Staff only. Use the admin credentials configured for this site.
+        </Typography>
+
+        {signedInNonAdmin && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            You're signed in as a regular user. Sign in with admin credentials below
+            {' '}(<Button size="small" onClick={() => void signOut()} sx={{ p: 0, minWidth: 0, verticalAlign: 'baseline' }}>switch account</Button>).
+          </Alert>
+        )}
+
+        <TextField fullWidth size="small" label="Admin username" value={username} autoFocus
+          onChange={e => setUsername(e.target.value)} sx={{ mb: 1.5 }}
+          onKeyDown={e => { if (e.key === 'Enter') void submit(); }} />
+        <TextField fullWidth size="small" label="Password" type="password" value={password}
+          onChange={e => setPassword(e.target.value)} sx={{ mb: 2 }}
+          onKeyDown={e => { if (e.key === 'Enter') void submit(); }} />
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+        <Button fullWidth variant="contained" disabled={busy} onClick={submit}
+          sx={{ fontWeight: 900, background: `linear-gradient(135deg, ${neonGreen}, #00cc6a)`, color: '#000' }}>
+          {busy ? <CircularProgress size={20} color="inherit" /> : 'Sign in to admin'}
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
 function AdminPageContent() {
-  const { user, isAuthenticated, openAuthPrompt } = useAuth();
+  const { user } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const { displayCurrency, setDisplayCurrency } = useAdminCurrency();
 
-  if (!isAuthenticated || !user) {
-    return (
-      <AdminLayout>
-        <Box sx={{ p: 6, textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>Sign in required</Typography>
-          <Typography sx={{ color: 'text.secondary', mb: 2 }}>The admin console is for staff only.</Typography>
-          <Button variant="contained" onClick={openAuthPrompt}>Sign in</Button>
-        </Box>
-      </AdminLayout>
-    );
-  }
-  if (!user.isAdmin) {
-    return (
-      <AdminLayout>
-        <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
-          <Alert severity="warning">
-            Admin only. Add your email to <code>ADMIN_EMAILS</code> in the server <code>.env</code> if you should have access here.
-          </Alert>
-        </Box>
-      </AdminLayout>
-    );
+  if (!user?.isAdmin) {
+    return <AdminLayout><AdminLogin signedInNonAdmin={!!user} /></AdminLayout>;
   }
 
   const grouped = NAV.reduce<Record<string, NavItem[]>>((acc, item) => {

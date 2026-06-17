@@ -45,6 +45,15 @@ export const env = {
   jwtAccessTtl:  process.env.JWT_ACCESS_TTL  ?? '15m',
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL ?? '30d',
 
+  // Credential-based admin login. Set ADMIN_PASSWORD to enable a dedicated
+  // admin login page (no need to flag a real user via ADMIN_EMAILS).
+  admin: {
+    username: process.env.ADMIN_USERNAME ?? 'admin',
+    password: process.env.ADMIN_PASSWORD ?? '',
+    email:    (process.env.ADMIN_EMAIL ?? `${(process.env.ADMIN_USERNAME ?? 'admin').toLowerCase()}@admin.local`).toLowerCase(),
+    enabled:  !!process.env.ADMIN_PASSWORD,
+  },
+
   smtp: {
     host:   process.env.SMTP_HOST ?? '',
     port:   num('SMTP_PORT', 465),

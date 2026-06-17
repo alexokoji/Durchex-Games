@@ -149,9 +149,14 @@ async function main(): Promise<void> {
   server.listen(env.port, () => {
     console.log(`[server] listening on :${env.port} · public ${env.publicUrl}`);
     console.log(`[server] CORS origins: ${env.corsOrigins.join(', ')}`);
-    // Safe diagnostic — confirms ADMIN_EMAILS is live without logging addresses.
+    // Safe diagnostics — no secrets logged.
     const { adminEmailCount } = require('./config/admin') as typeof import('./config/admin');
-    console.log(`[server] admin emails configured: ${adminEmailCount()}`);
+    console.log(`[server] admin login: ${env.admin.enabled ? `enabled (user '${env.admin.username}')` : 'disabled (set ADMIN_PASSWORD)'} · allowlist emails: ${adminEmailCount()}`);
+    // Provision the backing admin user from env so the credential login works.
+    if (env.admin.enabled) {
+      const { ensureAdminUser } = require('./services/adminAuth') as typeof import('./services/adminAuth');
+      void ensureAdminUser().catch(e => console.error('[server] ensureAdminUser failed', (e as Error).message));
+    }
   });
 
   // Recurring background jobs — cheap setInterval based scheduling so we

@@ -79,6 +79,10 @@ export interface IUser extends Document {
   vipLevel: number;
   vipXp: number;
 
+  /** Granted admin access (credential-based admin login). Independent of the
+   *  optional ADMIN_EMAILS allowlist. */
+  isAdmin?: boolean;
+
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
@@ -164,6 +168,8 @@ const userSchema = new Schema<IUser>({
   vipLevel: { type: Number, default: 1 },
   vipXp:    { type: Number, default: 0 },
 
+  isAdmin: { type: Boolean, default: false },
+
   lastLoginAt: { type: Date },
 }, { timestamps: true });
 
@@ -220,7 +226,7 @@ userSchema.methods.publicProfile = function (): UserPublicProfile {
     vipXp:           this.vipXp,
     referralCode:    this.referralCode,
     promoterStatus:  this.promoterStatus,
-    isAdmin:         isAdminEmail(this.email),
+    isAdmin:         this.isAdmin === true || isAdminEmail(this.email),
   };
 };
 

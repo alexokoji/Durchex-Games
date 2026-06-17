@@ -15,14 +15,8 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     requireAuth(req, res, (err?: unknown) => (err ? reject(err) : resolve()));
   }).catch(() => undefined);
   if (!req.user) return;       // requireAuth has already sent the 401
-  if (adminEmailCount() === 0) {
-    // Lockdown mode — no admin emails configured = no admin access.
-    res.status(403).json({ error: 'admin_not_configured' });
-    return;
-  }
-  if (!isAdminEmail(req.user.email)) {
-    res.status(403).json({ error: 'admin_only' });
-    return;
-  }
-  next();
+  // Admin via the credential login (isAdmin flag) OR the optional email allowlist.
+  if (req.user.isAdmin === true) { next(); return; }
+  if (adminEmailCount() > 0 && isAdminEmail(req.user.email)) { next(); return; }
+  res.status(403).json({ error: 'admin_only' });
 }

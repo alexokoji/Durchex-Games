@@ -49,6 +49,7 @@ interface AuthContextValue {
   authError: string | null;
 
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  adminLogin: (username: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, username: string, password: string, extras?: SignUpExtras) => Promise<SignUpResult>;
   signInWithGoogle: () => void;
   signInWithApple:  () => void;
@@ -201,6 +202,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setIsSubmitting(false); }
   }, []);
 
+  const adminLogin = useCallback(async (username: string, password: string): Promise<AuthResult> => {
+    setIsSubmitting(true); setAuthError(null);
+    try {
+      const u = await authApi.adminLogin(username, password);
+      setUser(toAuthUser(u));
+      return { ok: true };
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : 'admin_login_failed';
+      setAuthError(code);
+      return { ok: false, error: code };
+    } finally { setIsSubmitting(false); }
+  }, []);
+
   const signUp = useCallback(async (
     email: string, username: string, password: string, extras?: SignUpExtras,
   ): Promise<SignUpResult> => {
@@ -275,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, isAuthenticated: user !== null, isLoading, isSubmitting, authError,
-      signIn, signUp, signOut, signInWithGoogle, signInWithApple, acceptOAuthTokens,
+      signIn, adminLogin, signUp, signOut, signInWithGoogle, signInWithApple, acceptOAuthTokens,
       refreshMe, requireAuth, authPromptOpen, openAuthPrompt, closeAuthPrompt,
       forgotPassword, resetPassword, verifyEmail, resendVerification,
       detectedCountry, detectedCurrency, syncCurrencyFromGeo, redetectCurrency,
