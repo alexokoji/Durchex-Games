@@ -23,11 +23,13 @@ import type { Team } from '../../virtual-sports/core/types';
 
 const WEEK_SECONDS      = 600;
 const MIN_LEAD_MS       = 5 * 60 * 1000;
-/** Look-ahead window. Keep short — each week requires simulating every fixture. */
-const LOOK_AHEAD_S      = 2 * 60 * 60;   // 2 hours  →  12 virtual weeks
-/** Maximum prediction rows returned per league call. */
-const MAX_ROWS_SINGLE   = 20;
-const MAX_ROWS_ALL      = 5;  // per-league cap in "all leagues" view
+/** Single-league view covers every virtual week remaining in the current UTC
+ *  day, so the full day's slate shows — not just the next couple weeks. The cap
+ *  is a generous safety limit (a full day is ~144 weeks). */
+const MAX_ROWS_SINGLE   = 2000;
+/** Per-league cap in the "all leagues" overview — kept tight so simulating
+ *  every league stays fast. Drill into a single league for its full day. */
+const MAX_ROWS_ALL      = 40;
 
 type SportFilter = 'all' | 'soccer' | 'basketball' | 'hockey';
 
@@ -97,7 +99,8 @@ function buildPrediction(
   }));
   const code = `${league.id.toUpperCase()}/W${week}/${home.abbr}-${away.abbr}/${outcome}-${h}:${a}`;
   return {
-    matchId: `${league.id}-w${week}-${home.id}-${away.id}`,
+    // startsAt makes the key unique across season cycles within the same day.
+    matchId: `${league.id}-${startsAt}-${home.id}-${away.id}`,
     week, startsAt, home, away,
     scoreHome: h, scoreAway: a,
     outcome1X2: outcome,
@@ -132,22 +135,23 @@ function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): Pred
   const anchor = new Date();
   anchor.setUTCHours(0, 0, 0, 0);
   const anchorMs = anchor.getTime();
+  const endOfDayMs = anchorMs + 24 * 60 * 60 * 1000;
   const now = Date.now();
   const totalWeeks = fixtures.reduce((m, f) => Math.max(m, f.week), 0);
   if (totalWeeks === 0) return [];
 
-  // Start from the virtual-week index that corresponds to "now" so the window
-  // always covers the next LOOK_AHEAD_S seconds regardless of time of day.
-  // The old code started at i=0 (UTC midnight); after the first 2 hours of the
-  // day every iteration fell in the past and nothing was shown.
-  const nowWeekIdx   = Math.floor((now - anchorMs) / (WEEK_SECONDS * 1000));
-  const maxLookWeeks = Math.ceil(LOOK_AHEAD_S / WEEK_SECONDS);
+  // Cover every virtual week from "now" to the end of the current UTC day, so
+  // the page shows the full day's slate of kickoffs (the season schedule cycles
+  // within the day). Starting at the "now" week index keeps past slots out.
+  const nowWeekIdx = Math.floor((now - anchorMs) / (WEEK_SECONDS * 1000));
+  const endWeekIdx = Math.ceil((endOfDayMs - anchorMs) / (WEEK_SECONDS * 1000));
   const teamsById = new Map(teams.map(t => [t.id, t]));
   const out: PredictionRow[] = [];
 
   outer:
-  for (let i = nowWeekIdx; i < nowWeekIdx + maxLookWeeks; i++) {
+  for (let i = nowWeekIdx; i < endWeekIdx; i++) {
     const startsAt = anchorMs + i * WEEK_SECONDS * 1000;
+    if (startsAt >= endOfDayMs) break;
     if (startsAt - now < MIN_LEAD_MS) continue;
     const week = (i % totalWeeks) + 1;
     for (const f of byWeek.get(week) ?? []) {
@@ -170,17 +174,18 @@ export default function AdminVirtualSportsPanel() {
   const toasts = useToasts();
   const [leagueId, setLeagueId]   = useState<string>('__all__');
   const [sportFilter, setSportFilter] = useState<SportFilter>('all');
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useState(0);            // 60s — cheap refresh only
+  const [recomputeNonce, setRecomputeNonce] = useState(0); // explicit re-simulate
 
   useEffect(() => {
     const id = window.setInterval(() => setTick(t => t + 1), 60_000);
     return () => window.clearInterval(id);
   }, []);
 
-  // "All leagues" mode: compute predictions for every non-horseracing league.
-  // Use a tight per-league cap (MAX_ROWS_ALL) to keep total simulation count low.
-  const allPredictions = useMemo<PredictionRow[]>(() => {
-    void tick; // refresh dependency
+  // ── Expensive: simulate the full day. Recomputes ONLY on league/sport change
+  // or an explicit Recompute — never on the 60s tick (simulations are
+  // deterministic for the UTC day, so they don't change minute to minute).
+  const allPredictionsFull = useMemo<PredictionRow[]>(() => {
     if (leagueId !== '__all__') return [];
     const rows: PredictionRow[] = [];
     for (const l of LEAGUES) {
@@ -189,16 +194,22 @@ export default function AdminVirtualSportsPanel() {
       rows.push(...predictionsForLeague(l.id, MAX_ROWS_ALL));
     }
     return rows.sort((a, b) => a.startsAt - b.startsAt);
-  }, [leagueId, sportFilter, tick]);
+  }, [leagueId, sportFilter, recomputeNonce]);
 
-  // Single-league mode.
-  const singlePredictions = useMemo<PredictionRow[]>(() => {
-    void tick;
+  const singlePredictionsFull = useMemo<PredictionRow[]>(() => {
     if (leagueId === '__all__') return [];
     return predictionsForLeague(leagueId);
-  }, [leagueId, tick]);
+  }, [leagueId, recomputeNonce]);
 
-  const predictions = leagueId === '__all__' ? allPredictions : singlePredictions;
+  const predictionsFull = leagueId === '__all__' ? allPredictionsFull : singlePredictionsFull;
+
+  // ── Cheap: drop kickoffs that have entered the 5-minute buffer. Re-runs on
+  // the tick so the list trims and countdowns stay fresh without re-simulating.
+  const predictions = useMemo<PredictionRow[]>(() => {
+    void tick;
+    const cutoff = Date.now() + MIN_LEAD_MS;
+    return predictionsFull.filter(p => p.startsAt >= cutoff);
+  }, [predictionsFull, tick]);
 
   function copy(text: string, label: string) {
     void navigator.clipboard.writeText(text).then(
@@ -235,8 +246,9 @@ export default function AdminVirtualSportsPanel() {
         Virtual Sports Predictions
       </Typography>
       <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2 }}>
-        On-demand prediction codes for upcoming kickoffs across all leagues.
-        Only matches at least <b>5 minutes away</b> are shown.
+        On-demand prediction codes for upcoming kickoffs. A single league shows
+        <b>every virtual week through the end of today (UTC)</b>; "All leagues" shows a
+        capped preview per league. Only matches at least <b>5 minutes away</b> are shown.
       </Typography>
 
       <Alert
@@ -292,7 +304,7 @@ export default function AdminVirtualSportsPanel() {
           </ToggleButtonGroup>
         )}
 
-        <Button startIcon={<RefreshIcon />} onClick={() => setTick(t => t + 1)} size="small">
+        <Button startIcon={<RefreshIcon />} onClick={() => setRecomputeNonce(n => n + 1)} size="small">
           Recompute
         </Button>
         <Box sx={{ flex: 1 }} />
