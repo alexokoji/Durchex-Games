@@ -1033,12 +1033,16 @@ router.post(
 
     // Wrap the admin's content in the branded header/footer shell.
     const branded = wrapEmail({ title: subject, contentHtml: html });
+    // Bulk mail: a List-Unsubscribe header is required by Gmail/Yahoo for bulk
+    // senders and materially improves inbox placement.
+    const support = process.env.SUPPORT_EMAIL || 'support@durchexigames.xyz';
+    const headers = { 'List-Unsubscribe': `<mailto:${support}?subject=unsubscribe>` };
 
     // Send in the background so a large blast doesn't hold the request open.
     void (async () => {
       let sent = 0, failed = 0;
       for (const to of recipients) {
-        try { await sendMail({ to, subject, html: branded }); sent++; }
+        try { await sendMail({ to, subject, html: branded, headers }); sent++; }
         catch (e) { failed++; console.error('[email hub] send failed', to, (e as Error).message); }
       }
       await EmailCampaign.findByIdAndUpdate(campaign._id, {

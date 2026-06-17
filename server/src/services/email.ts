@@ -24,10 +24,16 @@ interface SendArgs {
   subject: string;
   html: string;
   text?: string;
+  /** Monitored reply address. Defaults to SUPPORT_EMAIL. */
+  replyTo?: string;
+  /** Extra headers (e.g. List-Unsubscribe for bulk mail). */
+  headers?: Record<string, string>;
 }
 
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@durchexigames.xyz';
+
 /** Send via the Resend HTTP API (no SDK dependency — keeps the lockfile lean). */
-async function sendViaResend({ to, subject, html, text }: SendArgs): Promise<void> {
+async function sendViaResend({ to, subject, html, text, replyTo, headers }: SendArgs): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -39,7 +45,9 @@ async function sendViaResend({ to, subject, html, text }: SendArgs): Promise<voi
       to: [to],
       subject,
       html,
-      text: text ?? stripHtml(html),
+      text: text ?? stripHtml(html),     // always include a plain-text part
+      reply_to: replyTo ?? SUPPORT_EMAIL, // a real, monitored reply address aids trust
+      ...(headers ? { headers } : {}),
     }),
   });
   if (!res.ok) {
@@ -52,8 +60,8 @@ async function sendViaResend({ to, subject, html, text }: SendArgs): Promise<voi
  * Sends an email via Resend (preferred), then SMTP, then a dev console log —
  * so the flow works end-to-end whether or not a provider is configured.
  */
-export async function sendMail({ to, subject, html, text }: SendArgs): Promise<void> {
-  if (env.resend.enabled) { await sendViaResend({ to, subject, html, text }); return; }
+export async function sendMail({ to, subject, html, text, replyTo, headers }: SendArgs): Promise<void> {
+  if (env.resend.enabled) { await sendViaResend({ to, subject, html, text, replyTo, headers }); return; }
   const t = getTransporter();
   if (!t) {
     console.log('\n[email · dev]', JSON.stringify({ to, subject, text: text ?? stripHtml(html) }, null, 2), '\n');
@@ -63,6 +71,8 @@ export async function sendMail({ to, subject, html, text }: SendArgs): Promise<v
     from: env.smtp.from,
     to, subject, html,
     text: text ?? stripHtml(html),
+    replyTo: replyTo ?? SUPPORT_EMAIL,
+    headers,
   });
 }
 
@@ -82,6 +92,7 @@ const BRAND = {
   // with EMAIL_LOGO_URL; defaults to the web app's /assets/logo.png.
   logoUrl: process.env.EMAIL_LOGO_URL || `${env.clientUrl.replace(/\/$/, '')}/assets/logo.png`,
   support: process.env.SUPPORT_EMAIL || 'support@durchexigames.xyz',
+  address: process.env.EMAIL_ADDRESS || '',  // postal address (CAN-SPAM)
   accent:  '#00ff88',
   accent2: '#00d4ff',
   bg:      '#0a0c10',
@@ -122,7 +133,8 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;c
           &nbsp;&middot;&nbsp;
           <a href="mailto:${BRAND.support}" style="color:${BRAND.accent2};text-decoration:none;">${escape(BRAND.support)}</a>
         </p>
-        <p style="margin:0;color:${BRAND.faint};">You're receiving this because you have a ${escape(BRAND.name)} account. Please gamble responsibly. 18+.</p>
+        <p style="margin:0 0 6px;color:${BRAND.faint};">You're receiving this because you have a ${escape(BRAND.name)} account. Please gamble responsibly. 18+.</p>
+        ${BRAND.address ? `<p style="margin:0;color:${BRAND.faint};">${escape(BRAND.address)}</p>` : ''}
       </td></tr>
     </table>
   </td></tr>
