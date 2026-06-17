@@ -15,6 +15,8 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import HistoryIcon from '@mui/icons-material/History';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import CasinoIcon from '@mui/icons-material/Casino';
+import EmailIcon from '@mui/icons-material/Email';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useAuth } from '../../contexts/AuthContext';
 import { neonGreen, darkBorder, darkSurface } from '../../theme';
 import AdminLayout         from './AdminLayout';
@@ -28,6 +30,8 @@ import AdminFlaggedPanel    from './AdminFlaggedPanel';
 import AdminRiskFlagsPanel  from './AdminRiskFlagsPanel';
 import AdminPromoSlipsPanel  from './AdminPromoSlipsPanel';
 import AdminAnalyticsPanel   from './AdminAnalyticsPanel';
+import AdminBettingExposurePanel from './AdminBettingExposurePanel';
+import AdminEmailPanel        from './AdminEmailPanel';
 import AdminAuditPanel      from './AdminAuditPanel';
 import AdminJobsPanel       from './AdminJobsPanel';
 import AdminRiskPanel       from './AdminRiskPanel';
@@ -39,7 +43,8 @@ import { AdminCurrencyProvider, useAdminCurrency, type AdminDisplayCurrency } fr
 type TabId =
   | 'overview' | 'payouts' | 'ledger' | 'reconcile'
   | 'users' | 'promoters' | 'codes' | 'flagged'
-  | 'riskflags' | 'risk' | 'jobs' | 'audit' | 'virtualsports' | 'casinopredictions' | 'promoslips' | 'analytics';
+  | 'riskflags' | 'risk' | 'jobs' | 'audit' | 'virtualsports' | 'casinopredictions' | 'promoslips' | 'analytics'
+  | 'exposure' | 'email';
 
 interface NavItem {
   id: TabId;
@@ -52,6 +57,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: 'overview',  label: 'Overview',     description: 'Live KPIs and house balance',          icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
   { id: 'analytics', label: 'Analytics',    description: 'Exposure, conversion & abuse signals', icon: <DashboardIcon fontSize="small" />,       group: 'Operate' },
+  { id: 'exposure',  label: 'Betting exposure', description: 'Per-option stakes, bettors & liability', icon: <TrendingUpIcon fontSize="small" />, group: 'Operate' },
   { id: 'payouts',   label: 'Payouts',      description: 'Approve withdrawals',                 icon: <PaymentsIcon fontSize="small" />,        group: 'Operate' },
   { id: 'ledger',    label: 'Ledger',       description: 'House money trail by day',             icon: <ReceiptLongIcon fontSize="small" />,     group: 'Operate' },
   { id: 'reconcile', label: 'Reconcile',    description: 'Match wallets vs gameplay totals',    icon: <CompareArrowsIcon fontSize="small" />,   group: 'Operate' },
@@ -64,6 +70,7 @@ const NAV: NavItem[] = [
   { id: 'risk',     label: 'Risk',     description: 'Per-game win/loss tuning (advanced)',  icon: <ShieldIcon fontSize="small" />,          group: 'Safety' },
   { id: 'virtualsports',      label: 'Virtual Sports',  description: 'Accurate predictions for all upcoming kickoffs',   icon: <SportsSoccerIcon fontSize="small" />, group: 'Games' },
   { id: 'casinopredictions', label: 'Casino Predictions', description: 'Crash, Dice, Mines, Roulette, Plinko, Slots tips', icon: <CasinoIcon fontSize="small" />,        group: 'Games' },
+  { id: 'email',    label: 'Email Hub', description: 'Compose & send emails to players',    icon: <EmailIcon fontSize="small" />,           group: 'System' },
   { id: 'jobs',     label: 'Jobs',     description: 'Background workers & schedules',       icon: <EventNoteIcon fontSize="small" />,       group: 'System' },
   { id: 'audit',    label: 'Audit log', description: 'Every admin action, who did what',    icon: <HistoryIcon fontSize="small" />,         group: 'System' },
 ];
@@ -232,6 +239,8 @@ function AdminPageContent() {
             {tab === 'riskflags'     && <AdminRiskFlagsPanel  />}
             {tab === 'promoslips'    && <AdminPromoSlipsPanel />}
             {tab === 'analytics'     && <AdminAnalyticsPanel  />}
+            {tab === 'exposure'      && <AdminBettingExposurePanel />}
+            {tab === 'email'         && <AdminEmailPanel       />}
             {tab === 'risk'          && <AdminRiskPanel       />}
             {tab === 'virtualsports'      && <AdminVirtualSportsPanel />}
             {tab === 'casinopredictions' && <AdminCasinoPredictionsPanel />}

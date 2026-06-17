@@ -3,7 +3,8 @@ import { body, param, validationResult } from 'express-validator';
 import { requireAdmin } from '../middleware/admin';
 import { getRiskConfig, RiskConfig } from '../models/RiskConfig';
 import { broadcast } from '../sockets/notifier';
-import { currentRtp24h, liabilityByMarket, adjustedOverround } from '../services/risk';
+import { currentRtp24h, liabilityByMarket, adjustedOverround, liabilityBySelection } from '../services/risk';
+import { EmailCampaign } from '../models/EmailCampaign';
 import { BookingCode, generateCode } from '../models/BookingCode';
 import { Promoter } from '../models/Promoter';
 import { PromoCode, type PromoKind, type PromoTier } from '../models/PromoCode';
@@ -916,6 +917,81 @@ router.post('/risk/flags/:id/resolve', requireAdmin,
     await scanUser(flag.userId);
     await auditFromReq(req, 'risk.flag_resolve', 'risk_flag', req.params.id, { status: req.body.status });
     res.json({ flag });
+  },
+);
+
+// ─── Betting exposure (what people bet on, how much, # per option) ──────────
+router.get('/betting-exposure', requireAdmin, async (_req: Request, res: Response) => {
+  const selections = await liabilityBySelection();
+  const totalStakeUsd     = selections.reduce((s, e) => s + e.stakeUsd, 0);
+  const totalLiabilityUsd = selections.reduce((s, e) => s + e.liabilityUsd, 0);
+  res.json({ selections, totals: { stakeUsd: totalStakeUsd, liabilityUsd: totalLiabilityUsd, optionCount: selections.length } });
+});
+
+// ─── Email hub ──────────────────────────────────────────────────────────────
+
+/** Audience sizes for the compose screen. */
+router.get('/email/audience-count', requireAdmin, async (_req: Request, res: Response) => {
+  const [all, verified] = await Promise.all([
+    User.countDocuments({}),
+    User.countDocuments({ emailVerified: true }),
+  ]);
+  res.json({ all, verified, unverified: all - verified });
+});
+
+/** Recent campaigns. */
+router.get('/email/campaigns', requireAdmin, async (_req: Request, res: Response) => {
+  const campaigns = await EmailCampaign.find().sort({ createdAt: -1 }).limit(50).lean();
+  res.json({ campaigns });
+});
+
+async function resolveAudience(audience: string, singleEmail?: string): Promise<string[]> {
+  if (audience === 'single') return singleEmail ? [singleEmail] : [];
+  const where: Record<string, unknown> = {};
+  if (audience === 'verified')   where.emailVerified = true;
+  if (audience === 'unverified') where.emailVerified = false;
+  const users = await User.find(where).select('email').lean();
+  return users.map(u => u.email).filter(Boolean) as string[];
+}
+
+/** Compose + send an email to one user, all users, or a verified/unverified segment. */
+router.post(
+  '/email/send',
+  requireAdmin,
+  body('subject').isString().trim().isLength({ min: 1, max: 200 }),
+  body('html').isString().isLength({ min: 1, max: 100_000 }),
+  body('audience').isIn(['all', 'verified', 'unverified', 'single']),
+  body('email').optional().isEmail().normalizeEmail(),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const me = req.user!;
+    const { subject, html, audience } = req.body as { subject: string; html: string; audience: string };
+    const targetEmail = audience === 'single' ? (req.body.email as string | undefined) : undefined;
+
+    const recipients = await resolveAudience(audience, targetEmail);
+    if (recipients.length === 0) { res.status(400).json({ error: 'no_recipients' }); return; }
+
+    const campaign = await EmailCampaign.create({
+      subject, html, audience, targetEmail,
+      recipientCount: recipients.length, status: 'sending',
+      sentBy: me._id, sentByEmail: me.email,
+    });
+
+    // Send in the background so a large blast doesn't hold the request open.
+    void (async () => {
+      let sent = 0, failed = 0;
+      for (const to of recipients) {
+        try { await sendMail({ to, subject, html }); sent++; }
+        catch (e) { failed++; console.error('[email hub] send failed', to, (e as Error).message); }
+      }
+      await EmailCampaign.findByIdAndUpdate(campaign._id, {
+        sentCount: sent, failedCount: failed,
+        status: failed === recipients.length ? 'failed' : 'sent',
+      }).catch(() => {});
+    })();
+
+    await auditFromReq(req, 'email.send', 'system', campaign._id.toString(), { audience, recipientCount: recipients.length, subject });
+    res.status(202).json({ ok: true, recipientCount: recipients.length, campaign });
   },
 );
 

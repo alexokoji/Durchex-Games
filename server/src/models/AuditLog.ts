@@ -23,7 +23,8 @@ export type AuditAction =
   | 'risk.scan'
   | 'risk.flag_resolve'
   | 'promoslip.create'
-  | 'promoslip.delete';
+  | 'promoslip.delete'
+  | 'email.send';
 
 export interface IAuditLog extends Document {
   _id: Types.ObjectId;

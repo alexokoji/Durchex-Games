@@ -54,6 +54,14 @@ export const env = {
     from:   process.env.EMAIL_FROM ?? 'DUCHEXiGAMES <no-reply@duchexigames.com>',
   },
 
+  // Resend (https://resend.com) — preferred email transport when configured.
+  // Falls back to SMTP, then to a dev console log, so flows always work.
+  resend: {
+    apiKey:  process.env.RESEND_API_KEY ?? '',
+    from:    process.env.RESEND_FROM ?? process.env.EMAIL_FROM ?? 'DUCHEXiGAMES <onboarding@resend.dev>',
+    enabled: !!process.env.RESEND_API_KEY,
+  },
+
   google: {
     clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',

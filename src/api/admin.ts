@@ -154,6 +154,35 @@ export interface CashbackJobInfo {
   cashbackCode: string;
 }
 
+export interface SelectionExposureDto {
+  eventId: string;
+  eventLabel: string;
+  marketKey: string;
+  outcomeName: string;
+  point?: number;
+  bettors: number;
+  betCount: number;
+  stakeUsd: number;
+  liabilityUsd: number;
+}
+export interface BettingExposureDto {
+  selections: SelectionExposureDto[];
+  totals: { stakeUsd: number; liabilityUsd: number; optionCount: number };
+}
+
+export interface EmailCampaignDto {
+  _id: string;
+  subject: string;
+  audience: 'all' | 'verified' | 'unverified' | 'single';
+  targetEmail?: string;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  status: 'sending' | 'sent' | 'failed';
+  sentByEmail: string;
+  createdAt: string;
+}
+
 export const adminApi = {
   // Promoters
   promoters: (status?: 'pending' | 'approved' | 'banned') =>
@@ -277,6 +306,17 @@ export const adminApi = {
   }) => apiPost<{ promo: PromoSlipDto }>('/admin/promo-slips', body),
   deletePromoSlip: (code: string) =>
     apiDelete<{ ok: true }>(`/admin/promo-slips/${encodeURIComponent(code)}`),
+
+  // ── Betting exposure (per-option) ──
+  bettingExposure: () => apiGet<BettingExposureDto>('/admin/betting-exposure'),
+
+  // ── Email hub ──
+  emailAudienceCount: () =>
+    apiGet<{ all: number; verified: number; unverified: number }>('/admin/email/audience-count'),
+  emailCampaigns: () =>
+    apiGet<{ campaigns: EmailCampaignDto[] }>('/admin/email/campaigns'),
+  sendEmail: (body: { subject: string; html: string; audience: 'all' | 'verified' | 'unverified' | 'single'; email?: string }) =>
+    apiPost<{ ok: true; recipientCount: number; campaign: EmailCampaignDto }>('/admin/email/send', body),
 };
 
 export interface AnalyticsDto {

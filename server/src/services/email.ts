@@ -26,11 +26,34 @@ interface SendArgs {
   text?: string;
 }
 
+/** Send via the Resend HTTP API (no SDK dependency — keeps the lockfile lean). */
+async function sendViaResend({ to, subject, html, text }: SendArgs): Promise<void> {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.resend.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: env.resend.from,
+      to: [to],
+      subject,
+      html,
+      text: text ?? stripHtml(html),
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`resend_${res.status}: ${t.slice(0, 200)}`);
+  }
+}
+
 /**
- * Sends an email via SMTP if SMTP_HOST / SMTP_USER / SMTP_PASS are configured;
- * otherwise logs the message to console (dev fallback) so flows still work end-to-end.
+ * Sends an email via Resend (preferred), then SMTP, then a dev console log —
+ * so the flow works end-to-end whether or not a provider is configured.
  */
 export async function sendMail({ to, subject, html, text }: SendArgs): Promise<void> {
+  if (env.resend.enabled) { await sendViaResend({ to, subject, html, text }); return; }
   const t = getTransporter();
   if (!t) {
     console.log('\n[email · dev]', JSON.stringify({ to, subject, text: text ?? stripHtml(html) }, null, 2), '\n');
@@ -58,6 +81,19 @@ export function verificationEmailTemplate(username: string, link: string): { sub
         <p>Tap the link below to verify your email and unlock deposits & withdrawals:</p>
         <p><a href="${link}" style="background:#00ff88;color:#000;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:800">Verify email</a></p>
         <p style="font-size:12px;color:#7b8ba0">If you didn't sign up, you can safely ignore this email. The link expires in 24 hours.</p>
+      </div>`,
+  };
+}
+
+export function verificationCodeTemplate(username: string, code: string): { subject: string; html: string } {
+  return {
+    subject: `${code} is your DUCHEXiGAMES verification code`,
+    html: `
+      <div style="font-family: sans-serif; padding: 24px; background:#0a0c10; color:#e8eaf0; text-align:center">
+        <h2 style="color:#00ff88">Welcome, ${escape(username)}</h2>
+        <p>Enter this code to verify your email and unlock deposits &amp; withdrawals:</p>
+        <p style="font-size:34px; font-weight:900; letter-spacing:10px; color:#00ff88; margin:18px 0; font-family:monospace">${escape(code)}</p>
+        <p style="font-size:12px;color:#7b8ba0">This code expires in 20 minutes. If you didn't sign up, you can safely ignore this email.</p>
       </div>`,
   };
 }

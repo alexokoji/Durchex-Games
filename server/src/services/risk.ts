@@ -67,6 +67,60 @@ export async function liabilityByMarket(limit = 25): Promise<MarketExposure[]> {
 }
 
 /**
+ * Per-OPTION exposure for live-sports — what people are betting on, how much,
+ * and how many distinct people back each pick. This is the data the admin needs
+ * to manage the platform's wins/losses: for every (event, market, outcome) it
+ * reports the number of bettors, total staked, and the liability (what the
+ * house pays out if that pick lands). Liability for a selection = Σ over the
+ * pending bets containing it of stake × that bet's combined odds.
+ */
+const LIVE_GAME_ID_FOR_EXPOSURE = 'live-sports';
+export interface SelectionExposure {
+  eventId: string;
+  eventLabel: string;
+  marketKey: string;
+  outcomeName: string;
+  point?: number;
+  bettors: number;       // distinct users backing this pick
+  betCount: number;      // number of pending bets containing it
+  stakeUsd: number;      // total money riding on it
+  liabilityUsd: number;  // house payout if this pick wins (across those bets)
+}
+export async function liabilityBySelection(): Promise<SelectionExposure[]> {
+  const pending = await Bet.find({ gameId: LIVE_GAME_ID_FOR_EXPOSURE, status: 'pending' })
+    .select('userId stake currency selections multiplier').lean();
+
+  type Sel = { eventId: string; label: string; marketKey: string; outcomeName: string; point?: number; price: number };
+  const map = new Map<string, SelectionExposure & { users: Set<string> }>();
+
+  for (const b of pending) {
+    const sels = (b.selections as Sel[] | undefined) ?? [];
+    if (!sels.length) continue;
+    const combined = b.multiplier ?? sels.reduce((a, s) => a * (s.price || 1), 1);
+    const stakeUsd = toUsd(b.stake, b.currency as AnyCurrency);
+    const liab = stakeUsd * combined;
+    const uid = String(b.userId);
+    for (const s of sels) {
+      const key = `${s.eventId}|${s.marketKey}|${s.outcomeName}|${s.point ?? ''}`;
+      const e = map.get(key) ?? {
+        eventId: s.eventId, eventLabel: s.label, marketKey: s.marketKey,
+        outcomeName: s.outcomeName, point: s.point,
+        bettors: 0, betCount: 0, stakeUsd: 0, liabilityUsd: 0, users: new Set<string>(),
+      };
+      e.betCount++;
+      e.stakeUsd += stakeUsd;
+      e.liabilityUsd += liab;
+      e.users.add(uid);
+      map.set(key, e);
+    }
+  }
+
+  return Array.from(map.values())
+    .map(({ users, ...rest }) => ({ ...rest, bettors: users.size }))
+    .sort((a, b) => b.liabilityUsd - a.liabilityUsd);
+}
+
+/**
  * Check whether a new bet should be accepted given current liability caps
  * and user concentration. Used by /api/bets before placement (advisory —
  * the wallet still does the final balance check atomically).

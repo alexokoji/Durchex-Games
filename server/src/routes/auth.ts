@@ -5,7 +5,7 @@ import { User, hashPassword } from '../models/User';
 import { Transaction } from '../models/Transaction';
 import { env } from '../config/env';
 import { issueTokenPair, verifyToken } from '../services/jwt';
-import { sendMail, verificationEmailTemplate, passwordResetTemplate } from '../services/email';
+import { sendMail, verificationCodeTemplate, passwordResetTemplate } from '../services/email';
 import { requireAuth } from '../middleware/auth';
 import { HttpError } from '../middleware/error';
 import { newReference } from '../services/wallet';
@@ -24,6 +24,12 @@ function validate(req: Request, res: Response): boolean {
 function token32(): string {
   return crypto.randomBytes(32).toString('hex');
 }
+
+/** 6-digit numeric email-verification code, e.g. "048213". */
+function code6(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
+const VERIFICATION_TTL_MS = 20 * 60 * 1000;
 
 /**
  * Default welcome bonus, applied when the user signs up WITHOUT a promo code.
@@ -72,13 +78,13 @@ router.post(
       ? hintCurrency
       : currencyForCountry(countryCode);
 
-    const verificationToken = token32();
+    const verificationCode = code6();
     const user = await User.create({
       email,
       username,
       passwordHash: await hashPassword(password),
-      emailVerificationToken: verificationToken,
-      emailVerificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      emailVerificationToken: verificationCode,
+      emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_TTL_MS),
       currency,
       countryCode,
       cryptoBalances: {},
@@ -144,8 +150,7 @@ router.post(
       }
     }
 
-    const link = `${env.clientUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-    await sendMail({ to: email, ...verificationEmailTemplate(username, link) });
+    await sendMail({ to: email, ...verificationCodeTemplate(username, verificationCode) });
 
     // Reload to surface the updated bonusBalance/rollover/referredBy in the response.
     const refreshed = await User.findById(user._id);
@@ -212,17 +217,21 @@ router.post('/logout', requireAuth, async (_req: Request, res: Response) => {
 
 router.post(
   '/verify-email',
-  body('token').isString().isLength({ min: 32, max: 128 }),
+  // `token` carries the 6-digit code (the field name is kept for client compat).
+  body('token').isString().trim().isLength({ min: 4, max: 128 }),
   body('email').isEmail().normalizeEmail(),
   async (req: Request, res: Response) => {
     if (!validate(req, res)) return;
     const { email, token } = req.body as { email: string; token: string };
+    const code = token.trim();
     const user = await User.findOne({ email }).select('+emailVerificationToken +emailVerificationExpiresAt');
-    if (!user || user.emailVerificationToken !== token) {
-      res.status(400).json({ error: 'invalid_token' }); return;
+    if (!user) { res.status(400).json({ error: 'invalid_code' }); return; }
+    if (user.emailVerified) { res.json({ ok: true }); return; }
+    if (!user.emailVerificationToken || user.emailVerificationToken !== code) {
+      res.status(400).json({ error: 'invalid_code' }); return;
     }
     if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) {
-      res.status(400).json({ error: 'expired_token' }); return;
+      res.status(400).json({ error: 'expired_code' }); return;
     }
     user.emailVerified = true;
     user.emailVerificationToken = undefined;
@@ -235,12 +244,11 @@ router.post(
 router.post('/resend-verification', requireAuth, async (req: Request, res: Response) => {
   const user = req.user!;
   if (user.emailVerified) { res.json({ ok: true }); return; }
-  const tok = token32();
-  user.emailVerificationToken = tok;
-  user.emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const code = code6();
+  user.emailVerificationToken = code;
+  user.emailVerificationExpiresAt = new Date(Date.now() + VERIFICATION_TTL_MS);
   await user.save();
-  const link = `${env.clientUrl}/verify-email?token=${tok}&email=${encodeURIComponent(user.email)}`;
-  await sendMail({ to: user.email, ...verificationEmailTemplate(user.username, link) });
+  await sendMail({ to: user.email, ...verificationCodeTemplate(user.username, code) });
   res.json({ ok: true });
 });
 
