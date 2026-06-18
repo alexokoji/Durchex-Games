@@ -93,6 +93,13 @@ export default function AuthModal({ open, onClose, initialMode = 'signin', initi
     }
   }, [initialReferralCode]);
 
+  // Honour initialMode each time the modal opens (or it changes). Without this,
+  // a `?ref=` link that flips initialMode to 'register' after first mount would
+  // still show the sign-in tab. Referral links should land on registration.
+  useEffect(() => {
+    if (open) setMode(initialMode);
+  }, [open, initialMode]);
+
   function reset() {
     setLocalError(null);
     setForgotSent(false);

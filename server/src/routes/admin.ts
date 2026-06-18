@@ -308,6 +308,22 @@ router.get('/promoters/report', requireAdmin, async (_req: Request, res: Respons
   res.json({ report, totals });
 });
 
+/** Users referred through a particular promoter's link (referredBy = userId). */
+router.get(
+  '/promoters/:userId/referrals',
+  requireAdmin,
+  param('userId').isString().isLength({ min: 12 }),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const referrals = await User.find({ referredBy: req.params.userId })
+      .select('email username countryCode createdAt emailVerified totalWagered totalWon referralAbuseFlag lastLoginAt referralRewardedAt')
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+    res.json({ referrals });
+  },
+);
+
 /** Record a commission payout to a promoter (increments paidOutUsd). */
 router.post(
   '/promoters/:userId/payout',
@@ -353,6 +369,7 @@ router.post(
   body('kind').isIn(PROMO_KINDS),
   body('tier').optional().isIn(PROMO_TIERS),
   body('bonusAmount').isFloat({ min: 0 }),
+  body('bonusType').optional().isIn(['percentage', 'fixed']),
   body('currency').optional().isString().isLength({ min: 3, max: 6 }),
   body('maxBonus').optional().isFloat({ min: 0 }),
   body('minDeposit').optional().isFloat({ min: 0 }),

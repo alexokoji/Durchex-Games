@@ -40,6 +40,7 @@ export interface CreatePromoCodeBody {
   kind: PromoKind;
   tier?: PromoTier;
   bonusAmount: number;
+  bonusType?: 'percentage' | 'fixed';
   currency?: string;
   maxBonus?: number;
   minDeposit?: number;
@@ -54,6 +55,7 @@ export interface CreatePromoCodeBody {
 }
 
 export interface AdminPromoCode extends PromoCodeSummary {
+  bonusType?: 'percentage' | 'fixed';
   maxBonus?: number;
   minDeposit?: number;
   maxWithdraw?: number;
@@ -154,6 +156,20 @@ export interface CashbackJobInfo {
   cashbackCode: string;
 }
 
+export interface ReferredUserDto {
+  _id: string;
+  email: string;
+  username: string;
+  countryCode?: string;
+  createdAt: string;
+  emailVerified: boolean;
+  totalWagered: number;
+  totalWon: number;
+  referralAbuseFlag?: string | null;
+  lastLoginAt?: string;
+  referralRewardedAt?: string;
+}
+
 export interface SelectionExposureDto {
   eventId: string;
   eventLabel: string;
@@ -240,6 +256,8 @@ export const adminApi = {
     apiGet<{ report: AdminPromoter[]; totals: { earnedUsd: number; unpaidUsd: number; referrals: number } }>('/admin/promoters/report'),
   payoutPromoter: (userId: string, amountUsd: number) =>
     apiPost<{ promoter: AdminPromoter; unpaidUsd: number }>(`/admin/promoters/${userId}/payout`, { amountUsd }),
+  promoterReferrals: (userId: string) =>
+    apiGet<{ referrals: ReferredUserDto[] }>(`/admin/promoters/${userId}/referrals`),
 
   // Promo codes
   promoCodes: (filters?: { kind?: PromoKind; tier?: PromoTier; active?: boolean }) => {

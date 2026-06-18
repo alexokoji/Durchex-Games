@@ -22,6 +22,7 @@ interface FormState {
   kind: PromoKind;
   tier: PromoTier;
   bonusAmount: string;
+  bonusType: 'percentage' | 'fixed';
   currency: string;
   maxBonus: string;
   minDeposit: string;
@@ -39,6 +40,7 @@ function emptyForm(): FormState {
     kind: 'welcome',
     tier: 'public',
     bonusAmount: '',
+    bonusType: 'percentage',
     currency: '',
     maxBonus: '',
     minDeposit: '',
@@ -89,6 +91,8 @@ export default function AdminPromoCodesPanel() {
       tier: form.tier,
       bonusAmount: bonus,
     };
+    // Deposit codes can be a percentage of the deposit or a flat fixed amount.
+    if (form.kind === 'deposit') body.bonusType = form.bonusType;
     if (form.currency.trim())       body.currency       = form.currency.trim().toUpperCase();
     if (form.maxBonus.trim())       body.maxBonus       = parseFloat(form.maxBonus);
     if (form.minDeposit.trim())     body.minDeposit     = parseFloat(form.minDeposit);
@@ -187,9 +191,11 @@ export default function AdminPromoCodesPanel() {
               />
               <Chip size="small" variant="outlined" label={c.tier} sx={{ textTransform: 'capitalize' }} />
               <Typography sx={{ fontSize: '0.82rem', flex: 1, minWidth: 200 }}>
-                {c.kind === 'deposit' || c.kind === 'cashback'
-                  ? `${(c.bonusAmount * 100).toFixed(0)}%${c.maxBonus ? ` up to ${c.maxBonus}` : ''}`
-                  : `${c.bonusAmount.toFixed(2)} ${c.currency ?? 'user-currency'}`}
+                {(c.kind === 'deposit' && c.bonusType === 'fixed')
+                  ? `${c.bonusAmount.toFixed(2)} ${c.currency ?? 'user-currency'} fixed`
+                  : c.kind === 'deposit' || c.kind === 'cashback'
+                    ? `${(c.bonusAmount * 100).toFixed(0)}%${c.maxBonus ? ` up to ${c.maxBonus}` : ''}`
+                    : `${c.bonusAmount.toFixed(2)} ${c.currency ?? 'user-currency'}`}
                 {' · '}
                 Rollover {c.rollover}×
                 {c.expiresAt && ` · expires ${new Date(c.expiresAt).toLocaleDateString()}`}
@@ -231,12 +237,30 @@ export default function AdminPromoCodesPanel() {
             >
               {TIERS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
             </TextField>
+            {form.kind === 'deposit' && (
+              <TextField
+                label="Deposit bonus type" select size="small" value={form.bonusType}
+                onChange={e => setForm(f => ({ ...f, bonusType: e.target.value as 'percentage' | 'fixed' }))}
+              >
+                <MenuItem value="percentage">Percentage of deposit</MenuItem>
+                <MenuItem value="fixed">Fixed amount</MenuItem>
+              </TextField>
+            )}
             <TextField
-              label={form.kind === 'deposit' || form.kind === 'cashback' ? 'Percentage (0..1)' : 'Bonus amount'}
+              label={
+                form.kind === 'deposit'
+                  ? (form.bonusType === 'fixed' ? 'Fixed bonus amount' : 'Percentage (0..1)')
+                  : form.kind === 'cashback' ? 'Percentage (0..1)' : 'Bonus amount'
+              }
               size="small" type="number"
               value={form.bonusAmount}
               onChange={e => setForm(f => ({ ...f, bonusAmount: e.target.value }))}
-              inputProps={{ step: form.kind === 'deposit' || form.kind === 'cashback' ? 0.01 : 1, min: 0 }}
+              helperText={
+                form.kind === 'deposit'
+                  ? (form.bonusType === 'fixed' ? 'Flat bonus credited (in the code currency)' : 'e.g. 0.5 = 50% of the deposit')
+                  : undefined
+              }
+              inputProps={{ step: (form.kind === 'deposit' && form.bonusType === 'percentage') || form.kind === 'cashback' ? 0.01 : 1, min: 0 }}
             />
             <TextField
               label="Currency (optional)" size="small"
@@ -259,7 +283,7 @@ export default function AdminPromoCodesPanel() {
                 inputProps={{ step: 1, min: 0 }}
               />
             )}
-            {(form.kind === 'deposit' || form.kind === 'cashback') && (
+            {(form.kind === 'cashback' || (form.kind === 'deposit' && form.bonusType === 'percentage')) && (
               <TextField
                 label="Max bonus" size="small" type="number"
                 value={form.maxBonus}

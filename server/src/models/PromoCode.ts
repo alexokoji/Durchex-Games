@@ -19,8 +19,11 @@ export interface IPromoCode extends Document {
   code: string;
   kind: PromoKind;
   tier: PromoTier;
-  /** Amount or fraction depending on `kind`. */
+  /** Amount or fraction depending on `kind` and `bonusType`. */
   bonusAmount: number;
+  /** For deposit codes: 'percentage' (of the deposit, default) or 'fixed'
+   *  (a flat bonus in `currency`, ignoring the deposit size beyond minDeposit). */
+  bonusType?: 'percentage' | 'fixed';
   /** Currency the bonus is denominated in. Falls back to user's currency when unset. */
   currency?: string;
   /** Bonus cap for percentage-style codes. */
@@ -53,6 +56,7 @@ const promoCodeSchema = new Schema<IPromoCode>({
   kind:        { type: String, enum: ['welcome', 'deposit', 'free-bet', 'cashback'], required: true },
   tier:        { type: String, enum: ['public', 'influencer', 'vip', 'seasonal'], default: 'public' },
   bonusAmount: { type: Number, required: true, min: 0 },
+  bonusType:   { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
   currency:    { type: String },
   maxBonus:    { type: Number, min: 0 },
   minDeposit:  { type: Number, min: 0 },

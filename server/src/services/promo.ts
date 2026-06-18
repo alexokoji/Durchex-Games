@@ -131,9 +131,14 @@ export async function redeemPromo(ctx: RedeemContext): Promise<
       if (promo.minDeposit != null && ctx.depositAmount + EPS < promo.minDeposit) {
         return { error: 'min_deposit_not_met' };
       }
-      // bonusAmount is a fraction (0..1).
-      bonusAmount = ctx.depositAmount * promo.bonusAmount;
-      if (promo.maxBonus != null) bonusAmount = Math.min(bonusAmount, promo.maxBonus);
+      if (promo.bonusType === 'fixed') {
+        // Flat bonus in `currency`, awarded once the deposit clears minDeposit.
+        bonusAmount = promo.bonusAmount;
+      } else {
+        // Percentage of the deposit (bonusAmount is a fraction 0..1), capped.
+        bonusAmount = ctx.depositAmount * promo.bonusAmount;
+        if (promo.maxBonus != null) bonusAmount = Math.min(bonusAmount, promo.maxBonus);
+      }
       break;
     }
     case 'cashback': {

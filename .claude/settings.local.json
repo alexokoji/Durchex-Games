@@ -64,7 +64,8 @@
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{size_download} bytes | %{time_total}s | speed %{speed_download} B/s\\\\n\" -H \"Accept-Encoding: gzip, br\" \"https://durchexigames.xyz/assets/index-Iy_RbKpM.js\")",
       "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://durchex-games.onrender.com/api/auth/admin-login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"definitely-wrong-xyz\"}')",
       "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://durchex-games.onrender.com/api/auth/admin-login -H 'Content-Type: application/json' -d '{}')",
-      "Bash(curl -s -D - -o /dev/null -X OPTIONS https://durchex-games.onrender.com/api/auth/admin-login -H 'Origin: https://durchexigames.xyz' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type')"
+      "Bash(curl -s -D - -o /dev/null -X OPTIONS https://durchex-games.onrender.com/api/auth/admin-login -H 'Origin: https://durchexigames.xyz' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type')",
+      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\\\\server\"; npm run build 2>&1 | Select-Object -Last 8; \"EXIT=$LASTEXITCODE\")"
     ]
   }
 }

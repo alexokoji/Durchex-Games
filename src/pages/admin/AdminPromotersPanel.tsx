@@ -8,8 +8,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import PeopleIcon from '@mui/icons-material/People';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
-import { adminApi, type AdminPromoter } from '../../api/admin';
+import { adminApi, type AdminPromoter, type ReferredUserDto } from '../../api/admin';
 import { ApiError } from '../../api/client';
 import { useToasts } from '../../contexts/ToastContext';
 
@@ -30,6 +31,28 @@ export default function AdminPromotersPanel() {
   const [banning, setBanning] = useState<AdminPromoter | null>(null);
   const [payoutFor, setPayoutFor] = useState<AdminPromoter | null>(null);
   const [payoutAmt, setPayoutAmt] = useState('');
+
+  // Referral drill-down: which promoter is expanded, and a per-user cache.
+  const [expandedRefs, setExpandedRefs] = useState<string | null>(null);
+  const [refCache, setRefCache] = useState<Record<string, ReferredUserDto[]>>({});
+  const [refLoading, setRefLoading] = useState<string | null>(null);
+
+  async function toggleReferrals(p: AdminPromoter) {
+    const u = userOf(p);
+    if (!u) return;
+    if (expandedRefs === u._id) { setExpandedRefs(null); return; }
+    setExpandedRefs(u._id);
+    if (!refCache[u._id]) {
+      setRefLoading(u._id);
+      try {
+        const r = await adminApi.promoterReferrals(u._id);
+        setRefCache(c => ({ ...c, [u._id]: r.referrals }));
+      } catch (err) {
+        toasts.error('Could not load referrals', err instanceof ApiError ? err.code : 'unknown');
+        setExpandedRefs(null);
+      } finally { setRefLoading(null); }
+    }
+  }
 
   async function load() {
     setIsLoading(true);
@@ -204,6 +227,16 @@ export default function AdminPromotersPanel() {
                 )}
 
                 <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                  {u && (
+                    <Button
+                      size="small" variant="text"
+                      startIcon={<PeopleIcon sx={{ fontSize: 16 }} />}
+                      onClick={() => toggleReferrals(p)}
+                      sx={{ color: neonBlue }}
+                    >
+                      {expandedRefs === u._id ? 'Hide referrals' : `Referrals (${p.totalReferred})`}
+                    </Button>
+                  )}
                   {isPending && (
                     <Button
                       size="small" variant="contained"
@@ -256,6 +289,10 @@ export default function AdminPromotersPanel() {
                     </>
                   )}
                 </Box>
+
+                {u && expandedRefs === u._id && (
+                  <ReferralsList loading={refLoading === u._id} users={refCache[u._id]} />
+                )}
               </Box>
             );
           })}
@@ -338,6 +375,44 @@ export default function AdminPromotersPanel() {
           <Button onClick={ban} variant="contained" color="error">Ban</Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+}
+
+// ─── Referred-users drill-down ─────────────────────────────────────────────
+function ReferralsList({ loading, users }: { loading: boolean; users?: ReferredUserDto[] }) {
+  if (loading) {
+    return <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'center' }}><CircularProgress size={20} sx={{ color: neonGreen }} /></Box>;
+  }
+  if (!users) return null;
+  if (users.length === 0) {
+    return <Typography sx={{ px: 1.5, py: 1, fontSize: '0.78rem', color: 'text.secondary' }}>No users referred through this link yet.</Typography>;
+  }
+  const flag = { height: 16, fontSize: '0.55rem', ml: 0.75 } as const;
+  return (
+    <Box sx={{ mt: 0.5, border: `1px solid ${darkBorder}`, borderRadius: 1.5, overflow: 'hidden' }}>
+      <Box sx={{ px: 1.5, py: 0.75, background: alpha('#fff', 0.03), fontSize: '0.66rem', fontWeight: 800, color: 'text.secondary', letterSpacing: '0.06em' }}>
+        {users.length} REFERRED USER{users.length === 1 ? '' : 'S'}
+      </Box>
+      {users.map(ru => (
+        <Box key={ru._id} sx={{ px: 1.5, py: 0.85, borderTop: `1px solid ${darkBorder}`, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ flex: 1, minWidth: 160 }}>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700 }}>
+              {ru.username}
+              {ru.countryCode && <Chip size="small" label={ru.countryCode} sx={flag} />}
+              {!ru.emailVerified && <Chip size="small" label="unverified" sx={{ ...flag, background: alpha('#ff6b7a', 0.15), color: '#ff6b7a' }} />}
+              {ru.referralAbuseFlag && <Chip size="small" label="flagged" sx={{ ...flag, background: alpha('#ff6b7a', 0.15), color: '#ff6b7a' }} />}
+            </Typography>
+            <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary' }}>{ru.email}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: '0.66rem', color: 'text.disabled' }}>
+            joined {new Date(ru.createdAt).toLocaleDateString()}
+          </Typography>
+          <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: ru.referralRewardedAt ? neonGreen : 'text.secondary', minWidth: 110, textAlign: 'right' }}>
+            wagered {ru.totalWagered.toFixed(0)}{ru.referralRewardedAt ? ' · active' : ''}
+          </Typography>
+        </Box>
+      ))}
     </Box>
   );
 }
