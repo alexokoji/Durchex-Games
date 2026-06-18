@@ -106,6 +106,34 @@ router.post(
   },
 );
 
+// Approved promoters can choose a custom vanity referral code. It becomes their
+// User.referralCode (the attribution key), so `?ref=<name>` resolves to them and
+// all existing wiring keeps working. Existing referrals (linked by id) are kept.
+router.patch(
+  '/promoter/referral-code',
+  requireAuth,
+  body('code').isString().trim().isLength({ min: 3, max: 20 }).matches(/^[A-Za-z0-9_-]+$/),
+  async (req: Request, res: Response) => {
+    if (!validate(req, res)) return;
+    const user = req.user!;
+    if (user.promoterStatus !== 'approved') {
+      res.status(403).json({ error: 'not_approved_promoter' });
+      return;
+    }
+    const code = String(req.body.code).trim().toUpperCase();
+    const clash = await User.findOne({ referralCode: code, _id: { $ne: user._id } }).select('_id').lean();
+    if (clash) { res.status(409).json({ error: 'code_taken' }); return; }
+    user.referralCode = code;
+    try {
+      await user.save();
+    } catch (e: unknown) {
+      if ((e as { code?: number })?.code === 11000) { res.status(409).json({ error: 'code_taken' }); return; }
+      throw e;
+    }
+    res.json({ referralCode: user.referralCode });
+  },
+);
+
 router.get('/promoter/me', requireAuth, async (req: Request, res: Response) => {
   const user = req.user!;
   if (user.promoterStatus === 'none') {

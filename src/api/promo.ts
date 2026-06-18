@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client';
+import { apiGet, apiPost, apiPatch } from './client';
 import type { ApiUser } from './auth';
 import type { AnyCurrency } from '../utils/currency';
 
@@ -72,6 +72,9 @@ export const promoApi = {
 
   promoterDashboard: () =>
     apiGet<PromoterDashboard>('/promo/promoter/me'),
+
+  setReferralCode: (code: string) =>
+    apiPatch<{ referralCode: string }>('/promo/promoter/referral-code', { code }),
 };
 
 export type { AnyCurrency };

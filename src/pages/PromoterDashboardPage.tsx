@@ -20,7 +20,7 @@ function fmtUsd(n: number): string {
 }
 
 export default function PromoterDashboardPage() {
-  const { user, isAuthenticated, openAuthPrompt } = useAuth();
+  const { user, isAuthenticated, openAuthPrompt, refreshMe } = useAuth();
   const toasts = useToasts();
 
   const [data, setData] = useState<PromoterDashboard | null>(null);
@@ -31,6 +31,8 @@ export default function PromoterDashboardPage() {
   const [notPromoterFallbackCode, setNotPromoterFallbackCode] = useState<string | null>(null);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [savingCode, setSavingCode] = useState(false);
 
   async function load() {
     setIsLoading(true);
@@ -63,6 +65,25 @@ export default function PromoterDashboardPage() {
     if (!code) return '';
     return `${window.location.origin}/?ref=${code}`;
   }, [data, notPromoterFallbackCode, user]);
+
+  async function saveCode() {
+    const code = codeInput.trim();
+    if (code.length < 3) { toasts.warning('Too short', 'Choose at least 3 characters.'); return; }
+    if (!/^[A-Za-z0-9_-]+$/.test(code)) { toasts.warning('Invalid', 'Use only letters, numbers, - and _.'); return; }
+    setSavingCode(true);
+    try {
+      const r = await promoApi.setReferralCode(code);
+      toasts.success('Link updated', `Your referral code is now ${r.referralCode}.`);
+      setData(d => (d ? { ...d, referralCode: r.referralCode } : d));
+      setCodeInput('');
+      await refreshMe();
+    } catch (err) {
+      const c = err instanceof ApiError ? err.code : 'update_failed';
+      toasts.error('Could not update', c === 'code_taken'
+        ? 'That name is already taken — try another.'
+        : c.replace(/_/g, ' '));
+    } finally { setSavingCode(false); }
+  }
 
   function copyLink() {
     if (!referralLink) return;
@@ -249,6 +270,31 @@ export default function PromoterDashboardPage() {
           <Tooltip title="Copy"><IconButton onClick={copyLink}><ContentCopyIcon /></IconButton></Tooltip>
           <Tooltip title="Share"><IconButton onClick={shareLink}><ShareIcon /></IconButton></Tooltip>
         </Box>
+
+        {p.status === 'approved' && (
+          <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${darkBorder}` }}>
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
+              Customise your link
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                value={codeInput}
+                onChange={e => setCodeInput(e.target.value.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase())}
+                placeholder={data.referralCode}
+                inputProps={{ maxLength: 20, style: { fontFamily: 'monospace', textTransform: 'uppercase' } }}
+                helperText="3–20 letters/numbers. Becomes your ?ref= name (e.g. ?ref=JOHNNYBET)."
+                sx={{ flex: 1, minWidth: 200 }}
+              />
+              <Button
+                variant="contained" onClick={saveCode} disabled={savingCode || codeInput.trim().length < 3}
+                sx={{ background: neonGreen, color: '#000', fontWeight: 700, mt: 0.25 }}
+              >
+                {savingCode ? 'Saving…' : 'Save name'}
+              </Button>
+            </Box>
+          </Box>
+        )}
       </Box>
 
       {/* Stats grid — CSS grid keeps us out of MUI's v1/v2 Grid prop churn. */}
