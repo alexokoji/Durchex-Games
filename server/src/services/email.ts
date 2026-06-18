@@ -162,8 +162,8 @@ function fineprint(html: string): string {
 
 export function verificationCodeTemplate(username: string, code: string): { subject: string; html: string } {
   const content =
-    heading('Verify your email') +
-    paragraph(`Hi <b style="color:${BRAND.text};">${escape(username)}</b>, use the code below to verify your email and unlock deposits &amp; withdrawals.`) +
+    heading('Confirm your email address') +
+    paragraph(`Hi <b style="color:${BRAND.text};">${escape(username)}</b>, enter the code below to confirm your email address and finish setting up your account.`) +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 4px;"><tr>
        <td align="center" style="padding:20px;background:#0c0f14;border:1px solid ${BRAND.border};border-radius:12px;">
          <div style="font-family:'Courier New',monospace;font-size:36px;font-weight:900;letter-spacing:12px;color:${BRAND.accent};">${escape(code)}</div>
@@ -178,8 +178,8 @@ export function verificationCodeTemplate(username: string, code: string): { subj
 export function verificationEmailTemplate(username: string, link: string): { subject: string; html: string } {
   const content =
     heading(`Welcome, ${username}`) +
-    paragraph('Confirm your email to unlock deposits &amp; withdrawals.') +
-    ctaButton(link, 'Verify email') +
+    paragraph('Confirm your email address to finish setting up your account.') +
+    ctaButton(link, 'Confirm email') +
     fineprint(`If the button doesn&rsquo;t work, paste this link:<br><a href="${link}" style="color:${BRAND.accent2};word-break:break-all;">${link}</a>`) +
     fineprint('If you didn&rsquo;t sign up, you can safely ignore this email. The link expires in 24 hours.');
   return {
