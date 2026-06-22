@@ -16,6 +16,7 @@ import { useToasts } from '../../contexts/ToastContext';
 import { LEAGUES, getLeague } from '../../virtual-sports/core/leagueDatabase';
 import { teamsByLeague } from '../../virtual-sports/core/teamDatabase';
 import { buildSeasonSchedule, buildLeaguePhaseSchedule } from '../../virtual-sports/core/seasonScheduler';
+import { matchSeed, daySlotBase, dayAnchorMs } from '../../virtual-sports/core/seasonClock';
 import { simulateSoccerMatch } from '../../virtual-sports/soccer/soccerSimulation';
 import { simulateBasketballMatch } from '../../virtual-sports/basketball/basketballSimulation';
 import { simulateHockeyMatch } from '../../virtual-sports/hockey/hockeySimulation';
@@ -32,12 +33,6 @@ const MAX_ROWS_SINGLE   = 2000;
 const MAX_ROWS_ALL      = 40;
 
 type SportFilter = 'all' | 'soccer' | 'basketball' | 'hockey';
-
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return h >>> 0;
-}
 
 function seasonSeedFor(leagueId: string): number {
   const d = new Date();
@@ -81,9 +76,11 @@ function buildPrediction(
   away: Team,
   week: number,
   startsAt: number,
-  seasonSeed: number,
+  slot: number,
 ): PredictionRow {
-  const seed = seasonSeed ^ (week * 7919) ^ hashStr(home.id + away.id);
+  // Absolute per-match seed — MUST match useLeagueSeason so predictions equal
+  // the results users actually see when the match plays.
+  const seed = matchSeed(league.id, slot, home.id, away.id);
   const sim = sport === 'soccer'
     ? simulateSoccerMatch(home, away, seed)
     : sport === 'basketball'
@@ -99,8 +96,8 @@ function buildPrediction(
   }));
   const code = `${league.id.toUpperCase()}/W${week}/${home.abbr}-${away.abbr}/${outcome}-${h}:${a}`;
   return {
-    // startsAt makes the key unique across season cycles within the same day.
-    matchId: `${league.id}-${startsAt}-${home.id}-${away.id}`,
+    // Absolute-slot match ID — matches the betting/settlement identity.
+    matchId: `${league.id}-s${slot}-${home.id}-${away.id}`,
     week, startsAt, home, away,
     scoreHome: h, scoreAway: a,
     outcome1X2: outcome,
@@ -132,11 +129,9 @@ function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): Pred
     else byWeek.set(f.week, [f]);
   }
 
-  const anchor = new Date();
-  anchor.setUTCHours(0, 0, 0, 0);
-  const anchorMs = anchor.getTime();
-  const endOfDayMs = anchorMs + 24 * 60 * 60 * 1000;
   const now = Date.now();
+  const anchorMs = dayAnchorMs(now);          // WAT midnight
+  const endOfDayMs = anchorMs + 24 * 60 * 60 * 1000;
   const totalWeeks = fixtures.reduce((m, f) => Math.max(m, f.week), 0);
   if (totalWeeks === 0) return [];
 
@@ -145,6 +140,7 @@ function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): Pred
   // within the day). Starting at the "now" week index keeps past slots out.
   const nowWeekIdx = Math.floor((now - anchorMs) / (WEEK_SECONDS * 1000));
   const endWeekIdx = Math.ceil((endOfDayMs - anchorMs) / (WEEK_SECONDS * 1000));
+  const dayBase = daySlotBase(now);   // absolute slot of today's UTC midnight
   const teamsById = new Map(teams.map(t => [t.id, t]));
   const out: PredictionRow[] = [];
 
@@ -161,7 +157,7 @@ function predictionsForLeague(leagueId: string, maxRows = MAX_ROWS_SINGLE): Pred
       if (!home || !away) continue;
       out.push(buildPrediction(
         league.sport as 'soccer' | 'basketball' | 'hockey',
-        league, home, away, week, startsAt, seed,
+        league, home, away, week, startsAt, dayBase + i,
       ));
     }
   }

@@ -9,6 +9,10 @@ import {
 import { teamsByLeague } from './teamDatabase';
 import { getLeague } from './leagueDatabase';
 import { pushRecentResult } from './recentResults';
+import {
+  WEEK_SECONDS, dayAnchorMs, daySlotBase, slotStartMs, endOfDaySlot,
+  cyclicWeek, matchSeed, buildMatchId, parseMatchId, slotFinished, hashStr,
+} from './seasonClock';
 
 /**
  * Generic season + match-week scheduler.
@@ -33,10 +37,12 @@ export type SeasonPhase = 'betting' | 'live' | 'finished';
 const DEFAULT_BETTING_S  = 360;  // 6 min betting
 const DEFAULT_LIVE_S     = 180;  // 3 min live
 const DEFAULT_FINISHED_S = 60;   // 1 min settled
-const WEEK_SECONDS = DEFAULT_BETTING_S + DEFAULT_LIVE_S + DEFAULT_FINISHED_S; // 600s = 10min
 
 export interface WeekMatch<TSim> {
   id: string;
+  /** Absolute slot index — unique forever, drives the match seed + settlement. */
+  slot: number;
+  /** Cyclic week number for display (1..total). */
   week: number;
   home: Team;
   away: Team;
@@ -45,6 +51,9 @@ export interface WeekMatch<TSim> {
 }
 
 export interface SeasonWeek<TSim> {
+  /** Absolute slot index (unique key; survives season-cycle repeats). */
+  slot: number;
+  /** Cyclic week number for display (1..total). */
   week: number;
   matches: WeekMatch<TSim>[];
   /** Absolute kickoff epoch (ms). */
@@ -65,7 +74,9 @@ export interface UseLeagueSeasonArgs<TSim> {
   scoreOf: (sim: TSim) => { home: number; away: number };
   /** Sport label (used when persisting recent results). */
   sport: 'soccer' | 'basketball' | 'hockey';
-  /** How many weeks ahead to expose for pre-booking. Default 5. */
+  /** How many weeks ahead to expose for pre-booking. When omitted, ALL
+   *  remaining weeks of the current season cycle are shown (book ahead for the
+   *  whole day). Pass a number to cap it. */
   lookahead?: number;
   /** Optional override for week duration breakdown. */
   bettingSeconds?: number;
@@ -74,8 +85,10 @@ export interface UseLeagueSeasonArgs<TSim> {
 }
 
 export interface UseLeagueSeasonResult<TSim> {
-  /** 1-indexed current week. */
+  /** 1-indexed current (cyclic) week. */
   currentWeek: number;
+  /** Absolute slot index of the current week — stable identity for selection. */
+  currentSlot: number;
   /** Total weeks in the season (e.g. 38, 34, 8). */
   totalWeeks: number;
   /** Phase of the *current* week. */
@@ -84,14 +97,14 @@ export interface UseLeagueSeasonResult<TSim> {
   secondsToNextPhase: number;
   /** Seconds until the next week kicks off (always counts down). */
   secondsToNextWeek: number;
-  /** Active week + the upcoming `lookahead` weeks for pre-booking. */
+  /** Active week + all remaining weeks of the season cycle (or up to `lookahead`). */
   weeks: SeasonWeek<TSim>[];
 }
 
 export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagueSeasonResult<TSim> {
   const {
     leagueId, simulate, buildMarkets, resolveSelection, scoreOf, sport,
-    lookahead = 5,
+    lookahead,
     bettingSeconds  = DEFAULT_BETTING_S,
     liveSeconds     = DEFAULT_LIVE_S,
     settledSeconds  = DEFAULT_FINISHED_S,
@@ -139,17 +152,17 @@ export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagu
     return () => window.clearInterval(t);
   }, []);
 
-  const anchor = useMemo(() => {
-    const d = new Date();
-    d.setUTCHours(0, 0, 0, 0);
-    return d.getTime();
-  }, []);
-  const elapsedFromAnchor = Math.max(0, now - anchor);
-  const totalSeasonSeconds = total * WEEK_SECONDS;
-  const elapsedInLoop = totalSeasonSeconds > 0 ? elapsedFromAnchor % (totalSeasonSeconds * 1000) : 0;
-  const elapsedSecondsInSeason = Math.floor(elapsedInLoop / 1000);
-  const currentWeek = Math.min(total, Math.floor(elapsedSecondsInSeason / WEEK_SECONDS) + 1);
-  const secondsIntoWeek = elapsedSecondsInSeason % WEEK_SECONDS;
+  // Display clock is anchored to UTC midnight (the day "starts" on week 1), but
+  // each week also maps to an ABSOLUTE slot so identity/seed/settlement never
+  // depend on the viewing day.
+  const anchor = useMemo(() => dayAnchorMs(now), [Math.floor((now + 3_600_000) / 86_400_000)]);
+  const dayBase = useMemo(() => daySlotBase(now), [anchor]);
+  const elapsedSec = Math.max(0, Math.floor((now - anchor) / 1000));   // 0..86399
+  const weekIdxFromMidnight = Math.floor(elapsedSec / WEEK_SECONDS);   // 0..143
+  const secondsIntoWeek = elapsedSec % WEEK_SECONDS;
+  const currentWeek = cyclicWeek(weekIdxFromMidnight, total);          // 1..total (display)
+  const currentSlot = dayBase + weekIdxFromMidnight;                   // absolute
+
   const phase: SeasonPhase =
     secondsIntoWeek < bettingSeconds ? 'betting'
     : secondsIntoWeek < bettingSeconds + liveSeconds ? 'live'
@@ -168,144 +181,120 @@ export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagu
     return m;
   }, [teams]);
 
+  const endSlot = useMemo(() => endOfDaySlot(now), [anchor]);
+
   const weeks: SeasonWeek<TSim>[] = useMemo(() => {
     if (total === 0) return [];
     const out: SeasonWeek<TSim>[] = [];
-    const weeksToBuild = Math.min(total, lookahead + 1);
-    for (let i = 0; i < weeksToBuild; i++) {
-      const week = ((currentWeek - 1 + i) % total) + 1;
+    // Build from the current slot to the end of the UTC day so users can book
+    // every remaining match today. Each slot is absolute & unique, so even when
+    // the season cycle repeats within the day the match IDs never collide and
+    // settlement stays unambiguous. `lookahead` (if given) caps the span.
+    const cap = lookahead != null ? currentSlot + lookahead : endSlot;
+    const lastSlot = Math.min(endSlot, cap);
+    for (let slot = currentSlot; slot <= lastSlot; slot++) {
+      const week = cyclicWeek(slot - dayBase, total);  // display week (cyclic)
       const matchesThisWeek = fixtures.filter(f => f.week === week);
-      const startsAt = anchor + ((currentWeek - 1 + i) * WEEK_SECONDS) * 1000;
-      const liveAt   = startsAt + bettingSeconds * 1000;
-      const settledAt= liveAt   + liveSeconds * 1000;
+      const startsAt  = slotStartMs(slot);
+      const liveAt    = startsAt + bettingSeconds * 1000;
+      const settledAt = liveAt   + liveSeconds * 1000;
       const built: WeekMatch<TSim>[] = matchesThisWeek
         .map(f => {
           const home = teamsById.get(f.homeId);
           const away = teamsById.get(f.awayId);
           if (!home || !away) return null;
-          // Per-match seed combines season, week and team ids so it's stable
-          // for the duration of this season but unique per fixture.
-          const seed = seasonSeed ^ (week * 7919) ^ hashStr(home.id + away.id);
+          // Absolute per-match seed — reproducible forever, independent of day.
+          const seed = matchSeed(leagueId, slot, home.id, away.id);
           const simulation = simulate(home, away, seed);
           const markets = buildMarkets(home, away, simulation);
           return {
-            id: `${leagueId}-w${week}-${home.id}-${away.id}`,
-            week,
-            home,
-            away,
-            simulation,
-            markets,
+            id: buildMatchId(leagueId, slot, home.id, away.id),
+            slot, week, home, away, simulation, markets,
           };
         })
         .filter((m): m is WeekMatch<TSim> => m != null);
-      out.push({ week, matches: built, startsAt, liveAt, settledAt });
+      out.push({ slot, week, matches: built, startsAt, liveAt, settledAt });
     }
     return out;
   }, [
-    total, currentWeek, lookahead, fixtures, anchor, bettingSeconds, liveSeconds,
-    teamsById, leagueId, seasonSeed, simulate, buildMarkets,
+    total, currentSlot, dayBase, endSlot, lookahead, fixtures,
+    bettingSeconds, liveSeconds, teamsById, leagueId, simulate, buildMarkets,
   ]);
 
-  // ─── Settle slip outcomes when the active week finishes ────────────────
+  // ─── Settlement ──────────────────────────────────────────────────────────
+  // One slot-based settler handles everything: a bet settles the moment its
+  // slot has finished (betting+live elapsed), computed from the ABSOLUTE slot
+  // in its match ID and replayed with the absolute seed. This is correct no
+  // matter how far ahead the bet was booked, or how much later the user
+  // returns (even days) — the slot/seed never depend on the viewing day.
+  // Legacy `-w` tickets fall back to the old wrap-based path.
   const settle = useCallback(() => {
-    // ── Real-time settlement for the current week ────────────────────────
+    if (total === 0) return;
+    const allPending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
+
+    if (allPending.length > 0) {
+      const outcomes: SettlementOutcome[] = [];
+      for (const sel of allPending) {
+        const parsed = parseMatchId(sel.matchId);
+        if (!parsed || parsed.leagueId !== leagueId) continue;
+        const dedup = `settle-${sel.id}`;
+        if (settledWeeks.current.has(dedup)) continue;
+
+        const home = teamsById.get(parsed.homeId);
+        const away = teamsById.get(parsed.awayId);
+        if (!home || !away) continue;
+
+        let seed: number;
+        if (parsed.slot != null) {
+          if (!slotFinished(parsed.slot, now)) continue;     // hasn't played yet
+          seed = matchSeed(leagueId, parsed.slot, home.id, away.id);
+        } else {
+          // Legacy cyclic-week ticket — settle only strictly-past weeks.
+          const wk = parsed.week!;
+          if (wk < 1 || wk > total) continue;
+          let off = wk - currentWeek;
+          if (off < -(total / 2)) off += total;
+          else if (off > total / 2) off -= total;
+          if (off >= 0) continue;
+          seed = (seasonSeed ^ (wk * 7919) ^ hashStr(home.id + away.id)) >>> 0;
+        }
+
+        const simulation = simulate(home, away, seed);
+        settledWeeks.current.add(dedup);
+        outcomes.push({
+          selectionId: sel.id,
+          result: resolveSelection(sel, simulation),
+          finalScore: scoreOf(simulation),
+        });
+      }
+      if (outcomes.length > 0) slip.settleOutcomes(outcomes);
+    }
+
+    // ── Recent-results feed for the current slot (display only) ──────────
     if (phase === 'finished') {
-      const key = `${leagueId}-w${currentWeek}`;
+      const key = `recent-${leagueId}-s${currentSlot}`;
       if (!settledWeeks.current.has(key)) {
         settledWeeks.current.add(key);
-
-        const week = weeks.find(w => w.week === currentWeek);
-        if (week) {
-          const outcomes: SettlementOutcome[] = [];
-          const pending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
-          for (const sel of pending) {
-            const match = week.matches.find(m => m.id === sel.matchId);
-            if (!match) continue;
-            // Snapshot the final score onto the outcome so the bet slip can show
-            // settled details even after the season seed rotates (UTC midnight).
-            outcomes.push({
-              selectionId: sel.id,
-              result: resolveSelection(sel, match.simulation),
-              finalScore: scoreOf(match.simulation),
-            });
-          }
-          if (outcomes.length > 0) slip.settleOutcomes(outcomes);
-
-          // Push results into the recent-results store.
-          const leagueName = leagueMeta?.shortName ?? leagueId.toUpperCase();
-          for (const m of week.matches) {
-            const { home: hs, away: as } = scoreOf(m.simulation);
-            pushRecentResult({
-              sport,
-              leagueId,
-              leagueName,
-              home: { id: m.home.id, name: m.home.shortName, abbr: m.home.abbr, score: hs },
-              away: { id: m.away.id, name: m.away.shortName, abbr: m.away.abbr, score: as },
-              finishedAt: Date.now(),
-              source: 'live',
-            });
-          }
+        const leagueName = leagueMeta?.shortName ?? leagueId.toUpperCase();
+        for (const f of fixtures.filter(fx => fx.week === currentWeek)) {
+          const home = teamsById.get(f.homeId);
+          const away = teamsById.get(f.awayId);
+          if (!home || !away) continue;
+          const sim = simulate(home, away, matchSeed(leagueId, currentSlot, home.id, away.id));
+          const { home: hs, away: as } = scoreOf(sim);
+          pushRecentResult({
+            sport, leagueId, leagueName,
+            home: { id: home.id, name: home.shortName, abbr: home.abbr, score: hs },
+            away: { id: away.id, name: away.shortName, abbr: away.abbr, score: as },
+            finishedAt: Date.now(),
+            source: 'live',
+          });
         }
       }
     }
-
-    // ── Catch-up settlement for open tickets from past weeks ─────────────
-    // The real-time path only covers the current week. If the user placed a
-    // bet then closed the browser (or navigated away from this league's page),
-    // the settler never ran for that week. This block replays the deterministic
-    // simulation for any finished week that still has open tickets, so those
-    // tickets get resolved the moment the user returns — even several weeks
-    // later or after a page reload.
-    if (total === 0) return;
-    const allPending: BetSelection[] = slip.openTickets.flatMap(t => t.selections);
-    if (allPending.length === 0) return;
-
-    const catchUpOutcomes: SettlementOutcome[] = [];
-
-    for (const sel of allPending) {
-      // Only handle selections that belong to THIS league.
-      const parts = sel.matchId.split('-');
-      if (parts.length !== 4) continue;
-      const [matchLeagueId, wk, homeId, awayId] = parts;
-      if (matchLeagueId !== leagueId) continue;
-      if (!wk.startsWith('w')) continue;
-      const selWeek = parseInt(wk.slice(1), 10);
-      if (!Number.isFinite(selWeek) || selWeek < 1 || selWeek > total) continue;
-
-      // Per-selection dedup key — prevents settling the same pick twice if
-      // settle() fires multiple times within a session (it runs every second).
-      const cuKey = `catchup-${sel.id}`;
-      if (settledWeeks.current.has(cuKey)) continue;
-
-      // Wrap-aware signed offset: negative = past week, 0 = current, positive = future.
-      let weeksOffset = selWeek - currentWeek;
-      if (weeksOffset < -(total / 2)) weeksOffset += total;
-      else if (weeksOffset > total / 2)  weeksOffset -= total;
-
-      // Only catch-up for strictly past weeks. The current week (offset 0) is
-      // handled above by the real-time settler; future weeks are still pending.
-      if (weeksOffset >= 0) continue;
-
-      const home = teamsById.get(homeId);
-      const away = teamsById.get(awayId);
-      if (!home || !away) continue;
-
-      // Deterministic simulation — identical seed formula to the week builder.
-      const seed = seasonSeed ^ (selWeek * 7919) ^ hashStr(home.id + away.id);
-      const simulation = simulate(home, away, seed);
-
-      settledWeeks.current.add(cuKey);
-      catchUpOutcomes.push({
-        selectionId: sel.id,
-        result: resolveSelection(sel, simulation),
-        finalScore: scoreOf(simulation),
-      });
-    }
-
-    if (catchUpOutcomes.length > 0) slip.settleOutcomes(catchUpOutcomes);
   }, [
-    phase, leagueId, currentWeek, weeks, total, teamsById, seasonSeed,
-    simulate, slip, resolveSelection, scoreOf, sport, leagueMeta,
+    total, slip, leagueId, teamsById, now, currentWeek, currentSlot, phase,
+    fixtures, seasonSeed, simulate, resolveSelection, scoreOf, sport, leagueMeta,
   ]);
 
   useEffect(() => {
@@ -314,16 +303,11 @@ export function useLeagueSeason<TSim>(args: UseLeagueSeasonArgs<TSim>): UseLeagu
 
   return {
     currentWeek,
+    currentSlot,
     totalWeeks: total,
     phase,
     secondsToNextPhase,
     secondsToNextWeek,
     weeks,
   };
-}
-
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return h >>> 0;
 }

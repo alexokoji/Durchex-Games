@@ -35,21 +35,22 @@ export default function HockeySection({ leagueId, onSelectLeague }: Props) {
     scoreOf: sim => sim.finalScore,
   });
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(season.currentWeek);
+  const [selectedSlot, setSelectedSlot] = useState<number>(season.currentSlot);
   useEffect(() => {
-    setSelectedWeek(prev => (prev < season.currentWeek ? season.currentWeek : prev));
-  }, [season.currentWeek]);
+    setSelectedSlot(prev => (prev < season.currentSlot ? season.currentSlot : prev));
+  }, [season.currentSlot]);
 
   const phaseLabel = season.phase === 'betting' ? 'BETTING' : season.phase === 'live' ? 'LIVE' : 'FINISHED';
   const weekOptions = useMemo(() => season.weeks.map(w => ({
+    slot: w.slot,
     week: w.week,
     matchCount: w.matches.length,
     startsAt: w.startsAt,
-    state: (w.week === season.currentWeek ? 'live' : 'upcoming') as 'live' | 'upcoming',
-  })), [season.weeks, season.currentWeek]);
+    state: (w.slot === season.currentSlot ? 'live' : 'upcoming') as 'live' | 'upcoming',
+  })), [season.weeks, season.currentSlot]);
 
-  const activeWeek = season.weeks.find(w => w.week === selectedWeek) ?? season.weeks[0];
-  const isLiveWeek = activeWeek?.week === season.currentWeek;
+  const activeWeek = season.weeks.find(w => w.slot === selectedSlot) ?? season.weeks[0];
+  const isLiveWeek = activeWeek?.slot === season.currentSlot;
 
   const listMatches: ListMatch[] = useMemo(
     () => (activeWeek?.matches ?? []).map(m => ({
@@ -109,8 +110,8 @@ export default function HockeySection({ leagueId, onSelectLeague }: Props) {
           <Box sx={{ p: 1 }}>
             <WeekSelector
               weeks={weekOptions}
-              selectedWeek={selectedWeek}
-              onSelect={setSelectedWeek}
+              selectedSlot={selectedSlot}
+              onSelect={setSelectedSlot}
               totalWeeks={season.totalWeeks}
               phaseLabel={isLiveWeek ? phaseLabel : 'UPCOMING'}
               secondsToNextWeek={season.secondsToNextWeek}
@@ -132,7 +133,7 @@ export default function HockeySection({ leagueId, onSelectLeague }: Props) {
               sport="hockey"
               matches={listMatches}
               leagueName={league.name}
-              weekLabel={`Week ${selectedWeek} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
+              weekLabel={`Week ${activeWeek?.week ?? ''} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
               marketTabs={['1X2', 'DOUBLE_CHANCE', 'OVER_UNDER']}
               liveProgress={liveProgress}
             />

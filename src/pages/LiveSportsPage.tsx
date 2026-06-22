@@ -25,6 +25,7 @@ import {
 } from '../api/liveSports';
 import { bookingCodesApi } from '../api/bookingCodes';
 import type { ApiBet } from '../api/bets';
+import { fmtDateTimeWAT } from '../utils/datetime';
 
 interface SlipItem {
   key: string;
@@ -51,13 +52,8 @@ function selKey(eventId: string, marketKey: string, name: string, point?: number
   return `${eventId}:${marketKey}:${name}:${point ?? ''}`;
 }
 
-/** Exact kickoff date + time, e.g. "Sat, 14 Jun · 19:30". */
-function fmtKickoff(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' });
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `${date} · ${time}`;
-}
+/** Exact kickoff date + time in WAT, e.g. "Sat, 14 Jun · 19:30 WAT". */
+const fmtKickoff = fmtDateTimeWAT;
 
 /** Short countdown until kickoff (for the badge). */
 function kickoffIn(iso: string): string {

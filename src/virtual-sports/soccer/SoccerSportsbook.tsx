@@ -36,27 +36,24 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
     scoreOf: sim => sim.finalScore,
   });
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(season.currentWeek);
-  // Snap to the live week when it changes, unless the user has chosen an
-  // upcoming week (in which case we leave them on their pick).
+  const [selectedSlot, setSelectedSlot] = useState<number>(season.currentSlot);
+  // Follow the live slot as it advances, unless the user has picked a future
+  // slot to pre-book (then leave them on their choice).
   useEffect(() => {
-    setSelectedWeek(prev => {
-      if (prev === season.currentWeek - 1) return season.currentWeek; // advance one
-      if (prev < season.currentWeek) return season.currentWeek;
-      return prev;
-    });
-  }, [season.currentWeek]);
+    setSelectedSlot(prev => (prev < season.currentSlot ? season.currentSlot : prev));
+  }, [season.currentSlot]);
 
   const phaseLabel = season.phase === 'betting' ? 'BETTING' : season.phase === 'live' ? 'LIVE' : 'FINISHED';
   const weekOptions = useMemo(() => season.weeks.map(w => ({
+    slot: w.slot,
     week: w.week,
     matchCount: w.matches.length,
     startsAt: w.startsAt,
-    state: (w.week === season.currentWeek ? 'live' : 'upcoming') as 'live' | 'upcoming',
-  })), [season.weeks, season.currentWeek]);
+    state: (w.slot === season.currentSlot ? 'live' : 'upcoming') as 'live' | 'upcoming',
+  })), [season.weeks, season.currentSlot]);
 
-  const activeWeek = season.weeks.find(w => w.week === selectedWeek) ?? season.weeks[0];
-  const isLiveWeek = activeWeek?.week === season.currentWeek;
+  const activeWeek = season.weeks.find(w => w.slot === selectedSlot) ?? season.weeks[0];
+  const isLiveWeek = activeWeek?.slot === season.currentSlot;
 
   const listMatches: ListMatch[] = useMemo(
     () => (activeWeek?.matches ?? []).map(m => ({
@@ -128,8 +125,8 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
           <Box sx={{ p: 1 }}>
             <WeekSelector
               weeks={weekOptions}
-              selectedWeek={selectedWeek}
-              onSelect={setSelectedWeek}
+              selectedSlot={selectedSlot}
+              onSelect={setSelectedSlot}
               totalWeeks={season.totalWeeks}
               phaseLabel={isLiveWeek ? phaseLabel : 'UPCOMING'}
               secondsToNextWeek={season.secondsToNextWeek}
@@ -151,7 +148,7 @@ export default function SoccerSection({ leagueId, onSelectLeague }: SoccerSectio
               sport="soccer"
               matches={listMatches}
               leagueName={league.name}
-              weekLabel={`Week ${selectedWeek} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
+              weekLabel={`Week ${activeWeek?.week ?? ''} · ${isLiveWeek ? phaseLabel : 'pre-booking'}`}
               liveProgress={liveProgress}
             />
           </Box>

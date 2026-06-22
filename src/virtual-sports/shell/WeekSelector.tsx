@@ -1,8 +1,11 @@
 import { Box, Typography, Chip } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../../theme';
+import { fmtDayHourWAT } from '../../utils/datetime';
 
 interface WeekOption {
+  /** Absolute slot index — unique even when the cyclic week repeats in a day. */
+  slot: number;
   week: number;
   matchCount: number;
   startsAt: number;
@@ -12,8 +15,8 @@ interface WeekOption {
 
 interface Props {
   weeks: WeekOption[];
-  selectedWeek: number;
-  onSelect: (week: number) => void;
+  selectedSlot: number;
+  onSelect: (slot: number) => void;
   totalWeeks: number;
   /** "BETTING" | "LIVE" | "FINISHED" — drives the live chip color/text. */
   phaseLabel: string;
@@ -28,12 +31,7 @@ function fmtCountdown(s: number): string {
   return `${mm}:${ss.toString().padStart(2, '0')}`;
 }
 
-function fmtDayHour(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-export default function WeekSelector({ weeks, selectedWeek, onSelect, totalWeeks, phaseLabel, secondsToNextWeek }: Props) {
+export default function WeekSelector({ weeks, selectedSlot, onSelect, totalWeeks, phaseLabel, secondsToNextWeek }: Props) {
   return (
     <Box sx={{
       p: 1.25, borderRadius: 2,
@@ -67,12 +65,12 @@ export default function WeekSelector({ weeks, selectedWeek, onSelect, totalWeeks
         '&::-webkit-scrollbar-thumb': { background: alpha('#fff', 0.1), borderRadius: 3 },
       }}>
         {weeks.map(w => {
-          const isSelected = w.week === selectedWeek;
+          const isSelected = w.slot === selectedSlot;
           const tone = w.state === 'live' ? '#ff4757' : neonBlue;
           return (
             <Box
-              key={w.week}
-              onClick={() => onSelect(w.week)}
+              key={w.slot}
+              onClick={() => onSelect(w.slot)}
               sx={{
                 minWidth: 96,
                 px: 1.25, py: 0.75, borderRadius: 1.5,
@@ -100,7 +98,7 @@ export default function WeekSelector({ weeks, selectedWeek, onSelect, totalWeeks
                 color: isSelected ? '#fff' : 'text.primary',
                 mt: 0.25,
               }}>
-                {w.state === 'live' ? 'In progress' : fmtDayHour(w.startsAt)}
+                {w.state === 'live' ? 'In progress' : fmtDayHourWAT(w.startsAt)}
               </Typography>
               <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
                 {w.matchCount} matches

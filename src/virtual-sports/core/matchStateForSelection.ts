@@ -27,11 +27,11 @@ import { simulateHockeyMatch } from '../hockey/hockeySimulation';
 import { resolveSoccerSelection } from '../soccer/soccerSimulation';
 import { resolveBasketballSelection } from '../basketball/basketballSimulation';
 import { resolveHockeySelection } from '../hockey/hockeySimulation';
-
-const BETTING_S  = 360;
-const LIVE_S     = 180;
-const FINISHED_S = 60;
-const WEEK_S     = BETTING_S + LIVE_S + FINISHED_S;
+import {
+  BETTING_S, LIVE_S, WEEK_SECONDS as WEEK_S,
+  slotStartMs, slotPhase, matchSeed, cyclicWeek, daySlotBase, dayAnchorMs,
+  parseMatchId as parseId, type ParsedMatchId,
+} from './seasonClock';
 
 export type SelectionPhase = 'betting' | 'live' | 'finished' | 'unknown';
 
@@ -58,27 +58,6 @@ export interface MatchStateForSelection {
   finalResult: 'win' | 'loss' | 'void';
 }
 
-interface ParsedMatchId {
-  leagueId: string;
-  week: number;
-  homeId: string;
-  awayId: string;
-}
-
-/**
- * matchIds look like `${leagueId}-w${week}-${homeId}-${awayId}`.
- * League IDs and team IDs don't contain `-` so a plain split is safe.
- */
-function parseMatchId(matchId: string): ParsedMatchId | null {
-  const parts = matchId.split('-');
-  if (parts.length !== 4) return null;
-  const [leagueId, wk, homeId, awayId] = parts;
-  if (!wk.startsWith('w')) return null;
-  const week = parseInt(wk.slice(1), 10);
-  if (!Number.isFinite(week) || week < 1) return null;
-  return { leagueId, week, homeId, awayId };
-}
-
 function hashStr(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -91,12 +70,6 @@ function seasonSeedFor(leagueId: string): number {
   let h = 5381;
   for (const c of (leagueId + dayKey)) h = ((h << 5) + h + c.charCodeAt(0)) | 0;
   return h >>> 0;
-}
-
-function utcMidnight(): number {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.getTime();
 }
 
 function spanForSport(sport: SportKey): number {
@@ -182,7 +155,8 @@ function getTotalWeeks(leagueId: string): number {
 
 function getSimForMatch(parsed: ParsedMatchId): CacheEntry | null {
   ensureCache();
-  const key = `${parsed.leagueId}-${parsed.week}-${parsed.homeId}-${parsed.awayId}`;
+  const tag = parsed.slot != null ? `s${parsed.slot}` : `w${parsed.week}`;
+  const key = `${parsed.leagueId}-${tag}-${parsed.homeId}-${parsed.awayId}`;
   const cached = simCache.get(key);
   if (cached) return cached;
 
@@ -196,8 +170,10 @@ function getSimForMatch(parsed: ParsedMatchId): CacheEntry | null {
   const away: Team | undefined = teams.find(t => t.id === parsed.awayId);
   if (!home || !away) return null;
 
-  const seasonSeed = seasonSeedFor(parsed.leagueId);
-  const seed = seasonSeed ^ (parsed.week * 7919) ^ hashStr(home.id + away.id);
+  // Slot IDs → absolute seed (reproducible forever). Legacy week IDs → old seed.
+  const seed = parsed.slot != null
+    ? matchSeed(parsed.leagueId, parsed.slot, home.id, away.id)
+    : (seasonSeedFor(parsed.leagueId) ^ ((parsed.week ?? 0) * 7919) ^ hashStr(home.id + away.id)) >>> 0;
   const sim = sport === 'soccer' ? simulateSoccerMatch(home, away, seed)
             : sport === 'basketball' ? simulateBasketballMatch(home, away, seed)
             : simulateHockeyMatch(home, away, seed);
@@ -219,69 +195,70 @@ function getSimForMatch(parsed: ParsedMatchId): CacheEntry | null {
  * point at a known match).
  */
 export function deriveMatchState(sel: BetSelection): MatchStateForSelection | null {
-  const parsed = parseMatchId(sel.matchId);
+  const parsed = parseId(sel.matchId);
   if (!parsed) return null;
 
   const cached = getSimForMatch(parsed);
   if (!cached) return null;
 
-  // Phase clock — mirror useLeagueSeason's algorithm EXACTLY, including the
-  // MOD-by-totalWeeks step. The season is short (e.g. 38 weeks × 10 min =
-  // ~6.3h) and cycles multiple times per UTC day. Without the MOD, a bet
-  // placed in the first cycle's week 8 would look "past" by the time the
-  // second cycle's week 8 rolls around, leaking the result via a "finished"
-  // phase + score chip even though the match hasn't actually played yet.
-  const anchor = utcMidnight();
   const now = Date.now();
-  const elapsedFromAnchor = Math.max(0, now - anchor);
-  const totalWeeks = getTotalWeeks(parsed.leagueId);
-  if (totalWeeks === 0) return null;
-  const totalSeasonSeconds = totalWeeks * WEEK_S;
-  const elapsedInLoopMs = elapsedFromAnchor % (totalSeasonSeconds * 1000);
-  const elapsedSecondsInSeason = Math.floor(elapsedInLoopMs / 1000);
-  const currentWeek = Math.min(totalWeeks, Math.floor(elapsedSecondsInSeason / WEEK_S) + 1);
-  const secondsIntoWeek = elapsedSecondsInSeason % WEEK_S;
-
-  // Compute the signed week offset from currentWeek to parsed.week, taking
-  // season wrap-around into account so a wrapped upcoming week (e.g. week 1
-  // when currentWeek=17 in a 19-week season) is correctly treated as future
-  // rather than past.
-  //
-  //   weeksOffset > 0  → upcoming week (betting phase)
-  //   weeksOffset === 0 → current week (determine phase from secondsIntoWeek)
-  //   weeksOffset < 0  → past week (finished)
-  let weeksOffset = parsed.week - currentWeek;
-  // Adjust for wrap-around: if the raw offset is more negative than half the
-  // season length, the week is actually in the upcoming cycle (closer going
-  // forward than backward). Likewise cap the forward direction.
-  if (weeksOffset < -(totalWeeks / 2)) weeksOffset += totalWeeks;
-  else if (weeksOffset > totalWeeks / 2) weeksOffset -= totalWeeks;
-
   let phase: SelectionPhase;
   let liveProgress = 0;
-  if (weeksOffset === 0) {
-    phase = secondsIntoWeek < BETTING_S ? 'betting'
-          : secondsIntoWeek < BETTING_S + LIVE_S ? 'live'
-          : 'finished';
-    liveProgress = phase === 'live'
-      ? Math.max(0, Math.min(1, (secondsIntoWeek - BETTING_S) / LIVE_S))
-      : phase === 'finished' ? 1
-      : 0;
-  } else if (weeksOffset > 0) {
-    // Upcoming week in the lookahead — always open for betting.
-    phase = 'betting';
-    liveProgress = 0;
-  } else {
-    // Past week — already settled.
-    phase = 'finished';
-    liveProgress = 1;
-  }
+  let secondsToLive = 0;
+  let weekLabel: number;
 
-  const secondsToLive = weeksOffset === 0
-    ? Math.max(0, BETTING_S - secondsIntoWeek)
-    : weeksOffset > 0
-      ? weeksOffset * WEEK_S + (BETTING_S - secondsIntoWeek)
-      : 0;
+  if (parsed.slot != null) {
+    // ── Absolute-slot ID — phase derives directly from the slot's wall-clock
+    // window, so it's correct forever (no day-anchor, no cycle wrap math).
+    const totalWeeks = getTotalWeeks(parsed.leagueId);
+    weekLabel = totalWeeks > 0
+      ? cyclicWeek(parsed.slot - daySlotBase(slotStartMs(parsed.slot)), totalWeeks)
+      : 1;
+    const { phase: sp, secondsInto } = slotPhase(parsed.slot, now);
+    if (sp === 'upcoming' || sp === 'betting') {
+      phase = 'betting';
+      secondsToLive = Math.max(0, Math.floor((slotStartMs(parsed.slot) + BETTING_S * 1000 - now) / 1000));
+    } else if (sp === 'live') {
+      phase = 'live';
+      liveProgress = Math.max(0, Math.min(1, (secondsInto - BETTING_S) / LIVE_S));
+    } else {
+      phase = 'finished';
+      liveProgress = 1;
+    }
+  } else {
+    // ── Legacy cyclic-week ID — original day-anchored + wrap logic (WAT).
+    const anchor = dayAnchorMs();
+    const elapsedFromAnchor = Math.max(0, now - anchor);
+    const totalWeeks = getTotalWeeks(parsed.leagueId);
+    if (totalWeeks === 0) return null;
+    const totalSeasonSeconds = totalWeeks * WEEK_S;
+    const elapsedInLoopMs = elapsedFromAnchor % (totalSeasonSeconds * 1000);
+    const elapsedSecondsInSeason = Math.floor(elapsedInLoopMs / 1000);
+    const currentWeek = Math.min(totalWeeks, Math.floor(elapsedSecondsInSeason / WEEK_S) + 1);
+    const secondsIntoWeek = elapsedSecondsInSeason % WEEK_S;
+    const wk = parsed.week ?? 1;
+    weekLabel = wk;
+
+    let weeksOffset = wk - currentWeek;
+    if (weeksOffset < -(totalWeeks / 2)) weeksOffset += totalWeeks;
+    else if (weeksOffset > totalWeeks / 2) weeksOffset -= totalWeeks;
+
+    if (weeksOffset === 0) {
+      phase = secondsIntoWeek < BETTING_S ? 'betting'
+            : secondsIntoWeek < BETTING_S + LIVE_S ? 'live'
+            : 'finished';
+      liveProgress = phase === 'live'
+        ? Math.max(0, Math.min(1, (secondsIntoWeek - BETTING_S) / LIVE_S))
+        : phase === 'finished' ? 1 : 0;
+      secondsToLive = Math.max(0, BETTING_S - secondsIntoWeek);
+    } else if (weeksOffset > 0) {
+      phase = 'betting';
+      secondsToLive = weeksOffset * WEEK_S + (BETTING_S - secondsIntoWeek);
+    } else {
+      phase = 'finished';
+      liveProgress = 1;
+    }
+  }
 
   const finalScore = cached.finalScore;
   const liveScore = liveScoreFromEvents(cached.events, finalScore, cached.sport, liveProgress);
@@ -290,7 +267,7 @@ export function deriveMatchState(sel: BetSelection): MatchStateForSelection | nu
 
   return {
     sport: cached.sport,
-    week: parsed.week,
+    week: weekLabel,
     phase,
     liveProgress,
     secondsToLive,
