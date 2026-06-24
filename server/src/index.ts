@@ -31,6 +31,7 @@ import { startVirtualSportsScheduler } from './services/virtualSportsScheduler';
 import { startLiveSportsScheduler } from './services/liveSports';
 import { startRiskScanScheduler } from './services/riskScoring';
 import { startBonusExpiryScheduler } from './services/bonusExpiry';
+import { startAutoSettleScheduler } from './services/autoSettleScheduler';
 
 async function main(): Promise<void> {
   await connectDb();
@@ -175,6 +176,7 @@ async function main(): Promise<void> {
   startLiveSportsScheduler();
   startRiskScanScheduler();
   startBonusExpiryScheduler();
+  startAutoSettleScheduler();
 }
 
 /**
