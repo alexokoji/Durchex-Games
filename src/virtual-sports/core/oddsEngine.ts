@@ -1,6 +1,10 @@
 import type { OddsFormat, BetSelection } from './types';
 
-export const DEFAULT_OVERROUND = 1.10;
+// House margin baked into virtual odds. Higher = lower payouts / bigger edge.
+// Virtual/instant products typically run a fatter margin than real sportsbooks
+// (which sit ~5–10%); 1.25 ≈ a 25% book, keeping odds sensibly low. Tune here —
+// it cascades to every virtual market (soccer, basketball, hockey, racing).
+export const DEFAULT_OVERROUND = 1.25;
 export const MIN_ODDS = 1.01;
 export const MAX_ODDS = 999;
 

@@ -12,6 +12,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { minVirtualBetFor } from '../../utils/currency';
 import { betsApi, type ApiBet } from '../../api/bets';
+import { deriveMatchState } from './matchStateForSelection';
 
 const STORAGE_KEY_TICKETS_BASE = 'vsb.openTickets.v1';
 const STORAGE_KEY_FORMAT_BASE = 'vsb.oddsFormat.v1';
@@ -402,6 +403,33 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
       });
     }
   }, [wallet]);
+
+  // ── Global auto-settler ────────────────────────────────────────────────
+  // Settlement must not depend on the user sitting on a league's sportsbook
+  // page. This runs app-wide: for every open ticket whose matches have ALL
+  // finished, it replays the deterministic simulation (via deriveMatchState —
+  // absolute slot + seed, reproducible any time) and settles. This is what
+  // makes bets booked far ahead settle even after navigating away or returning
+  // a day later.
+  useEffect(() => {
+    if (openTickets.length === 0) return;
+    const run = () => {
+      const outcomes: SettlementOutcome[] = [];
+      for (const t of openTickets) {
+        const states = t.selections.map(s => ({ s, st: deriveMatchState(s) }));
+        // Only settle once every leg has finished (multi-leg tickets need all).
+        if (states.length > 0 && states.every(x => x.st != null && x.st.phase === 'finished')) {
+          for (const { s, st } of states) {
+            outcomes.push({ selectionId: s.id, result: st!.finalResult, finalScore: st!.finalScore });
+          }
+        }
+      }
+      if (outcomes.length > 0) settleOutcomes(outcomes);
+    };
+    run();
+    const id = window.setInterval(run, 5000);
+    return () => window.clearInterval(id);
+  }, [openTickets, settleOutcomes]);
 
   const value: BetSlipContextValue = {
     selections, mode, systemK, stake, oddsFormat, openTickets, history,
