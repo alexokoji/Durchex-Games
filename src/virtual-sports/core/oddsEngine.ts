@@ -1,27 +1,32 @@
 import type { OddsFormat, BetSelection } from './types';
 
 // House margin baked into virtual odds. Higher = lower payouts / bigger edge.
-// Virtual/instant products typically run a fatter margin than real sportsbooks
-// (which sit ~5–10%); 1.25 ≈ a 25% book, keeping odds sensibly low. Tune here —
-// it cascades to every virtual market (soccer, basketball, hockey, racing).
-export const DEFAULT_OVERROUND = 1.25;
+// Virtual/instant products run a fat book: this is intentionally aggressive so
+// most selections land in the 1.xx band, 2.xx is occasional, and 3+ is capped
+// out (see MAX_SELECTION_ODDS). Tune here — it cascades to every virtual market.
+export const DEFAULT_OVERROUND = 1.9;
 export const MIN_ODDS = 1.01;
+// Hard ceiling on a SINGLE selection's displayed odds, so longshots (correct
+// score, big underdogs) never show 3/4+. Kept separate from MAX_ODDS so that
+// accumulators can still multiply past it.
+export const MAX_SELECTION_ODDS = 2.5;
 export const MAX_ODDS = 999;
 
-export function clampOdds(d: number): number {
+export function clampOdds(d: number, max = MAX_ODDS): number {
   if (!isFinite(d) || d <= 1) return MIN_ODDS;
-  return Math.min(MAX_ODDS, Math.max(MIN_ODDS, d));
+  return Math.min(max, Math.max(MIN_ODDS, d));
 }
 
-// Convert raw probabilities (sum may differ from 1) into bookmaker odds
-// with the requested overround (house margin). 1.06 means a 6% margin.
+// Convert raw probabilities (sum may differ from 1) into bookmaker odds with
+// the requested overround (house margin), then clamp each to MAX_SELECTION_ODDS
+// so no single price runs high.
 export function probabilitiesToOdds(probs: number[], overround = DEFAULT_OVERROUND): number[] {
   const sum = probs.reduce((s, p) => s + p, 0);
   if (sum <= 0) return probs.map(() => MIN_ODDS);
   const normalized = probs.map(p => p / sum);
   return normalized.map(p => {
     const fair = 1 / Math.max(0.0001, p);
-    return clampOdds(fair / overround);
+    return clampOdds(fair / overround, MAX_SELECTION_ODDS);
   });
 }
 
