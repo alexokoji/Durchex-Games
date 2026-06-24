@@ -381,6 +381,10 @@ export const adminApi = {
     apiGet<{ campaigns: EmailCampaignDto[] }>('/admin/email/campaigns'),
   sendEmail: (body: { subject: string; html: string; audience: 'all' | 'verified' | 'unverified' | 'single'; email?: string }) =>
     apiPost<{ ok: true; recipientCount: number; campaign: EmailCampaignDto }>('/admin/email/send', body),
+
+  // Force-settle pending bets (admin override for edge cases)
+  forceSettlePending: () =>
+    apiPost<{ ok: true; settled: number; skipped: number; total: number }>('/admin/force-settle-pending', {}),
 };
 
 export interface AnalyticsDto {

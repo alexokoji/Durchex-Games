@@ -25,6 +25,7 @@ export default function AdminBettingExposurePanel() {
   const [data, setData] = useState<BettingExposureDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyEvent, setBusyEvent] = useState<string | null>(null);
+  const [settling, setSettling] = useState(false);
 
   async function load() {
     try { setData(await adminApi.bettingExposure()); } catch { /* keep stale */ }
@@ -46,6 +47,17 @@ export default function AdminBettingExposurePanel() {
     } catch (e: any) {
       toasts.error('Could not update', e?.message ?? 'Try again.');
     } finally { setBusyEvent(null); }
+  }
+
+  async function handleForceSettle() {
+    setSettling(true);
+    try {
+      const result = await adminApi.forceSettlePending();
+      toasts.success('Settlement complete', `Settled ${result.settled} bets (${result.skipped} skipped, ${result.total} total pending).`);
+      await load();
+    } catch (e: any) {
+      toasts.error('Settlement failed', e?.message ?? 'Try again.');
+    } finally { setSettling(false); }
   }
 
   const byEvent = useMemo(() => {
@@ -71,6 +83,9 @@ export default function AdminBettingExposurePanel() {
         <Typography sx={{ fontSize: '1.1rem', fontWeight: 800 }}>Live Activity & Exposure</Typography>
         <Chip size="small" label="LIVE · 10s" sx={{ height: 18, fontSize: '0.58rem', fontWeight: 800, background: `${neonGreen}1a`, color: neonGreen }} />
         <Button size="small" startIcon={<RefreshIcon sx={{ fontSize: 16 }} />} onClick={load} sx={{ color: 'text.secondary' }}>Refresh</Button>
+        <Button size="small" variant="outlined" disabled={settling} onClick={handleForceSettle} sx={{ color: neonGold, borderColor: neonGold, fontSize: '0.8rem' }}>
+          {settling ? 'Settling...' : 'Force Settle'}
+        </Button>
       </Box>
       <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mb: 2 }}>
         Every game on the site — casino, virtual and live sports — as users play and bet. Track turnover, house P/L

@@ -1073,4 +1073,69 @@ router.post(
   },
 );
 
+// ─── Force-settle past pending bets ──────────────────────────────────────
+// Admin manual override: settles all pending bets whose games have finished.
+// Useful for catching settlement edge cases or testing. Returns count settled.
+router.post(
+  '/force-settle-pending',
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    const { slotFinished } = require('../../../src/virtual-sports/core/seasonClock') as {
+      slotFinished: (slot: number, now?: number) => boolean;
+    };
+    const { parseMatchId } = require('../../../src/virtual-sports/core/seasonClock') as {
+      parseMatchId: (id: string) => any;
+    };
+    const { settleBetAtomic } = require('../services/wallet');
+
+    const now = Date.now();
+    const pending = await Bet.find({ status: { $in: ['pending', 'live'] } });
+    let settled = 0;
+    let skipped = 0;
+
+    for (const bet of pending) {
+      const gameId = bet.gameId as string;
+      const parsed = parseMatchId(gameId);
+      let shouldSettle = false;
+
+      if (parsed && parsed.slot != null) {
+        // Virtual sports — check if slot is finished
+        shouldSettle = slotFinished(parsed.slot, now);
+      } else {
+        // Live sports or other — check if event is finished or very old
+        // A bet is "past" if it's older than 24h and pending, or if we can't identify it
+        const ageMs = now - (bet.placedAt?.getTime?.() ?? 0);
+        shouldSettle = ageMs > 24 * 60 * 60 * 1000;
+      }
+
+      if (shouldSettle) {
+        const selections = (bet.selections as any[]) ?? [];
+        const allLost = selections.every((s: any) => s.result === 'loss');
+        const payout = allLost ? 0 : (bet.payout ?? 0);
+        const won = payout > bet.stake;
+
+        const result = await settleBetAtomic({
+          userId: bet.userId.toString(),
+          betId: bet._id.toString(),
+          won,
+          payout,
+          details: 'Force-settled by admin',
+        }).catch((e: any) => ({ error: 'settle_failed', message: e.message }));
+
+        if (!('error' in result)) {
+          settled++;
+          notifyWalletUpdate(bet.userId.toString(), 'bet_settled');
+        } else {
+          console.warn('[force-settle] Failed to settle bet', bet._id, result);
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    await auditFromReq(req, 'virtual_sports.settle', 'system', undefined, { settled, skipped, total: pending.length });
+    res.json({ ok: true, settled, skipped, total: pending.length });
+  },
+);
+
 export default router;

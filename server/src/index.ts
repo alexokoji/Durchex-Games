@@ -159,6 +159,13 @@ async function main(): Promise<void> {
     }
   });
 
+  // Keep-alive — Render's free tier spins the service down after ~15 min with
+  // no inbound traffic, causing a slow cold start on the next request. We ping
+  // our OWN public Render URL on an interval so there's always recent inbound
+  // traffic. Must hit the Render service URL (RENDER_EXTERNAL_URL, set by
+  // Render automatically) — NOT PUBLIC_URL, which points at the web frontend.
+  startKeepAlive();
+
   // Recurring background jobs — cheap setInterval based scheduling so we
   // don't need to add a cron dependency. JobState persists last-run so a
   // restart can't double-credit users.
@@ -168,6 +175,27 @@ async function main(): Promise<void> {
   startLiveSportsScheduler();
   startRiskScanScheduler();
   startBonusExpiryScheduler();
+}
+
+/**
+ * Self-ping to keep a free-tier Render service warm. Hits our own public Render
+ * URL every 13 min (under the ~15-min idle spin-down window) so there is always
+ * recent inbound traffic. Uses RENDER_EXTERNAL_URL (set automatically by Render)
+ * or an explicit KEEPALIVE_URL — never PUBLIC_URL, which is the web frontend.
+ */
+function startKeepAlive(): void {
+  const base = process.env.KEEPALIVE_URL || process.env.RENDER_EXTERNAL_URL;
+  if (!env.isProd) return;
+  if (!base) {
+    console.log('[keepalive] disabled — set RENDER_EXTERNAL_URL or KEEPALIVE_URL to keep the service warm.');
+    return;
+  }
+  const target = `${base.replace(/\/$/, '')}/api/health`;
+  const everyMs = 13 * 60 * 1000;
+  setInterval(() => {
+    fetch(target).catch(e => console.warn('[keepalive] ping failed:', (e as Error).message));
+  }, everyMs);
+  console.log(`[keepalive] self-ping ${target} every ${everyMs / 60000} min`);
 }
 
 main().catch(err => {
