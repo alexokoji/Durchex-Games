@@ -53,7 +53,8 @@ export default function AdminBettingExposurePanel() {
     setSettling(true);
     try {
       const result = await adminApi.forceSettlePending();
-      toasts.success('Settlement complete', `Settled ${result.settled} bets (${result.skipped} skipped, ${result.total} total pending).`);
+      const details = `${result.settled} settled · ${result.voided} voided · ${result.failed} failed (${result.total} total)`;
+      toasts.success('Batch settlement complete', details);
       await load();
     } catch (e: any) {
       toasts.error('Settlement failed', e?.message ?? 'Try again.');

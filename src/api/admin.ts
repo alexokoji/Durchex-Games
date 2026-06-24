@@ -384,7 +384,7 @@ export const adminApi = {
 
   // Force-settle pending bets (admin override for edge cases)
   forceSettlePending: () =>
-    apiPost<{ ok: true; settled: number; skipped: number; total: number }>('/admin/force-settle-pending', {}),
+    apiPost<{ ok: true; settled: number; voided: number; failed: number; total: number }>('/admin/force-settle-pending', {}),
 };
 
 export interface AnalyticsDto {

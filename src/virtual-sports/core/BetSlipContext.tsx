@@ -407,16 +407,32 @@ const settleOutcomes = useCallback((outcomes: SettlementOutcome[]) => {
   // ── Global auto-settler ────────────────────────────────────────────────
   // Settlement must not depend on the user sitting on a league's sportsbook
   // page. This runs app-wide: for every open ticket whose matches have ALL
-  // finished, it replays the deterministic simulation (via deriveMatchState —
-  // absolute slot + seed, reproducible any time) and settles. This is what
-  // makes bets booked far ahead settle even after navigating away or returning
-  // a day later.
+  // Deterministic settlement on a timer: every 5s, check if any open tickets
+  // have all their matches finished. If all legs are done, settle the ticket.
+  // If a ticket's matches can't be resolved (bad ID, game deleted, etc.), void
+  // it after 3+ minutes to prevent them hanging indefinitely in the UI.
   useEffect(() => {
     if (openTickets.length === 0) return;
     const run = () => {
       const outcomes: SettlementOutcome[] = [];
+      const voidTickets: string[] = [];
+      const now = Date.now();
+
       for (const t of openTickets) {
         const states = t.selections.map(s => ({ s, st: deriveMatchState(s) }));
+
+        // Check if any match state is unresolvable (null) — sign of a stale/deleted fixture
+        const hasUnresolvable = states.some(x => x.st == null);
+        const ageMs = now - (t.placedAt ?? now);
+        if (hasUnresolvable && ageMs > 3 * 60 * 1000) {
+          // Ticket is >3 min old and has unresolvable matches → void it
+          voidTickets.push(t.id);
+          for (const { s } of states) {
+            outcomes.push({ selectionId: s.id, result: 'void', finalScore: undefined });
+          }
+          continue;
+        }
+
         // Only settle once every leg has finished (multi-leg tickets need all).
         if (states.length > 0 && states.every(x => x.st != null && x.st.phase === 'finished')) {
           for (const { s, st } of states) {

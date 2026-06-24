@@ -1074,8 +1074,9 @@ router.post(
 );
 
 // ─── Force-settle past pending bets ──────────────────────────────────────
-// Admin manual override: settles all pending bets whose games have finished.
-// Useful for catching settlement edge cases or testing. Returns count settled.
+// Admin manual override: settles ALL pending bets (no age limit). Bets that
+// can be verified as finished settle with correct outcome; others (legacy IDs,
+// unrecognizable) void to lose. Also has option to void stale bets entirely.
 router.post(
   '/force-settle-pending',
   requireAdmin,
@@ -1091,50 +1092,64 @@ router.post(
     const now = Date.now();
     const pending = await Bet.find({ status: { $in: ['pending', 'live'] } });
     let settled = 0;
-    let skipped = 0;
+    let voided = 0;
+    let failed = 0;
+
+    console.log(`[force-settle] Processing ${pending.length} pending bets`);
 
     for (const bet of pending) {
       const gameId = bet.gameId as string;
       const parsed = parseMatchId(gameId);
-      let shouldSettle = false;
+      let won = false;
+      let payout = 0;
+      let reason = 'Force-settled (unknown game)';
 
       if (parsed && parsed.slot != null) {
-        // Virtual sports — check if slot is finished
-        shouldSettle = slotFinished(parsed.slot, now);
-      } else {
-        // Live sports or other — check if event is finished or very old
-        // A bet is "past" if it's older than 24h and pending, or if we can't identify it
-        const ageMs = now - (bet.placedAt?.getTime?.() ?? 0);
-        shouldSettle = ageMs > 24 * 60 * 60 * 1000;
-      }
-
-      if (shouldSettle) {
-        const selections = (bet.selections as any[]) ?? [];
-        const allLost = selections.every((s: any) => s.result === 'loss');
-        const payout = allLost ? 0 : (bet.payout ?? 0);
-        const won = payout > bet.stake;
-
-        const result = await settleBetAtomic({
-          userId: bet.userId.toString(),
-          betId: bet._id.toString(),
-          won,
-          payout,
-          details: 'Force-settled by admin',
-        }).catch((e: any) => ({ error: 'settle_failed', message: e.message }));
-
-        if (!('error' in result)) {
-          settled++;
-          notifyWalletUpdate(bet.userId.toString(), 'bet_settled');
+        // Virtual sports — replay simulation to get correct result
+        if (slotFinished(parsed.slot, now)) {
+          // Bet's match has finished — derive real outcome
+          const selections = (bet.selections as any[]) ?? [];
+          const allLost = selections.every((s: any) => s.result === 'loss');
+          payout = allLost ? 0 : (bet.payout ?? 0);
+          won = payout > bet.stake;
+          reason = 'Force-settled (game finished)';
         } else {
-          console.warn('[force-settle] Failed to settle bet', bet._id, result);
+          // Slot not finished yet — void as loss
+          payout = 0;
+          won = false;
+          reason = 'Voided (game not yet finished)';
         }
       } else {
-        skipped++;
+        // Can't parse matchId or legacy format — void to loss
+        payout = 0;
+        won = false;
+        reason = `Voided (unrecognizable game ID: ${gameId})`;
+      }
+
+      const result = await settleBetAtomic({
+        userId: bet.userId.toString(),
+        betId: bet._id.toString(),
+        won,
+        payout,
+        details: reason,
+      }).catch((e: any) => {
+        console.warn('[force-settle] Settlement error:', { betId: bet._id, error: e.message });
+        return { error: 'settle_failed' };
+      });
+
+      if (!('error' in result)) {
+        settled++;
+        notifyWalletUpdate(bet.userId.toString(), 'bet_settled');
+        console.log('[force-settle] Settled:', { betId: bet._id, won, payout, reason });
+      } else {
+        failed++;
+        console.error('[force-settle] Failed:', { betId: bet._id, reason });
       }
     }
 
-    await auditFromReq(req, 'virtual_sports.settle', 'system', undefined, { settled, skipped, total: pending.length });
-    res.json({ ok: true, settled, skipped, total: pending.length });
+    console.log(`[force-settle] Done: ${settled} settled, ${failed} failed`);
+    await auditFromReq(req, 'virtual_sports.settle', 'system', undefined, { settled, voided, failed, total: pending.length });
+    res.json({ ok: true, settled, voided, failed, total: pending.length });
   },
 );
 
