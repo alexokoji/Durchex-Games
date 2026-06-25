@@ -82,7 +82,7 @@ export default function Footer() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
               <DiGLogo size={32} />
               <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', color: '#fff', letterSpacing: '-0.01em' }}>
-                DURCHEXiGAMES
+                DI Games
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.82rem', lineHeight: 1.55, color: 'text.secondary', mb: 2 }}>
@@ -161,7 +161,7 @@ export default function Footer() {
           gap: 1.5,
         }}>
           <Typography sx={{ fontSize: '0.72rem', color: 'text.disabled' }}>
-            © {new Date().getFullYear()} DURCHEXiGAMES. Play responsibly · 18+ · Gambling can be addictive.
+            © {new Date().getFullYear()} DI Games. Play responsibly · 18+ · Gambling can be addictive.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Link

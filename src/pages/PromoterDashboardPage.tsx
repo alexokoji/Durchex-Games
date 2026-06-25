@@ -97,7 +97,7 @@ export default function PromoterDashboardPage() {
     if (!referralLink) return;
     if (navigator.share) {
       navigator.share({
-        title: 'Join me on DURCHEXiGAMES',
+        title: 'Join me on DI Games',
         text:  'Use my link to claim your welcome bonus.',
         url:   referralLink,
       }).catch(() => copyLink());

@@ -114,7 +114,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
       if (!png) return;
       const blob  = await (await fetch(png)).blob();
       const file  = new File([blob], 'win-slip.png', { type: 'image/png' });
-      const title = `I won ${formatMoney(payout, currency)} on DURCHEXiGAMES! 🏆`;
+      const title = `I won ${formatMoney(payout, currency)} on DI Games! 🏆`;
 
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title, text: 'Check out my win slip!' });
@@ -212,7 +212,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
                 fontWeight: 900, fontSize: 13, color: '#fff', lineHeight: 1.15, margin: 0,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                DURCHEXiGAMES
+                DI Games
               </Typography>
               <Typography style={{
                 fontSize: 8, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', margin: 0,
@@ -441,7 +441,7 @@ export default function WinSlipModal({ ticket, currency, open, onClose }: WinSli
               fontSize: 8, color: 'rgba(255,255,255,0.15)',
               letterSpacing: '0.12em', margin: 0,
             }}>
-              DURCHEXiGAMES · PLAY RESPONSIBLY
+              DI Games · PLAY RESPONSIBLY
             </Typography>
           </Box>
         </Box>

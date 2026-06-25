@@ -40,11 +40,11 @@ export default function BetPlacedModal({
 
   const handleShare = async () => {
     if (!bookingCode) return;
-    const text = `Check out this ${selections}-leg ${mode} bet on Durchex Games! Code: ${bookingCode}`;
+    const text = `Check out this ${selections}-leg ${mode} bet on DI Games! Code: ${bookingCode}`;
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Durchex Games Bet Slip',
+          title: 'DI Games Bet Slip',
           text,
           url: window.location.href,
         });

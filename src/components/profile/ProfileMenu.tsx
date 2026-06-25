@@ -65,7 +65,7 @@ export default function ProfileMenu({
               <PersonIcon sx={{ fontSize: 28, color: 'text.secondary' }} />
             </Avatar>
             <Typography sx={{ fontWeight: 800, fontSize: '1rem', mb: 0.5 }}>
-              Welcome to DURCHEXiGAMES
+              Welcome to DI Games
             </Typography>
             <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', mb: 2 }}>
               Sign in or create an account to start playing

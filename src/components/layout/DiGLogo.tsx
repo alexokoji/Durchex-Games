@@ -12,7 +12,7 @@ export default function DiGLogo({ size = 36 }: DiGLogoProps) {
       src="/assets/logo.png"
       width={size}
       height={size}
-      alt="DURCHEXiGAMES"
+      alt="DI Games"
       style={{
         display: 'block',
         objectFit: 'contain',
