@@ -28,6 +28,8 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import SupportPage from './pages/SupportPage';
+import HiLoGamePage from './pages/HiLoGame';
+import CoinFlipGamePage from './pages/CoinFlipGame';
 import VirtualSportsbook from './virtual-sports/VirtualSportsbook';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -103,6 +105,8 @@ function App() {
                   <Route path="/horserace"   element={<VirtualSportsbook initialSport="horseracing" />} />
                   <Route path="/horse-race"  element={<VirtualSportsbook initialSport="horseracing" />} />
                   <Route path="/mines" element={<MinesGame />} />
+                  <Route path="/hilo" element={<HiLoGamePage />} />
+                  <Route path="/coinflip" element={<CoinFlipGamePage />} />
                   <Route path="/profile"     element={<ProfilePage />} />
                   <Route path="/bet-history" element={<BetHistoryPage />} />
                   <Route path="/rewards"     element={<RewardsPage />} />

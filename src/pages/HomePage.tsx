@@ -86,6 +86,18 @@ const GAMES: GameCardData[] = [
     gradient: 'linear-gradient(135deg, #15090a 0%, #2d0f0a 50%, #ff802222 100%)',
     image: '/assets/Games Images/Horse Racing.png',
   },
+  {
+    id: 'hilo', title: 'Hi-Lo', provider: 'Nexus Originals', rtp: '98.50%', players: 1456,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/hilo',
+    gradient: 'linear-gradient(135deg, #1a0520 0%, #2d0a4d 50%, #aa00ff22 100%)',
+    image: '/assets/Games Images/Hi-Lo.png',
+  },
+  {
+    id: 'coinflip', title: 'Coin Flip', provider: 'Nexus Originals', rtp: '98.50%', players: 2341,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/coinflip',
+    gradient: 'linear-gradient(135deg, #05051a 0%, #0a0a2e 50%, #ffff0022 100%)',
+    image: '/assets/Games Images/Coin Flip.png',
+  },
 ];
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'] as const;
