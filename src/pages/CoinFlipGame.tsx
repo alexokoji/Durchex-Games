@@ -6,6 +6,8 @@ import { useToasts } from '../contexts/ToastContext';
 import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { CoinFlipGame } from '../games/coinFlip/CoinFlipGame';
+import GamePageWrapper from '../components/games/GamePageWrapper';
+import { playSound } from '../constants/gameAssets';
 
 type CoinFace = 'heads' | 'tails';
 
@@ -33,8 +35,8 @@ export default function CoinFlipGamePage() {
   const [coinRotation, setCoinRotation] = useState(0);
 
   useEffect(() => {
-    engine.registerGame(game);
-  }, [engine, game]);
+    // Game registration handled internally
+  }, []);
 
   const playGame = async (prediction: CoinFace) => {
     if (!user || stake > wallet.balance) {
@@ -89,6 +91,7 @@ export default function CoinFlipGamePage() {
       });
 
       if (won) {
+        playSound('coin');
         const bet = await wallet.placeBet({
           gameId: 'coinflip',
           gameName: 'Coin Flip',
@@ -102,8 +105,23 @@ export default function CoinFlipGamePage() {
             multiplier: result.multiplier,
           });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'coinflip',
+            gameName: 'Coin Flip',
+            stake,
+            payout: result.payout,
+            multiplier: result.multiplier,
+            won: true,
+          }),
+        }).catch(() => {});
         toasts.success('Won!', `2x Payout!`);
       } else {
+        playSound('lose');
         const bet = await wallet.placeBet({
           gameId: 'coinflip',
           gameName: 'Coin Flip',
@@ -112,6 +130,20 @@ export default function CoinFlipGamePage() {
         if (bet) {
           await wallet.settleBet(bet.id, { won: false, payout: 0 });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'coinflip',
+            gameName: 'Coin Flip',
+            stake,
+            payout: 0,
+            multiplier: 0,
+            won: false,
+          }),
+        }).catch(() => {});
         toasts.error('Lost', 'Try again');
       }
     } catch (e: any) {
@@ -127,8 +159,9 @@ export default function CoinFlipGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
-      {/* Header */}
+    <GamePageWrapper gameId="coinflip">
+      <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+        {/* Header */}
       <Box sx={{ mb: 3, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 1 }}>
           🪙 Coin Flip
@@ -339,5 +372,6 @@ export default function CoinFlipGamePage() {
         </Typography>
       </Box>
     </Box>
+    </GamePageWrapper>
   );
 }

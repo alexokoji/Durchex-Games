@@ -6,6 +6,8 @@ import { useToasts } from '../contexts/ToastContext';
 import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { HiLoGame } from '../games/hiLo/HiLoGame';
+import GamePageWrapper from '../components/games/GamePageWrapper';
+import { playSound } from '../constants/gameAssets';
 
 interface GameState {
   currentCard?: { value: number; suit: string; label: string };
@@ -29,11 +31,11 @@ export default function HiLoGamePage() {
   });
   const [loading, setLoading] = useState(false);
   const [_engine] = useState(() => new GameEngine());
-  const [game] = useState(() => new HiLoGame(engine));
+  const [game] = useState(() => new HiLoGame(_engine));
 
   useEffect(() => {
-    engine.registerGame(game);
-  }, [engine, game]);
+    _engine.registerGame(game);
+  }, [_engine, game]);
 
   const playGame = async () => {
     if (!user || stake > wallet.balance) {
@@ -61,6 +63,7 @@ export default function HiLoGamePage() {
       });
 
       if (result.won) {
+        playSound('win');
         const bet = await wallet.placeBet({
           gameId: 'hilo',
           gameName: 'Hi-Lo',
@@ -74,8 +77,23 @@ export default function HiLoGamePage() {
             multiplier: result.multiplier,
           });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            username: user.username,
+            gameId: 'hilo',
+            gameName: 'Hi-Lo',
+            stake,
+            payout: result.payout,
+            multiplier: result.multiplier,
+            won: true,
+          }),
+        }).catch(() => {});
         toasts.success('Won!', `${result.multiplier.toFixed(2)}x`);
       } else {
+        playSound('lose');
         const bet = await wallet.placeBet({
           gameId: 'hilo',
           gameName: 'Hi-Lo',
@@ -84,6 +102,20 @@ export default function HiLoGamePage() {
         if (bet) {
           await wallet.settleBet(bet.id, { won: false, payout: 0 });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            username: user.username,
+            gameId: 'hilo',
+            gameName: 'Hi-Lo',
+            stake,
+            payout: 0,
+            multiplier: 0,
+            won: false,
+          }),
+        }).catch(() => {});
         toasts.error('Lost', 'Better luck next time');
       }
     } catch (e: any) {
@@ -102,9 +134,10 @@ export default function HiLoGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
-      {/* Header */}
-      <Box sx={{ mb: 3, textAlign: 'center' }}>
+    <GamePageWrapper gameId="hilo" gameName="Hi-Lo">
+      <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+        {/* Header */}
+        <Box sx={{ mb: 3, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 1 }}>
           🎴 Hi-Lo
         </Typography>
@@ -275,15 +308,16 @@ export default function HiLoGamePage() {
         </Stack>
       </Box>
 
-      {/* Balance Display */}
-      <Box sx={{ mt: 3, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: '0.9rem', color: 'text.secondary', mb: 1 }}>
-          Balance
-        </Typography>
-        <Typography sx={{ fontSize: '1.3rem', fontWeight: 900, color: neonGreen }}>
-          {wallet.balance.toFixed(2)} {wallet.currency}
-        </Typography>
+        {/* Balance Display */}
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Typography sx={{ fontSize: '0.9rem', color: 'text.secondary', mb: 1 }}>
+            Balance
+          </Typography>
+          <Typography sx={{ fontSize: '1.3rem', fontWeight: 900, color: neonGreen }}>
+            {wallet.balance.toFixed(2)} {wallet.currency}
+          </Typography>
+        </Box>
       </Box>
-    </Box>
+    </GamePageWrapper>
   );
 }

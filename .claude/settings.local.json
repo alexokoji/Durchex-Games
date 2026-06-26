@@ -72,7 +72,14 @@
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 20; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | head -20; \"EXIT=$LASTEXITCODE\")",
-      "Bash(echo \"BUILD RESULT: $?\")"
+      "Bash(echo \"BUILD RESULT: $?\")",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/update_games.sh)",
+      "Bash(/tmp/update_games.sh)",
+      "Bash(python batch_update_games.py)",
+      "Bash(rm batch_update_games.py)",
+      "Bash(git reset *)",
+      "Bash(git commit -m 'Fix: GamePageWrapper type import *)"
     ]
   }
 }

@@ -6,6 +6,8 @@ import { useToasts } from '../contexts/ToastContext';
 import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { DiceDuelGame } from '../games/diceDuel/DiceDuelGame';
+import GamePageWrapper from '../components/games/GamePageWrapper';
+import { playSound } from '../constants/gameAssets';
 
 type DiceMode = '1' | '2' | '3';
 

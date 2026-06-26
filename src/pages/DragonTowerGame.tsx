@@ -6,6 +6,8 @@ import { useToasts } from '../contexts/ToastContext';
 import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { DragonTowerGame } from '../games/dragonTower/DragonTowerGame';
+import GamePageWrapper from '../components/games/GamePageWrapper';
+import { playSound } from '../constants/gameAssets';
 
 export default function DragonTowerGamePage() {
   const wallet = useWallet();

@@ -6,6 +6,8 @@ import { useToasts } from '../contexts/ToastContext';
 import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { KenoGame } from '../games/keno/KenoGame';
+import GamePageWrapper from '../components/games/GamePageWrapper';
+import { playSound } from '../constants/gameAssets';
 
 interface GameState {
   matches?: number;

@@ -1,7 +1,6 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import GameLeaderboard from './GameLeaderboard';
-import { darkCard, darkBorder } from '../../theme';
 
 interface GamePageWrapperProps {
   gameId: string;
@@ -16,7 +15,7 @@ interface GamePageWrapperProps {
  * - Leaderboard display
  * - Proper spacing and margins
  */
-export default function GamePageWrapper({ gameId, gameName, children }: GamePageWrapperProps) {
+export default function GamePageWrapper({ gameId, children }: GamePageWrapperProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
