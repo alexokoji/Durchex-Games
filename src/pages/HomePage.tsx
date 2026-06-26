@@ -116,6 +116,18 @@ const GAMES: GameCardData[] = [
     gradient: 'linear-gradient(135deg, #2e0a0a 0%, #1a0a2e 50%, #00ffff22 100%)',
     image: '/assets/Games Images/Dice Duel.png',
   },
+  {
+    id: 'keno', title: 'Keno', provider: 'Nexus Originals', rtp: '98.50%', players: 1234,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/keno',
+    gradient: 'linear-gradient(135deg, #1a2e0a 0%, #0a2e1a 50%, #00ff6622 100%)',
+    image: '/assets/Games Images/Keno.png',
+  },
+  {
+    id: 'treasurehunt', title: 'Treasure Hunt', provider: 'Nexus Originals', rtp: '98.50%', players: 1891,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/treasurehunt',
+    gradient: 'linear-gradient(135deg, #2e1a0a 0%, #2e2a0a 50%, #ffaa0022 100%)',
+    image: '/assets/Games Images/Treasure Hunt.png',
+  },
 ];
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'] as const;

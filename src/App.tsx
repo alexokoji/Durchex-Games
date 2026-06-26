@@ -33,6 +33,8 @@ import CoinFlipGamePage from './pages/CoinFlipGame';
 import LimboGamePage from './pages/LimboGame';
 import ColorPredictionGamePage from './pages/ColorPredictionGame';
 import DiceDuelGamePage from './pages/DiceDuelGame';
+import KenoGamePage from './pages/KenoGame';
+import TreasureHuntGamePage from './pages/TreasureHuntGame';
 import VirtualSportsbook from './virtual-sports/VirtualSportsbook';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -113,6 +115,8 @@ function App() {
                   <Route path="/limbo" element={<LimboGamePage />} />
                   <Route path="/colorprediction" element={<ColorPredictionGamePage />} />
                   <Route path="/diceduel" element={<DiceDuelGamePage />} />
+                  <Route path="/keno" element={<KenoGamePage />} />
+                  <Route path="/treasurehunt" element={<TreasureHuntGamePage />} />
                   <Route path="/profile"     element={<ProfilePage />} />
                   <Route path="/bet-history" element={<BetHistoryPage />} />
                   <Route path="/rewards"     element={<RewardsPage />} />
