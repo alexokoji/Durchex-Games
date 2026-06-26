@@ -28,7 +28,7 @@ export default function HiLoGamePage() {
     gameOver: false,
   });
   const [loading, setLoading] = useState(false);
-  const [engine] = useState(() => new GameEngine());
+  const [_engine] = useState(() => new GameEngine());
   const [game] = useState(() => new HiLoGame(engine));
 
   useEffect(() => {

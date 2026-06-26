@@ -35,6 +35,14 @@ import ColorPredictionGamePage from './pages/ColorPredictionGame';
 import DiceDuelGamePage from './pages/DiceDuelGame';
 import KenoGamePage from './pages/KenoGame';
 import TreasureHuntGamePage from './pages/TreasureHuntGame';
+import DragonTowerGamePage from './pages/DragonTowerGame';
+import RocketEscapeGamePage from './pages/RocketEscapeGame';
+import LuckyCardsGamePage from './pages/LuckyCardsGame';
+import TreasureChestsGamePage from './pages/TreasureChestsGame';
+import LuckyDoorGamePage from './pages/LuckyDoorGame';
+import BombSquadGamePage from './pages/BombSquadGame';
+import LuckyWheelGamePage from './pages/LuckyWheelGame';
+import NumberDuelGamePage from './pages/NumberDuelGame';
 import VirtualSportsbook from './virtual-sports/VirtualSportsbook';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -117,6 +125,14 @@ function App() {
                   <Route path="/diceduel" element={<DiceDuelGamePage />} />
                   <Route path="/keno" element={<KenoGamePage />} />
                   <Route path="/treasurehunt" element={<TreasureHuntGamePage />} />
+                  <Route path="/dragontower" element={<DragonTowerGamePage />} />
+                  <Route path="/rocketescape" element={<RocketEscapeGamePage />} />
+                  <Route path="/luckycards" element={<LuckyCardsGamePage />} />
+                  <Route path="/treasurechests" element={<TreasureChestsGamePage />} />
+                  <Route path="/luckydoor" element={<LuckyDoorGamePage />} />
+                  <Route path="/bombsquad" element={<BombSquadGamePage />} />
+                  <Route path="/luckywheel" element={<LuckyWheelGamePage />} />
+                  <Route path="/numberduel" element={<NumberDuelGamePage />} />
                   <Route path="/profile"     element={<ProfilePage />} />
                   <Route path="/bet-history" element={<BetHistoryPage />} />
                   <Route path="/rewards"     element={<RewardsPage />} />

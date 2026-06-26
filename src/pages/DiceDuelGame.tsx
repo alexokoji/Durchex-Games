@@ -33,7 +33,7 @@ export default function DiceDuelGamePage() {
     isRolling: false,
   });
   const [loading, setLoading] = useState(false);
-  const [engine] = useState(() => new GameEngine());
+  const [_engine] = useState(() => new GameEngine());
   const [game] = useState(() => new DiceDuelGame());
   const [displayPlayer, setDisplayPlayer] = useState(0);
   const [displayHouse, setDisplayHouse] = useState(0);

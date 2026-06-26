@@ -71,7 +71,8 @@
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 10; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 20; \"EXIT=$LASTEXITCODE\")",
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1; \"EXIT=$LASTEXITCODE\")",
-      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | head -20; \"EXIT=$LASTEXITCODE\")"
+      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | head -20; \"EXIT=$LASTEXITCODE\")",
+      "Bash(echo \"BUILD RESULT: $?\")"
     ]
   }
 }

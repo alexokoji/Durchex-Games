@@ -25,7 +25,7 @@ export default function KenoGamePage() {
     isDrawing: false,
   });
   const [loading, setLoading] = useState(false);
-  const [engine] = useState(() => new GameEngine());
+  const [_engine] = useState(() => new GameEngine());
   const [game] = useState(() => new KenoGame());
   const [drawnCount, setDrawnCount] = useState(0);
 

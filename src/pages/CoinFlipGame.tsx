@@ -28,7 +28,7 @@ export default function CoinFlipGamePage() {
     isFlipping: false,
   });
   const [loading, setLoading] = useState(false);
-  const [engine] = useState(() => new GameEngine());
+  const [_engine] = useState(() => new GameEngine());
   const [game] = useState(() => new CoinFlipGame());
   const [coinRotation, setCoinRotation] = useState(0);
 
