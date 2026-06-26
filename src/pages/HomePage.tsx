@@ -12,6 +12,7 @@ import GameCard from '../components/casino/GameCard';
 import type { GameCardData } from '../components/casino/GameCard';
 import { neonGreen, neonBlue, neonGold, darkBorder, darkCard } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
+import { getGameCover } from '../constants/gameAssets';
 
 const GAMES: GameCardData[] = [
   {
@@ -90,52 +91,52 @@ const GAMES: GameCardData[] = [
     id: 'hilo', title: 'Hi-Lo', provider: 'Nexus Originals', rtp: '98.50%', players: 1456,
     badge: 'NEW', badgeColor: '#a855f7', path: '/hilo',
     gradient: 'linear-gradient(135deg, #1a0520 0%, #2d0a4d 50%, #aa00ff22 100%)',
-    image: '/assets/Games Images/Hi-Lo.png',
+    image: getGameCover('hilo'),
   },
   {
     id: 'coinflip', title: 'Coin Flip', provider: 'Nexus Originals', rtp: '98.50%', players: 2341,
     badge: 'NEW', badgeColor: '#a855f7', path: '/coinflip',
     gradient: 'linear-gradient(135deg, #05051a 0%, #0a0a2e 50%, #ffff0022 100%)',
-    image: '/assets/Games Images/Coin Flip.png',
+    image: getGameCover('coinflip'),
   },
   {
     id: 'limbo', title: 'Limbo', provider: 'Nexus Originals', rtp: '98.50%', players: 1823,
     badge: 'NEW', badgeColor: '#a855f7', path: '/limbo',
     gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2d0a5c 50%, #ff00ff22 100%)',
-    image: '/assets/Games Images/Limbo.png',
+    image: getGameCover('limbo'),
   },
   {
     id: 'colorprediction', title: 'Color Prediction', provider: 'Nexus Originals', rtp: '98.50%', players: 2156,
     badge: 'NEW', badgeColor: '#a855f7', path: '/colorprediction',
     gradient: 'linear-gradient(135deg, #0a1a2e 0%, #1a0a2e 50%, #ff00ff22 100%)',
-    image: '/assets/Games Images/Color Prediction.png',
+    image: getGameCover('colorprediction'),
   },
   {
     id: 'diceduel', title: 'Dice Duel', provider: 'Nexus Originals', rtp: '98.50%', players: 1567,
     badge: 'NEW', badgeColor: '#a855f7', path: '/diceduel',
     gradient: 'linear-gradient(135deg, #2e0a0a 0%, #1a0a2e 50%, #00ffff22 100%)',
-    image: '/assets/Games Images/Dice Duel.png',
+    image: getGameCover('diceduel'),
   },
   {
     id: 'keno', title: 'Keno', provider: 'Nexus Originals', rtp: '98.50%', players: 1234,
     badge: 'NEW', badgeColor: '#a855f7', path: '/keno',
     gradient: 'linear-gradient(135deg, #1a2e0a 0%, #0a2e1a 50%, #00ff6622 100%)',
-    image: '/assets/Games Images/Keno.png',
+    image: getGameCover('keno'),
   },
   {
     id: 'treasurehunt', title: 'Treasure Hunt', provider: 'Nexus Originals', rtp: '98.50%', players: 1891,
     badge: 'NEW', badgeColor: '#a855f7', path: '/treasurehunt',
     gradient: 'linear-gradient(135deg, #2e1a0a 0%, #2e2a0a 50%, #ffaa0022 100%)',
-    image: '/assets/Games Images/Treasure Hunt.png',
+    image: getGameCover('treasurehunt'),
   },
-  { id: 'dragontower', title: 'Dragon Tower', provider: 'Nexus Originals', rtp: '98.50%', players: 2012, badge: 'NEW', badgeColor: '#a855f7', path: '/dragontower', gradient: 'linear-gradient(135deg, #2e0a1a 0%, #3d0a2e 50%, #ff00ff22 100%)', image: '/assets/Games Images/Dragon Tower.png' },
-  { id: 'rocketescape', title: 'Rocket Escape', provider: 'Nexus Originals', rtp: '98.50%', players: 1734, badge: 'NEW', badgeColor: '#a855f7', path: '/rocketescape', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #0a1a3d 50%, #00ffff22 100%)', image: '/assets/Games Images/Rocket Escape.png' },
-  { id: 'luckycards', title: 'Lucky Cards', provider: 'Nexus Originals', rtp: '98.50%', players: 1456, badge: 'NEW', badgeColor: '#a855f7', path: '/luckycards', gradient: 'linear-gradient(135deg, #1a2e0a 0%, #0a3d1a 50%, #00ff0022 100%)', image: '/assets/Games Images/Lucky Cards.png' },
-  { id: 'treasurechests', title: 'Treasure Chests', provider: 'Nexus Originals', rtp: '98.50%', players: 1678, badge: 'NEW', badgeColor: '#a855f7', path: '/treasurechests', gradient: 'linear-gradient(135deg, #2e1a0a 0%, #3d1a0a 50%, #ff660022 100%)', image: '/assets/Games Images/Treasure Chests.png' },
-  { id: 'luckydoor', title: 'Lucky Door', provider: 'Nexus Originals', rtp: '98.50%', players: 1523, badge: 'NEW', badgeColor: '#a855f7', path: '/luckydoor', gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2e0a3d 50%, #aa00ff22 100%)', image: '/assets/Games Images/Lucky Door.png' },
-  { id: 'bombsquad', title: 'Bomb Squad', provider: 'Nexus Originals', rtp: '98.50%', players: 1845, badge: 'NEW', badgeColor: '#a855f7', path: '/bombsquad', gradient: 'linear-gradient(135deg, #2e0a0a 0%, #3d0a1a 50%, #ff330022 100%)', image: '/assets/Games Images/Bomb Squad.png' },
-  { id: 'luckywheel', title: 'Lucky Wheel Plus', provider: 'Nexus Originals', rtp: '98.50%', players: 1967, badge: 'NEW', badgeColor: '#a855f7', path: '/luckywheel', gradient: 'linear-gradient(135deg, #1a1a0a 0%, #2e2a0a 50%, #ffff0022 100%)', image: '/assets/Games Images/Lucky Wheel Plus.png' },
-  { id: 'numberduel', title: 'Number Duel', provider: 'Nexus Originals', rtp: '98.50%', players: 1612, badge: 'NEW', badgeColor: '#a855f7', path: '/numberduel', gradient: 'linear-gradient(135deg, #0a1a2e 0%, #0a2e3d 50%, #00ccff22 100%)', image: '/assets/Games Images/Number Duel.png' },
+  { id: 'dragontower', title: 'Dragon Tower', provider: 'Nexus Originals', rtp: '98.50%', players: 2012, badge: 'NEW', badgeColor: '#a855f7', path: '/dragontower', gradient: 'linear-gradient(135deg, #2e0a1a 0%, #3d0a2e 50%, #ff00ff22 100%)', image: getGameCover('dragontower') },
+  { id: 'rocketescape', title: 'Rocket Escape', provider: 'Nexus Originals', rtp: '98.50%', players: 1734, badge: 'NEW', badgeColor: '#a855f7', path: '/rocketescape', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #0a1a3d 50%, #00ffff22 100%)', image: getGameCover('rocketescape') },
+  { id: 'luckycards', title: 'Lucky Cards', provider: 'Nexus Originals', rtp: '98.50%', players: 1456, badge: 'NEW', badgeColor: '#a855f7', path: '/luckycards', gradient: 'linear-gradient(135deg, #1a2e0a 0%, #0a3d1a 50%, #00ff0022 100%)', image: getGameCover('luckycards') },
+  { id: 'treasurechests', title: 'Treasure Chests', provider: 'Nexus Originals', rtp: '98.50%', players: 1678, badge: 'NEW', badgeColor: '#a855f7', path: '/treasurechests', gradient: 'linear-gradient(135deg, #2e1a0a 0%, #3d1a0a 50%, #ff660022 100%)', image: getGameCover('treasurechests') },
+  { id: 'luckydoor', title: 'Lucky Door', provider: 'Nexus Originals', rtp: '98.50%', players: 1523, badge: 'NEW', badgeColor: '#a855f7', path: '/luckydoor', gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2e0a3d 50%, #aa00ff22 100%)', image: getGameCover('luckydoor') },
+  { id: 'bombsquad', title: 'Bomb Squad', provider: 'Nexus Originals', rtp: '98.50%', players: 1845, badge: 'NEW', badgeColor: '#a855f7', path: '/bombsquad', gradient: 'linear-gradient(135deg, #2e0a0a 0%, #3d0a1a 50%, #ff330022 100%)', image: getGameCover('bombsquad') },
+  { id: 'luckywheel', title: 'Lucky Wheel Plus', provider: 'Nexus Originals', rtp: '98.50%', players: 1967, badge: 'NEW', badgeColor: '#a855f7', path: '/luckywheel', gradient: 'linear-gradient(135deg, #1a1a0a 0%, #2e2a0a 50%, #ffff0022 100%)', image: getGameCover('luckywheel') },
+  { id: 'numberduel', title: 'Number Duel', provider: 'Nexus Originals', rtp: '98.50%', players: 1612, badge: 'NEW', badgeColor: '#a855f7', path: '/numberduel', gradient: 'linear-gradient(135deg, #0a1a2e 0%, #0a2e3d 50%, #00ccff22 100%)', image: getGameCover('numberduel') },
 ];
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'] as const;
