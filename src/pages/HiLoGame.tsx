@@ -134,7 +134,7 @@ export default function HiLoGamePage() {
   };
 
   return (
-    <GamePageWrapper gameId="hilo" gameName="Hi-Lo">
+    <GamePageWrapper gameId="hilo">
       <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
         {/* Header */}
         <Box sx={{ mb: 3, textAlign: 'center' }}>

@@ -27,13 +27,47 @@ export default function RocketEscapeGamePage() {
       setGameState({ gameOver: true, mult: result.multiplier, won: result.won });
       const bet = await wallet.placeBet({ gameId: 'rocketescape', gameName: 'Rocket Escape', stake });
       if (bet) await wallet.settleBet(bet.id, { won: result.won, payout: result.payout, multiplier: result.multiplier });
+      if (result.won) {
+        playSound('win');
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'rocketescape',
+            gameName: 'Rocket Escape',
+            stake,
+            payout: result.payout,
+            multiplier: result.multiplier,
+            won: true,
+          }),
+        }).catch(() => {});
+      } else {
+        playSound('lose');
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'rocketescape',
+            gameName: 'Rocket Escape',
+            stake,
+            payout: 0,
+            multiplier: 0,
+            won: false,
+          }),
+        }).catch(() => {});
+      }
       toasts.success(result.won ? 'Escaped!' : 'Crashed', result.won ? `${result.multiplier.toFixed(2)}x!` : 'No payout');
     } catch (e: any) { toasts.error('Error', e.message); }
     finally { setLoading(false); }
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 500, mx: 'auto' }}>
+    <GamePageWrapper gameId="rocketescape">
+      <Box sx={{ p: 3, maxWidth: 500, mx: 'auto' }}>
       <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 3, textAlign: 'center' }}>🚀 Rocket Escape</Typography>
       <Card sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, p: 3 }}>
         <Box sx={{ mb: 3, p: 2, background: '#1a1a2e', borderRadius: 1, textAlign: 'center' }}>
@@ -51,5 +85,6 @@ export default function RocketEscapeGamePage() {
       </Card>
       <Box sx={{ mt: 3, textAlign: 'center' }}><Typography sx={{ fontSize: '0.9rem', color: 'text.secondary', mb: 1 }}>Balance</Typography><Typography sx={{ fontSize: '1.3rem', fontWeight: 900, color: neonGreen }}>{wallet.balance.toFixed(2)} {wallet.currency}</Typography></Box>
     </Box>
+    </GamePageWrapper>
   );
 }

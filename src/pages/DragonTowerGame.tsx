@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Typography, Card, Stack } from '@mui/material';
+import { Box, Button, Typography, Card } from '@mui/material';
 import { useWallet } from '../contexts/WalletContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToasts } from '../contexts/ToastContext';
@@ -32,7 +32,13 @@ export default function DragonTowerGamePage() {
 
       const bet = await wallet.placeBet({ gameId: 'dragontower', gameName: 'Dragon Tower', stake });
       if (bet) await wallet.settleBet(bet.id, { won: result.won, payout: result.payout, multiplier: result.multiplier });
-      toasts.success(result.won ? 'Won!' : 'Lost', result.won ? `${result.multiplier.toFixed(2)}x!` : 'Dragon caught you!');
+      if (result.won) {
+        playSound('win');
+        toasts.success('Won!', `${result.multiplier.toFixed(2)}x!`);
+      } else {
+        playSound('lose');
+        toasts.success('Lost', 'Dragon caught you!');
+      }
     } catch (e: any) {
       toasts.error('Error', e.message);
     } finally {
@@ -41,8 +47,9 @@ export default function DragonTowerGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 500, mx: 'auto' }}>
-      <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 3, textAlign: 'center' }}>🐉 Dragon Tower</Typography>
+    <GamePageWrapper gameId="dragontower">
+      <Box sx={{ p: 3, maxWidth: 500, mx: 'auto' }}>
+        <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 3, textAlign: 'center' }}>🐉 Dragon Tower</Typography>
       <Card sx={{ background: darkCard, border: `1px solid ${darkBorder}`, borderRadius: 2, p: 3 }}>
         <Box sx={{ mb: 3, p: 2, background: '#1a1a2e', borderRadius: 1, textAlign: 'center' }}>
           <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: neonGold }}>Level {gameState.level}</Typography>
@@ -71,5 +78,6 @@ export default function DragonTowerGamePage() {
         <Typography sx={{ fontSize: '1.3rem', fontWeight: 900, color: neonGreen }}>{wallet.balance.toFixed(2)} {wallet.currency}</Typography>
       </Box>
     </Box>
+    </GamePageWrapper>
   );
 }

@@ -4,7 +4,6 @@ import GameLeaderboard from './GameLeaderboard';
 
 interface GamePageWrapperProps {
   gameId: string;
-  gameName: string;
   children: ReactNode;
 }
 

@@ -228,7 +228,7 @@ export default function HiLoGamePage() {
   );
 
   return (
-    <GamePageWrapper gameId="hilo" gameName="Hi-Lo">
+    <GamePageWrapper gameId="hilo">
       {gameContent}
     </GamePageWrapper>
   );

@@ -42,8 +42,8 @@ export default function ColorPredictionGamePage() {
   const [spinColor, setSpinColor] = useState<ColorChoice>('red');
 
   useEffect(() => {
-    engine.registerGame(game);
-  }, [engine, game]);
+    // Game registration handled internally
+  }, []);
 
   const playGame = async (prediction: ColorChoice) => {
     if (!user || stake > wallet.balance) {
@@ -111,8 +111,10 @@ export default function ColorPredictionGamePage() {
             multiplier: result.multiplier,
           });
         }
+        playSound('win');
         toasts.success('Won!', `${result.multiplier.toFixed(2)}x!`);
       } else {
+        playSound('lose');
         const bet = await wallet.placeBet({
           gameId: 'colorprediction',
           gameName: 'Color Prediction',
@@ -135,7 +137,8 @@ export default function ColorPredictionGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+    <GamePageWrapper gameId="colorprediction">
+      <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
       <Box sx={{ mb: 3, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 1 }}>
           🎨 Color Prediction
@@ -277,5 +280,6 @@ export default function ColorPredictionGamePage() {
         </Typography>
       </Box>
     </Box>
+    </GamePageWrapper>
   );
 }

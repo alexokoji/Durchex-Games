@@ -33,8 +33,8 @@ export default function TreasureHuntGamePage() {
   const [game] = useState(() => new TreasureHuntGame());
 
   useEffect(() => {
-    engine.registerGame(game);
-  }, [engine, game]);
+    // Game registration handled internally
+  }, []);
 
   const playGame = async () => {
     if (!user || stake > wallet.balance) {
@@ -71,6 +71,7 @@ export default function TreasureHuntGamePage() {
       });
 
       if (result.won) {
+        playSound('win');
         const bet = await wallet.placeBet({
           gameId: 'treasurehunt',
           gameName: 'Treasure Hunt',
@@ -83,8 +84,23 @@ export default function TreasureHuntGamePage() {
             multiplier: result.multiplier,
           });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'treasurehunt',
+            gameName: 'Treasure Hunt',
+            stake,
+            payout: result.payout,
+            multiplier: result.multiplier,
+            won: true,
+          }),
+        }).catch(() => {});
         toasts.success('Won!', `${result.multiplier.toFixed(2)}x!`);
       } else {
+        playSound('lose');
         const bet = await wallet.placeBet({
           gameId: 'treasurehunt',
           gameName: 'Treasure Hunt',
@@ -93,6 +109,20 @@ export default function TreasureHuntGamePage() {
         if (bet) {
           await wallet.settleBet(bet.id, { won: false, payout: 0 });
         }
+        fetch('/api/leaderboard/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.id,
+            username: user?.username,
+            gameId: 'treasurehunt',
+            gameName: 'Treasure Hunt',
+            stake,
+            payout: 0,
+            multiplier: 0,
+            won: false,
+          }),
+        }).catch(() => {});
         toasts.error('Lost', 'Bomb found!');
       }
     } catch (e: any) {
@@ -107,7 +137,8 @@ export default function TreasureHuntGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+    <GamePageWrapper gameId="treasurehunt">
+      <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
       <Box sx={{ mb: 3, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 1 }}>
           🎁 Treasure Hunt
@@ -251,5 +282,6 @@ export default function TreasureHuntGamePage() {
         </Typography>
       </Box>
     </Box>
+    </GamePageWrapper>
   );
 }

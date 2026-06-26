@@ -41,8 +41,8 @@ export default function DiceDuelGamePage() {
   const [displayHouse, setDisplayHouse] = useState(0);
 
   useEffect(() => {
-    engine.registerGame(game);
-  }, [engine, game]);
+    // Game registration handled internally
+  }, []);
 
   const playGame = async () => {
     if (!user || stake > wallet.balance) {
@@ -115,8 +115,10 @@ export default function DiceDuelGamePage() {
             multiplier: result.multiplier,
           });
         }
+        playSound('win');
         toasts.success('Won!', `${result.multiplier.toFixed(2)}x!`);
       } else {
+        playSound('lose');
         const bet = await wallet.placeBet({
           gameId: 'diceduel',
           gameName: 'Dice Duel',
@@ -141,7 +143,8 @@ export default function DiceDuelGamePage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+    <GamePageWrapper gameId="diceduel">
+      <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
       <Box sx={{ mb: 3, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2rem', fontWeight: 900, mb: 1 }}>
           🎲 Dice Duel
@@ -307,5 +310,6 @@ export default function DiceDuelGamePage() {
         </Typography>
       </Box>
     </Box>
+    </GamePageWrapper>
   );
 }
