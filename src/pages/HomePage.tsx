@@ -98,6 +98,24 @@ const GAMES: GameCardData[] = [
     gradient: 'linear-gradient(135deg, #05051a 0%, #0a0a2e 50%, #ffff0022 100%)',
     image: '/assets/Games Images/Coin Flip.png',
   },
+  {
+    id: 'limbo', title: 'Limbo', provider: 'Nexus Originals', rtp: '98.50%', players: 1823,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/limbo',
+    gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2d0a5c 50%, #ff00ff22 100%)',
+    image: '/assets/Games Images/Limbo.png',
+  },
+  {
+    id: 'colorprediction', title: 'Color Prediction', provider: 'Nexus Originals', rtp: '98.50%', players: 2156,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/colorprediction',
+    gradient: 'linear-gradient(135deg, #0a1a2e 0%, #1a0a2e 50%, #ff00ff22 100%)',
+    image: '/assets/Games Images/Color Prediction.png',
+  },
+  {
+    id: 'diceduel', title: 'Dice Duel', provider: 'Nexus Originals', rtp: '98.50%', players: 1567,
+    badge: 'NEW', badgeColor: '#a855f7', path: '/diceduel',
+    gradient: 'linear-gradient(135deg, #2e0a0a 0%, #1a0a2e 50%, #00ffff22 100%)',
+    image: '/assets/Games Images/Dice Duel.png',
+  },
 ];
 
 const CATEGORIES = ['All', 'Originals', 'Slots', 'Live', 'Table', 'Sports'] as const;

@@ -69,7 +69,8 @@
       "Bash(git commit -m ' *)",
       "Bash(xargs grep -l \"Durchex\")",
       "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 10; \"EXIT=$LASTEXITCODE\")",
-      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 20; \"EXIT=$LASTEXITCODE\")"
+      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1 | Select-Object -First 20; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(cd \"C:\\\\Users\\\\Darker Elf\\\\Downloads\\\\Durchex Games\\\\project\"; npx tsc -b 2>&1; \"EXIT=$LASTEXITCODE\")"
     ]
   }
 }

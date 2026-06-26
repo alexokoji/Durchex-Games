@@ -30,6 +30,9 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import SupportPage from './pages/SupportPage';
 import HiLoGamePage from './pages/HiLoGame';
 import CoinFlipGamePage from './pages/CoinFlipGame';
+import LimboGamePage from './pages/LimboGame';
+import ColorPredictionGamePage from './pages/ColorPredictionGame';
+import DiceDuelGamePage from './pages/DiceDuelGame';
 import VirtualSportsbook from './virtual-sports/VirtualSportsbook';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -107,6 +110,9 @@ function App() {
                   <Route path="/mines" element={<MinesGame />} />
                   <Route path="/hilo" element={<HiLoGamePage />} />
                   <Route path="/coinflip" element={<CoinFlipGamePage />} />
+                  <Route path="/limbo" element={<LimboGamePage />} />
+                  <Route path="/colorprediction" element={<ColorPredictionGamePage />} />
+                  <Route path="/diceduel" element={<DiceDuelGamePage />} />
                   <Route path="/profile"     element={<ProfilePage />} />
                   <Route path="/bet-history" element={<BetHistoryPage />} />
                   <Route path="/rewards"     element={<RewardsPage />} />
