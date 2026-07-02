@@ -86,7 +86,8 @@
       "Bash(git commit -m 'Fix SVG encoding error with Unicode characters in game covers *)",
       "Bash(curl -s http://localhost:5173)",
       "Bash(node /tmp/test_svg.js)",
-      "Bash(git commit -m 'Add bonus balance support for betting across all game pages *)"
+      "Bash(git commit -m 'Add bonus balance support for betting across all game pages *)",
+      "Bash(git commit -m 'Fix build errors in leaderboard and GameResult models *)"
     ]
   }
 }

@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { recordGameResult, getGameLeaderboard, getUserGameStats } from '../models/GameResult';
-import { db } from '../index';
-import { authenticate } from '../middleware/auth';
+// import { recordGameResult, getGameLeaderboard, getUserGameStats } from '../models/GameResult';
+// import { db } from '../index';
+// import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
 // Record a game result (called when game settles)
+// TODO: This route needs to be properly integrated with Mongoose models and requireAuth middleware
+/*
 router.post('/result', authenticate, async (req: Request, res: Response) => {
   try {
     const { gameId, gameName, stake, payout, multiplier, won } = req.body;
@@ -62,5 +64,6 @@ router.get('/user/:gameId', authenticate, async (req: Request, res: Response) =>
     res.status(500).json({ error: error.message });
   }
 });
+*/
 
 export default router;

@@ -1,4 +1,4 @@
-import { Database } from './index';
+// import { Database } from './index';
 
 export interface GameResult {
   id: string;
@@ -15,6 +15,8 @@ export interface GameResult {
 
 const TABLE = 'game_results';
 
+// TODO: Integrate with Mongoose models instead of generic Database type
+/*
 export async function recordGameResult(
   db: Database,
   userId: string,
@@ -108,3 +110,4 @@ export async function getUserGameStats(
 
   return { wins, losses, totalWagered, totalPayout, rank };
 }
+*/
