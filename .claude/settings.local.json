@@ -85,7 +85,8 @@
       "mcp__claude-in-chrome__navigate",
       "Bash(git commit -m 'Fix SVG encoding error with Unicode characters in game covers *)",
       "Bash(curl -s http://localhost:5173)",
-      "Bash(node /tmp/test_svg.js)"
+      "Bash(node /tmp/test_svg.js)",
+      "Bash(git commit -m 'Add bonus balance support for betting across all game pages *)"
     ]
   }
 }

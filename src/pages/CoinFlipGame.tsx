@@ -7,6 +7,7 @@ import { neonGreen, neonGold, darkCard, darkBorder } from '../theme';
 import { GameEngine } from '../games/shared/GameEngine';
 import { CoinFlipGame } from '../games/coinFlip/CoinFlipGame';
 import GamePageWrapper from '../components/games/GamePageWrapper';
+import AvailableBalance from '../components/games/AvailableBalance';
 import { playSound } from '../constants/gameAssets';
 
 type CoinFace = 'heads' | 'tails';
@@ -362,14 +363,8 @@ export default function CoinFlipGamePage() {
         </Stack>
       </Box>
 
-      {/* Balance */}
-      <Box sx={{ mt: 3, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: '0.9rem', color: 'text.secondary', mb: 1 }}>
-          Balance
-        </Typography>
-        <Typography sx={{ fontSize: '1.3rem', fontWeight: 900, color: neonGreen }}>
-          {wallet.balance.toFixed(2)} {wallet.currency}
-        </Typography>
+      <Box sx={{ mt: 3 }}>
+        <AvailableBalance balance={wallet.balance} bonusBalance={wallet.bonusBalance} currency={wallet.currency} />
       </Box>
     </Box>
     </GamePageWrapper>
