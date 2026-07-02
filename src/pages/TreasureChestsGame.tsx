@@ -8,7 +8,7 @@ import { GameEngine } from '../games/shared/GameEngine';
 import { TreasureChestsGame } from '../games/treasureChests/TreasureChestsGame';
 import GamePageWrapper from '../components/games/GamePageWrapper';
 import { playSound } from '../constants/gameAssets';
-import { logSettlementStart, logSettlementSuccess, logSettlementError } from '../utils/settlementDebug';
+import { settleCasinoBet } from '../utils/casinoSettlement';
 
 export default function TreasureChestsGamePage() {
   const wallet = useWallet();
@@ -37,62 +37,30 @@ export default function TreasureChestsGamePage() {
         mode: 'single',
       });
       setGameState({ gameOver: true, won: result.won });
-      const bet = await wallet.placeBet({
+      await settleCasinoBet({
         gameId: 'treasurechests',
         gameName: 'Treasure Chests',
+        betResult: result,
         stake,
+        wallet,
+        toasts,
+        onPlaySound: playSound as (type: string) => void,
       });
-      if (bet) {
-        try {
-          logSettlementStart('treasurechests', bet.id, stake, result.payout, result.won);
-          await wallet.settleBet(bet.id, {
-            won: result.won,
-            payout: result.payout,
-            multiplier: result.multiplier,
-          });
-          logSettlementSuccess('treasurechests', bet.id, result.payout);
-        } catch (settleErr: any) {
-          logSettlementError('treasurechests', bet.id, settleErr);
-          toasts.error('Settlement error', `Bet may be settling in background. Error: ${settleErr?.message || 'unknown'}`);
-        }
-      } else {
-        toasts.error('Placement error', 'Failed to place bet');
-      }
-      if (result.won) {
-        playSound('win');
-        fetch('/api/leaderboard/result', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            username: user.username,
-            gameId: 'treasurechests',
-            gameName: 'Treasure Chests',
-            stake,
-            payout: result.payout,
-            multiplier: result.multiplier,
-            won: true,
-          }),
-        }).catch(() => {});
-        toasts.success('Won!', `${result.multiplier.toFixed(2)}x!`);
-      } else {
-        playSound('lose');
-        fetch('/api/leaderboard/result', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            username: user.username,
-            gameId: 'treasurechests',
-            gameName: 'Treasure Chests',
-            stake,
-            payout: 0,
-            multiplier: 0,
-            won: false,
-          }),
-        }).catch(() => {});
-        toasts.error('Lost', 'No treasure');
-      }
+      // Post to leaderboard
+      fetch('/api/leaderboard/result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          username: user.username,
+          gameId: 'treasurechests',
+          gameName: 'Treasure Chests',
+          stake,
+          payout: result.payout,
+          multiplier: result.multiplier,
+          won: result.won,
+        }),
+      }).catch(() => {});
     } catch (e: any) {
       toasts.error('Error', e.message);
     } finally {
