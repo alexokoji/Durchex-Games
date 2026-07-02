@@ -84,7 +84,8 @@
       "Bash(Get-Content \"C:\\\\Users\\\\DARKER~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Darker-Elf-Downloads-Durchex-Games-project\\\\49512d69-deb7-49c8-9dc9-fb1bb482a279\\\\tasks\\\\bvddrwc4t.output\" -Tail 30)",
       "mcp__claude-in-chrome__navigate",
       "Bash(git commit -m 'Fix SVG encoding error with Unicode characters in game covers *)",
-      "Bash(curl -s http://localhost:5173)"
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(node /tmp/test_svg.js)"
     ]
   }
 }
