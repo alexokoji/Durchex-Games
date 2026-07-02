@@ -8,6 +8,7 @@ import { GameEngine } from '../games/shared/GameEngine';
 import { TreasureChestsGame } from '../games/treasureChests/TreasureChestsGame';
 import GamePageWrapper from '../components/games/GamePageWrapper';
 import { playSound } from '../constants/gameAssets';
+import { logSettlementStart, logSettlementSuccess, logSettlementError } from '../utils/settlementDebug';
 
 export default function TreasureChestsGamePage() {
   const wallet = useWallet();
@@ -42,11 +43,20 @@ export default function TreasureChestsGamePage() {
         stake,
       });
       if (bet) {
-        await wallet.settleBet(bet.id, {
-          won: result.won,
-          payout: result.payout,
-          multiplier: result.multiplier,
-        });
+        try {
+          logSettlementStart('treasurechests', bet.id, stake, result.payout, result.won);
+          await wallet.settleBet(bet.id, {
+            won: result.won,
+            payout: result.payout,
+            multiplier: result.multiplier,
+          });
+          logSettlementSuccess('treasurechests', bet.id, result.payout);
+        } catch (settleErr: any) {
+          logSettlementError('treasurechests', bet.id, settleErr);
+          toasts.error('Settlement error', `Bet may be settling in background. Error: ${settleErr?.message || 'unknown'}`);
+        }
+      } else {
+        toasts.error('Placement error', 'Failed to place bet');
       }
       if (result.won) {
         playSound('win');

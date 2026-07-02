@@ -256,12 +256,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'settle_bet_failed';
       setLastError(code);
+      console.error('[WalletContext.settleBet] Settlement failed:', { betId, code, error: err });
       // Always refresh on any settlement error. The server may have already
       // credited the payout (e.g. bet_already_settled, race with a server-side
       // scheduler) or the request may have failed mid-flight leaving the client
       // balance stuck at B-stake. A refresh re-syncs the displayed balance from
       // the server's source of truth regardless of the error type.
       void refresh();
+      throw new Error(`Settlement failed: ${code}`);
     }
   }, [pendingBets, refresh]);
 
