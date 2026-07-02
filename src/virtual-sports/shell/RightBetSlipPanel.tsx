@@ -495,6 +495,13 @@ function BetSlipBody() {
           void slip.placeBet().then(async ticket => {
               if (!ticket) return;
               toasts.success('Bet placed', `Stake ${formatMoney(totalStake, wallet.currency)} locked in.`);
+              // Show modal immediately — don't wait for booking code minting
+              setLastBetStake(totalStake);
+              setLastBetPayout(snapPayout);
+              setLastBetSelections(snapSelections.length);
+              setLastBetMode(snapMode);
+              setShowBetModal(true);
+
               // Auto-mint booking code for the placed slip. Keep errors
               // local to the booking row state so the user can still place
               // bets even if minting fails.
@@ -508,11 +515,6 @@ function BetSlipBody() {
                 });
                 setMintedCode(r.code);
                 setLastBetCode(r.code);
-                setLastBetStake(totalStake);
-                setLastBetPayout(snapPayout);
-                setLastBetSelections(snapSelections.length);
-                setLastBetMode(snapMode);
-                setShowBetModal(true);
                 setCodeStatus({ kind: 'ok', message: `Code ${r.code} ready — copy & share` });
               } catch (err) {
                 setCodeStatus({ kind: 'error', message: err instanceof ApiError ? err.code : 'mint_failed' });

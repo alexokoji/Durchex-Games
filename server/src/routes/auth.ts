@@ -33,13 +33,14 @@ const VERIFICATION_TTL_MS = 20 * 60 * 1000;
 
 /**
  * Default welcome bonus, applied when the user signs up WITHOUT a promo code.
+ * CURRENTLY DISABLED: Set to empty to give no bonus on signup.
  * Goes into `bonusBalance` (not real balance), with a 5× wagering requirement.
  * Per-currency to give roughly equal value across regions.
  */
 const WELCOME_BONUS: Partial<Record<FiatCurrency, number>> = {
-  NGN: 1000, USD: 5, EUR: 5, GBP: 5, CAD: 7, AUD: 7,
-  GHS: 50, KES: 500, ZAR: 80, ZMW: 100, RWF: 5000, UGX: 15000, TZS: 10000, EGP: 200,
-  JPY: 500, INR: 400, BRL: 25, MXN: 100,
+  // NGN: 1000, USD: 5, EUR: 5, GBP: 5, CAD: 7, AUD: 7,
+  // GHS: 50, KES: 500, ZAR: 80, ZMW: 100, RWF: 5000, UGX: 15000, TZS: 10000, EGP: 200,
+  // JPY: 500, INR: 400, BRL: 25, MXN: 100,
 };
 const DEFAULT_WELCOME_ROLLOVER = 5;
 function welcomeBonusFor(currency: FiatCurrency): number {
