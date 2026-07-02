@@ -79,7 +79,11 @@
       "Bash(python batch_update_games.py)",
       "Bash(rm batch_update_games.py)",
       "Bash(git reset *)",
-      "Bash(git commit -m 'Fix: GamePageWrapper type import *)"
+      "Bash(git commit -m 'Fix: GamePageWrapper type import *)",
+      "Bash(Start-Sleep -Milliseconds 3000)",
+      "Bash(Get-Content \"C:\\\\Users\\\\DARKER~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Darker-Elf-Downloads-Durchex-Games-project\\\\49512d69-deb7-49c8-9dc9-fb1bb482a279\\\\tasks\\\\bvddrwc4t.output\" -Tail 30)",
+      "mcp__claude-in-chrome__navigate",
+      "Bash(git commit -m 'Fix SVG encoding error with Unicode characters in game covers *)"
     ]
   }
 }

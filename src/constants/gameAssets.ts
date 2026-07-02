@@ -4,8 +4,19 @@
  * Sounds from: Freesound (freesound.org), Zapsplat (zapsplat.com)
  */
 
-// SVG Game Cover Generator
+// SVG Game Cover Generator with UTF-8 encoding
 function createSVGCover(gameId: string): string {
+  // Helper function for proper UTF-8 encoding
+  const encodeToDataUri = (svg: string): string => {
+    try {
+      // Try btoa first for ASCII-only SVGs
+      return `data:image/svg+xml;base64,${btoa(svg)}`;
+    } catch {
+      // Fall back to UTF-8 URL encoding for SVGs with Unicode
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+  };
+
   const svgs: Record<string, string> = {
     hilo: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="hiloGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" /><stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" /></linearGradient></defs><rect width="400" height="300" fill="url(#hiloGrad)"/><rect x="50" y="80" width="80" height="120" fill="white" stroke="#333" stroke-width="2" rx="4"/><text x="90" y="145" font-size="48" font-weight="bold" text-anchor="middle" fill="#000">K♠</text><rect x="170" y="80" width="60" height="120" fill="#ff6b6b" stroke="#333" stroke-width="2" rx="4"/><text x="200" y="140" font-size="36" font-weight="bold" text-anchor="middle" fill="white">?</text><rect x="270" y="80" width="80" height="120" fill="white" stroke="#333" stroke-width="2" rx="4"/><text x="310" y="155" font-size="32" font-weight="bold" text-anchor="middle" fill="#000">↓</text><text x="200" y="240" font-size="20" font-weight="bold" text-anchor="middle" fill="#00ff88">HI-LO</text></svg>`,
 
@@ -39,7 +50,7 @@ function createSVGCover(gameId: string): string {
   };
 
   const svg = svgs[gameId] || svgs.hilo;
-  return `data:image/svg+xml;base64,${btoa(svg)}`;
+  return encodeToDataUri(svg);
 }
 
 export const GAME_COVERS: Record<string, string> = {
